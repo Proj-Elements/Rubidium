@@ -55,11 +55,13 @@ test("mobile overview prioritizes the next reminder and unsaved settings protect
   await page.goto("/settings");
   const endpoint = page.getByLabel("API 服务地址");
   await endpoint.fill("https://api.day.app/");
-  page.once("dialog", (dialog) => void dialog.dismiss());
   await page.getByRole("link", { name: "投递记录" }).click();
+  await expect(page.getByRole("alertdialog")).toBeVisible();
+  await page.getByRole("button", { name: "继续编辑" }).click();
   await expect(page).toHaveURL(/\/settings$/);
-  page.once("dialog", (dialog) => void dialog.accept());
   await page.getByRole("link", { name: "投递记录" }).click();
+  await expect(page.getByRole("alertdialog")).toBeVisible();
+  await page.getByRole("button", { name: "离开页面" }).click();
   await expect(page).toHaveURL(/\/deliveries$/);
   await page.setViewportSize({ width: 390, height: 844 });
   await expect(page.getByRole("button", { name: /投递状态/ })).toHaveText("全部记录");
@@ -80,12 +82,14 @@ test("browser Back preserves dirty settings when leaving is rejected", async ({ 
   await page.getByRole("link", { name: "所有提醒", exact: true }).click();
   await page.getByRole("link", { name: "推送设置", exact: true }).click();
   await page.getByLabel("API 服务地址", { exact: true }).fill("https://edited.example");
-  page.once("dialog", (dialog) => void dialog.dismiss());
   await page.evaluate(() => history.back());
+  await expect(page.getByRole("alertdialog")).toBeVisible();
+  await page.getByRole("button", { name: "继续编辑" }).click();
   await expect(page).toHaveURL(/\/settings$/);
   await expect(page.getByLabel("API 服务地址", { exact: true })).toHaveValue("https://edited.example");
-  page.once("dialog", (dialog) => void dialog.accept());
   await page.evaluate(() => history.back());
+  await expect(page.getByRole("alertdialog")).toBeVisible();
+  await page.getByRole("button", { name: "离开页面" }).click();
   await expect(page).toHaveURL(/\/tasks$/);
 });
 

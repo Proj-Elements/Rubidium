@@ -13,6 +13,7 @@ import { useResource } from "./use-resource";
 import { WorkspaceContext } from "./workspace-context";
 import { TaskEditor } from "./task-editor";
 import { Glyph } from "./icons";
+import { UnsavedNavigationDialog } from "./unsaved-navigation-dialog";
 
 export function Workspace({ children }: { children: ReactNode }) {
   const [authenticated, setAuthenticated] = useState<boolean | null>(null);
@@ -53,5 +54,6 @@ function AuthenticatedWorkspace({ children, logout }: { children: ReactNode; log
       {children}
     </Shell>
     {editor && <TaskEditor task={editor.task} duplicate={editor.duplicate} onClose={() => setEditor(null)} />}
+    <UnsavedNavigationDialog />
   </WorkspaceContext.Provider>;
 }

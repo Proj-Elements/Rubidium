@@ -4,6 +4,12 @@ import { useEffect } from "react";
 
 let dirtyFormCount = 0;
 let removePageGuards: (() => void) | null = null;
+const guardEvent = "barker:unsaved-navigation";
+
+export interface UnsavedNavigationRequest {
+  proceed: () => void;
+  cancel: () => void;
+}
 
 function beforeUnload(event: BeforeUnloadEvent): void {
   event.preventDefault();
@@ -11,6 +17,7 @@ function beforeUnload(event: BeforeUnloadEvent): void {
 }
 
 function interceptLink(event: MouseEvent): void {
+  if (dirtyFormCount === 0) return;
   if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
   const target = event.target instanceof Element ? event.target : null;
   const anchor = target?.closest<HTMLAnchorElement>("a[href]");
@@ -18,10 +25,13 @@ function interceptLink(event: MouseEvent): void {
   if (!anchor || anchor.target === "_blank" || anchor.hasAttribute("download")) return;
   const destination = new URL(anchor.href, window.location.href);
   if (destination.origin === window.location.origin && destination.pathname === window.location.pathname && destination.search === window.location.search) return;
-  if (!confirmUnsavedNavigation()) {
-    event.preventDefault();
-    event.stopPropagation();
-  }
+  event.preventDefault();
+  event.stopPropagation();
+  confirmUnsavedNavigation(() => {
+    anchor.dataset.unsavedHandled = "true";
+    anchor.click();
+    delete anchor.dataset.unsavedHandled;
+  });
 }
 
 function acquirePageGuards(): void {
@@ -36,12 +46,12 @@ function acquirePageGuards(): void {
   const popstate = (event: PopStateEvent) => {
     if (leaving) return;
     event.stopImmediatePropagation();
-    if (confirmUnsavedNavigation()) {
+    confirmUnsavedNavigation(() => {
       leaving = true;
       window.history.back();
-    } else {
+    }, () => {
       window.history.pushState({ ...guardedState, barkerUnsaved: true }, "", guardedUrl);
-    }
+    });
   };
   window.addEventListener("popstate", popstate, true);
   removePageGuards = () => {
@@ -59,9 +69,18 @@ function releasePageGuards(): void {
   removePageGuards = null;
 }
 
-export function confirmUnsavedNavigation(): boolean {
-  if (typeof window === "undefined" || dirtyFormCount === 0) return true;
-  return window.confirm("有尚未保存的修改，确认离开？");
+export function confirmUnsavedNavigation(proceed: () => void, cancel = () => {}): void {
+  if (typeof window === "undefined" || dirtyFormCount === 0) {
+    proceed();
+    return;
+  }
+  window.dispatchEvent(new CustomEvent<UnsavedNavigationRequest>(guardEvent, { detail: { proceed, cancel } }));
+}
+
+export function subscribeUnsavedNavigation(handler: (request: UnsavedNavigationRequest) => void): () => void {
+  const listener = (event: Event) => handler((event as CustomEvent<UnsavedNavigationRequest>).detail);
+  window.addEventListener(guardEvent, listener);
+  return () => window.removeEventListener(guardEvent, listener);
 }
 
 export function useUnsaved(dirty: boolean): void {

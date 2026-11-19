@@ -90,8 +90,8 @@ function WorkspaceNavigation({ onNavigate }: { onNavigate?: () => void }) {
 
   function handleAccountAction(key: Key) {
     onNavigate?.();
-    if (key === "settings" && confirmUnsavedNavigation()) router.push("/settings");
-    if (key === "logout" && confirmUnsavedNavigation()) void logout().catch((error) => notify(errorMessage(error), "error"));
+    if (key === "settings") confirmUnsavedNavigation(() => router.push("/settings"));
+    if (key === "logout") confirmUnsavedNavigation(() => void logout().catch((error) => notify(errorMessage(error), "error")));
   }
 
   return <>
