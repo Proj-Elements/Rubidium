@@ -12,5 +12,5 @@ export const metadata: Metadata = {
 
 export default async function RootLayout({ children }: { children: ReactNode }) {
   await connection();
-  return <html lang="zh-CN"><body><Workspace>{children}</Workspace></body></html>;
+  return <html lang="zh-CN" data-theme="system"><body className="bg-background text-foreground"><Workspace>{children}</Workspace></body></html>;
 }

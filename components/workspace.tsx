@@ -2,7 +2,7 @@
 
 import { I18nProvider } from "react-aria";
 import { usePathname } from "next/navigation";
-import { Button } from "@heroui/react";
+import { Button, Toast, toast } from "@heroui/react";
 import { useEffect, useState, type ReactNode } from "react";
 import type { Dashboard, Task } from "@/lib/types";
 import { api, errorMessage } from "@/lib/ui";
@@ -32,21 +32,15 @@ export function Workspace({ children }: { children: ReactNode }) {
     window.addEventListener("barker:unauthorized", expired);
     return () => { alive = false; window.removeEventListener("barker:unauthorized", expired); };
   }, []);
-  return <I18nProvider locale="zh-CN">{authenticated === null ? <main className="boot-screen"><span className="brand-mark"><Glyph name="bell" size={25} /></span>{error ? <><Notice>{error}</Notice><Button variant="secondary" onPress={() => void checkSession()}>重新连接</Button></> : <p>正在打开你的工作空间…</p>}</main> : !authenticated ? <Gate onAuthed={() => setAuthenticated(true)} /> : <AuthenticatedWorkspace logout={async () => { await api("/api/session", { method: "DELETE" }); setAuthenticated(false); }}>{children}</AuthenticatedWorkspace>}</I18nProvider>;
+  return <I18nProvider locale="zh-CN"><Toast.Provider placement="top end" />{authenticated === null ? <main className="boot-screen"><span className="brand-mark"><Glyph name="bell" size={25} /></span>{error ? <><Notice>{error}</Notice><Button variant="secondary" onPress={() => void checkSession()}>重新连接</Button></> : <p>正在打开你的工作空间…</p>}</main> : !authenticated ? <Gate onAuthed={() => setAuthenticated(true)} /> : <AuthenticatedWorkspace logout={async () => { await api("/api/session", { method: "DELETE" }); setAuthenticated(false); }}>{children}</AuthenticatedWorkspace>}</I18nProvider>;
 }
 
 function AuthenticatedWorkspace({ children, logout }: { children: ReactNode; logout: () => Promise<void> }) {
   const path = usePathname();
   const { data: dashboard, error, refresh } = useResource<Dashboard>("/api/overview", path === "/" ? 15_000 : 60_000);
   const [editor, setEditor] = useState<{ task?: Task; duplicate?: boolean } | null>(null);
-  const [notice, setNotice] = useState<{ message: string; kind: "error" | "success" } | null>(null);
-  useEffect(() => {
-    if (notice?.kind !== "success") return;
-    const timer = setTimeout(() => setNotice(null), 5000);
-    return () => clearTimeout(timer);
-  }, [notice]);
-  return <WorkspaceContext.Provider value={{ dashboard, error, refresh, logout, openTask: (task, duplicate) => setEditor({ task, duplicate }), notify: (message, kind = "success") => setNotice({ message, kind }) }}>
-    <Shell><div className="workspace-notices">{error && <Notice>{dashboard ? "暂时无法同步，当前显示上次数据。" : "暂时无法读取工作区。"}{error}<Button size="sm" variant="ghost" onPress={() => void refresh()}>重试</Button></Notice>}{notice && <Notice kind={notice.kind} onClose={() => setNotice(null)}>{notice.message}</Notice>}</div>{children}</Shell>
+  return <WorkspaceContext.Provider value={{ dashboard, error, refresh, logout, openTask: (task, duplicate) => setEditor({ task, duplicate }), notify: (message, kind = "success") => { if (kind === "error") toast.danger(message); else toast.success(message); } }}>
+    <Shell><div className="workspace-notices">{error && <Notice>{dashboard ? "暂时无法同步，当前显示上次数据。" : "暂时无法读取工作区。"}{error}<Button size="sm" variant="ghost" onPress={() => void refresh()}>重试</Button></Notice>}</div>{children}</Shell>
     {editor && <TaskEditor task={editor.task} duplicate={editor.duplicate} onClose={() => setEditor(null)} />}
   </WorkspaceContext.Provider>;
 }
