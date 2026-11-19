@@ -131,15 +131,17 @@ export function TaskEditor({ task, duplicate = false, onClose }: { task?: Task; 
             <IconButton label="关闭编辑器" icon="close" isDisabled={busy} onPress={close} />
           </Modal.Header>
 
-          <Modal.Body className="grid content-start gap-3 px-5 py-3 sm:gap-4 sm:px-6 sm:py-4">
-            <Field label="提醒名称" value={name} onChange={(event) => setName(event.target.value)} required maxLength={80} placeholder="例如：给绿植浇水" />
-            <AreaField label="提醒内容" rows={2} value={description} onChange={(event) => setDescription(event.target.value)} maxLength={2000}
-              ref={descriptionInput} placeholder={`可选，默认「${DEFAULT_REMINDER_BODY}」`} className="resize-y"
-              hint={`标题与正文用量 ${contentSize} / ${REMINDER_CONTENT_MAX_BYTES} 字节`}
-              error={contentOverLimit ? `内容超出 ${contentSize - REMINDER_CONTENT_MAX_BYTES} 字节，请缩短标题或正文。` : undefined} />
+          <Modal.Body className="grid content-start gap-5 px-5 py-4 sm:px-6 sm:py-5">
+            <section className="grid gap-3" aria-label="提醒内容">
+              <Field label="提醒名称" value={name} onChange={(event) => setName(event.target.value)} required maxLength={80} placeholder="例如：给绿植浇水" />
+              <AreaField label="提醒内容" rows={2} value={description} onChange={(event) => setDescription(event.target.value)} maxLength={2000}
+                ref={descriptionInput} placeholder={`可选，默认「${DEFAULT_REMINDER_BODY}」`} className="resize-y"
+                hint={`标题与正文用量 ${contentSize} / ${REMINDER_CONTENT_MAX_BYTES} 字节`}
+                error={contentOverLimit ? `内容超出 ${contentSize - REMINDER_CONTENT_MAX_BYTES} 字节，请缩短标题或正文。` : undefined} />
+            </section>
 
             <Fieldset className="min-w-0">
-              <Fieldset.Legend className="mb-2 pt-1 font-semibold">排期 <span className="ms-2 text-xs font-normal text-muted [overflow-wrap:anywhere]">{timeZone}</span></Fieldset.Legend>
+              <Fieldset.Legend className="mb-1 pt-1 font-semibold">排期 <span className="ms-2 text-xs font-normal text-muted [overflow-wrap:anywhere]">{timeZone}</span></Fieldset.Legend>
               <Fieldset.Group className="grid gap-3 space-y-0 sm:gap-4">
                 <div className="grid items-start gap-3 sm:grid-cols-[1.3fr_1fr] sm:gap-4">
                   <CalendarField label="开始时间" value={startsAt} onChange={setStartsAt} timeZone={timeZone} />
@@ -163,8 +165,10 @@ export function TaskEditor({ task, duplicate = false, onClose }: { task?: Task; 
               </Fieldset.Group>
             </Fieldset>
 
-            <Pick label="投递设备" value={deviceId} onChange={setDeviceId} options={(devices?.devices ?? [{ id: "default", name: "默认设备" }]).map((device) => ({ value: device.id, label: device.name }))} />
-            {dashboard && !dashboard.deviceKeyConfigured && deviceId === "default" && <Notice kind="info" action={<Link href="/settings" className="link workspace-link">前往设置</Link>}>默认设备未连接。</Notice>}
+            <section className="grid gap-3" aria-label="投递设备">
+              <Pick label="投递设备" value={deviceId} onChange={setDeviceId} options={(devices?.devices ?? [{ id: "default", name: "默认设备" }]).map((device) => ({ value: device.id, label: device.name }))} />
+              {dashboard && !dashboard.deviceKeyConfigured && deviceId === "default" && <Notice kind="info" action={<Link href="/settings" className="link workspace-link">前往设置</Link>}>默认设备未连接。</Notice>}
+            </section>
 
             <Details title="时区、节假日与通知策略">
               <Field label="排期时区" value={timeZone} onChange={(event) => setTimeZone(event.target.value)} required hint="IANA 时区，例如 Asia/Shanghai 或 UTC。" />
@@ -175,7 +179,7 @@ export function TaskEditor({ task, duplicate = false, onClose }: { task?: Task; 
                 <Field label="任务通知分组" value={group} onChange={(event) => setGroup(event.target.value)} maxLength={100} placeholder="使用全局设置" />
                 <Field label="任务提示音" value={sound} onChange={(event) => setSound(event.target.value)} maxLength={80} placeholder="使用全局设置" />
               </div>
-              <section className="space-y-2 rounded-lg bg-surface-secondary p-4 text-sm">
+              <section className="notification-preview grid gap-2 rounded-lg bg-surface-secondary p-4 text-sm">
                 <h3 className="text-xs font-medium text-muted">通知预览</h3>
                 <p className="line-clamp-1 font-semibold break-words">{name || "提醒名称"}</p>
                 <p className="line-clamp-3 break-words whitespace-pre-line text-muted">{description.trim() || DEFAULT_REMINDER_BODY}</p>

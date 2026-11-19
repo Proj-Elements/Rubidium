@@ -80,8 +80,8 @@ export function SecurityManager() {
       {error && <Notice action={<Button variant="ghost" onPress={() => void refresh()}>重试</Button>}>{error}</Notice>}
       <section className="grid min-w-0 gap-2">
         <h3 className="text-sm font-semibold">API 凭据</h3>
-        {data && (data.tokens.length ? <ul className="grid gap-2" aria-label="API 凭据">
-          {data.tokens.map((item) => <li key={item.id} className="flex flex-wrap items-center justify-between gap-2">
+        {data && (data.tokens.length ? <ul className="grid divide-y divide-separator" aria-label="API 凭据">
+          {data.tokens.map((item) => <li key={item.id} className="flex flex-wrap items-center justify-between gap-2 py-3 first:pt-1 last:pb-1">
             <div className="min-w-0 space-y-1">
               <div className="flex flex-wrap items-center gap-2"><p className="text-sm font-medium [overflow-wrap:anywhere]">{item.name}</p><Chip variant="soft"><Chip.Label>{item.scope === "read" ? "只读" : "读写"}</Chip.Label></Chip></div>
               <p className="text-xs text-muted tabular-nums">到期 {formatTime(new Date(item.expiresAt).toISOString())}</p>
@@ -110,8 +110,8 @@ export function SecurityManager() {
       </section>
       <section className="grid gap-2">
         <h3 className="text-sm font-semibold">有效会话</h3>
-        {data ? (data.sessions.length ? <ul className="grid gap-2" aria-label="有效会话">
-          {data.sessions.map((item) => <li key={item.id} className="flex flex-wrap items-center justify-between gap-2">
+        {data ? (data.sessions.length ? <ul className="grid divide-y divide-separator" aria-label="有效会话">
+          {data.sessions.map((item) => <li key={item.id} className="flex flex-wrap items-center justify-between gap-2 py-3 first:pt-1 last:pb-1">
             <div className="min-w-0 space-y-1">
               <p className="text-sm font-medium">会话 <code className="tabular-nums">{item.id.slice(0, 8)}</code></p>
               <p className="text-xs text-muted tabular-nums">到期 {formatTime(new Date(item.expiresAt).toISOString())}</p>

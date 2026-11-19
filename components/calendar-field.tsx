@@ -22,7 +22,7 @@ export function CalendarField({ label, value, onChange, timeZone, dateOnly = fal
           </Tooltip>
         </DateField.Suffix>
       </DateField.Group>
-      <DatePicker.Popover className="grid gap-3">
+      <DatePicker.Popover className="grid max-w-[calc(100vw-1.5rem)] gap-3">
         <Calendar aria-label={label}>
           <Calendar.Header>
             <Calendar.YearPickerTrigger><Calendar.YearPickerTriggerHeading /><Calendar.YearPickerTriggerIndicator /></Calendar.YearPickerTrigger>

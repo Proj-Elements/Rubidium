@@ -91,7 +91,7 @@ export function DeviceManager() {
       <CardHeading title="其他 Bark 设备" description="为提醒选择设备时，默认设备和这里的设备均可使用。" />
       {error && <Notice action={<Button variant="ghost" onPress={() => void refresh()}>重试</Button>}>{error}</Notice>}
       {devices.length ? <ul className="grid gap-2" aria-label="其他 Bark 设备">
-        {devices.map((device) => <li key={device.id} className="flex items-center gap-2">
+        {devices.map((device) => <li key={device.id} className="flex items-center gap-2 border-b border-separator py-3 last:border-0">
           <div className="min-w-0 flex-1 space-y-1">
             <p className="text-sm font-medium [overflow-wrap:anywhere]">{device.name}</p>
             <p className="text-xs text-muted [overflow-wrap:anywhere]">{device.endpoint}</p>
