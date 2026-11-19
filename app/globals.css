@@ -55,7 +55,7 @@
 
   :is(.select__popover, .dropdown__popover) {
     --choice-inset: 0.375rem;
-    --choice-radius: var(--radius);
+    --choice-radius: var(--radius-2xl);
     border-radius: calc(var(--choice-radius) + var(--choice-inset));
   }
 
