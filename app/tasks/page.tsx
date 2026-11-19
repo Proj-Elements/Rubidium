@@ -137,7 +137,7 @@ export default function TasksPage() {
                   </Table.Header>
                   <Table.Body>
                     {data.tasks.map((task) => <Table.Row key={task.id} id={task.id}>
-                      <Table.Cell><Selection label={`选择 ${task.name}`} slot="selection" /></Table.Cell>
+                      <Table.Cell><Selection slot="selection" /></Table.Cell>
                       <Table.Cell className="max-w-60"><TaskName task={task} /></Table.Cell>
                       <Table.Cell className="whitespace-nowrap"><TaskSchedule task={task} /></Table.Cell>
                       <Table.Cell className="whitespace-nowrap"><TaskCounts task={task} /></Table.Cell>

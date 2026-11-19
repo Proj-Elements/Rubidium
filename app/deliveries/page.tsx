@@ -70,9 +70,9 @@ export default function DeliveriesPage() {
         </div>}
         <ul className="grid gap-3">
           {data.deliveries.map((item) => <li key={item.id}>
-            <Card render={(props) => <article {...props} />} className="grid grid-cols-[1.25rem_minmax(0,1fr)] items-start gap-3 rounded-2xl p-4 sm:p-5">
+            <Card render={(props) => <article {...props} />} className="grid grid-cols-[1.5rem_minmax(0,1fr)] items-start gap-3 rounded-2xl p-4 sm:p-5">
               {item.status === "pending" ? <Selection label={`选择投递 ${item.taskName}`} selected={selectedIds.includes(item.id)} disabled={Boolean(busy)}
-                onChange={(value) => setSelected((current) => value ? [...current, item.id] : current.filter((id) => id !== item.id))} /> : <Glyph name="send" size={17} className="mt-1 text-muted" />}
+                onChange={(value) => setSelected((current) => value ? [...current, item.id] : current.filter((id) => id !== item.id))} /> : <Glyph name="send" size={17} className="mt-1 justify-self-center text-muted" />}
               <div className="grid min-w-0 gap-3">
                 <Card.Header className="flex-row items-start justify-between gap-2">
                   <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
