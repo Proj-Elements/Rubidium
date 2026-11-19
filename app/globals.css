@@ -587,6 +587,11 @@ code { font-size: 13px; }
 .activity-meter.meter { grid-template-areas: "date track output"; grid-template-columns: 2.75rem minmax(0, 1fr) 2rem; }
 .activity-meter .meter__output { text-align: end; }
 .notice-error .alert__content, .notice-warning .alert__content, .notice-success .alert__content, .notice-info .alert__content { flex: 1; }
+
+.bulk-position { position: fixed; inset-inline: 244px 0; bottom: max(1rem, env(safe-area-inset-bottom)); z-index: 30; display: flex; justify-content: center; padding-inline: 0.75rem; pointer-events: none; }
+.detail-drawer { width: min(100vw, 30rem); }
+@media (max-width: 1200px) { .bulk-position { inset-inline-start: 218px; } }
+@media (max-width: 1000px) { .bulk-position { inset-inline-start: 0; } }
 .delivery-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 .attempt-history { padding: 12px 0; font-size: 13px; color: var(--muted); }
 .attempt-history ol { padding-left: 20px; display: grid; gap: 12px; margin: 0 0 12px; }

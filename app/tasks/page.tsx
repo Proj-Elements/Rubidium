@@ -1,10 +1,11 @@
 "use client";
 
-import { Button, Card, Dropdown, Input, Label, Tabs } from "@heroui/react";
-import { useEffect, useState } from "react";
+import { Button, Card, Dropdown, Label, Table } from "@heroui/react";
+import { useState } from "react";
 import { Glyph } from "@/components/icons";
-import { Confirm, Empty, IconButton, Notice, TaskBadge } from "@/components/primitives";
+import { Confirm, Empty, IconButton, Loading, Notice, PageHeading, TaskBadge } from "@/components/primitives";
 import { Pagination } from "@/components/pagination";
+import { BulkActions, RecordList, useRecordQuery } from "@/components/record-list";
 import { Selection } from "@/components/selection";
 import { useResource } from "@/components/use-resource";
 import { useWorkspace } from "@/components/workspace-context";
@@ -22,25 +23,18 @@ const filters = [
 const PAGE_SIZE = 10;
 
 export default function TasksPage() {
-  const { formatTime } = useTime();
   const { openTask, refresh: refreshDashboard, notify } = useWorkspace();
-  const [filter, setFilter] = useState("all");
-  const [page, setPage] = useState(1);
-  const [query, setQuery] = useState("");
-  const [search, setSearch] = useState("");
+  const { filter, setFilter, setPage, query, setQuery, search, params } = useRecordQuery(PAGE_SIZE);
   const [archive, setArchive] = useState<Task | null>(null);
   const [busy, setBusy] = useState("");
   const [selected, setSelected] = useState<string[]>([]);
   const [destroy, setDestroy] = useState<Task | null>(null);
   const [confirmBulkArchive, setConfirmBulkArchive] = useState(false);
-  useEffect(() => {
-    const timer = setTimeout(() => { setSearch(query); setPage(1); }, 250);
-    return () => clearTimeout(timer);
-  }, [query]);
-
-  const params = new URLSearchParams({ page: String(page), pageSize: String(PAGE_SIZE), q: search });
-  if (filter !== "all") params.set("status", filter);
   const { data, error, refresh } = useResource<{ tasks: Task[]; total: number; page: number }>(`/api/tasks?${params}`);
+  const selectedTasks = data?.tasks.filter((task) => selected.includes(task.id)) ?? [];
+  const canPause = selectedTasks.some((task) => task.status === "active");
+  const canResume = selectedTasks.some((task) => task.status === "paused" || task.status === "archived");
+  const canArchive = selectedTasks.some((task) => task.status !== "archived");
 
   async function toggle(task: Task) {
     setBusy(task.id);
@@ -74,8 +68,10 @@ export default function TasksPage() {
     }
   }
 
-  async function bulk(status: string) {
-    const items = data?.tasks.filter((task) => selected.includes(task.id)).map(({ id, revision }) => ({ id, revision })) ?? [];
+  async function bulk(status: "active" | "paused" | "archived") {
+    const items = selectedTasks.filter((task) => status === "paused" ? task.status === "active"
+      : status === "active" ? task.status === "paused" || task.status === "archived" : task.status !== "archived")
+      .map(({ id, revision }) => ({ id, revision }));
     if (!items.length) { setConfirmBulkArchive(false); return; }
     setBusy("bulk");
     try {
@@ -108,89 +104,73 @@ export default function TasksPage() {
     finally { setBusy(""); }
   }
 
+  const selectPage = <Selection label="选择本页提醒" selected={Boolean(data?.tasks.length && selectedTasks.length === data.tasks.length)} partial={selectedTasks.length > 0 && selectedTasks.length !== data?.tasks.length} disabled={Boolean(busy)} onChange={(value) => setSelected(value ? data?.tasks.map((task) => task.id) ?? [] : [])} />;
+  function selectTask(task: Task) {
+    return <Selection label={`选择 ${task.name}`} selected={selected.includes(task.id)} disabled={Boolean(busy)} onChange={(value) => setSelected((current) => value ? [...current, task.id] : current.filter((id) => id !== task.id))} />;
+  }
+  function taskActions(task: Task) {
+    return <TaskActions task={task} busy={Boolean(busy)} onToggle={() => void toggle(task)} onArchive={() => setArchive(task)} onRestore={() => void restore(task)} onDelete={() => setDestroy(task)} />;
+  }
+
   return (
-    <div className="page-stack">
-      <div className="page-heading">
-        <div>
-          <p className="eyebrow">把惦记的事，安排妥当</p>
-          <h1>所有提醒<span className="heading-period">。</span></h1>
-          <p>管理你的工作与日常，让重要的事按时发生。</p>
-        </div>
-        <Button onPress={() => openTask()}><Glyph name="plus" size={17} />新建提醒</Button>
-      </div>
-      <Card className="tasks-panel">
-        <div className="bulk-toolbar">
-          <Selection label="选择本页提醒" selected={Boolean(data?.tasks.length && data.tasks.every((task) => selected.includes(task.id)))} onChange={(value) => setSelected(value ? data?.tasks.map((task) => task.id) ?? [] : [])} />
-          <span>已选 {data?.tasks.filter((task) => selected.includes(task.id)).length ?? 0} 项</span>
-          {[{ value: "paused", label: "批量暂停" }, { value: "active", label: "批量恢复" }, { value: "archived", label: "批量归档" }].map((action) => <Button key={action.value} size="sm" variant="ghost" isDisabled={!data?.tasks.some((task) => selected.includes(task.id)) || Boolean(busy)} onPress={() => {
-            if (action.value === "archived") setConfirmBulkArchive(true);
-            else void bulk(action.value);
-          }}>{action.label}</Button>)}
-        </div>
-        <div className="list-toolbar">
-          <Tabs selectedKey={filter} onSelectionChange={(key) => { setFilter(String(key)); setPage(1); }} variant="secondary" className="filter-tabs">
-            <Tabs.ListContainer>
-              <Tabs.List aria-label="提醒状态">
-                {filters.map((item) => <Tabs.Tab id={item.id} key={item.id}>{item.label}<Tabs.Indicator /></Tabs.Tab>)}
-              </Tabs.List>
-            </Tabs.ListContainer>
-          </Tabs>
-          <div className="search-field">
-            <Glyph name="search" size={17} />
-            <Input aria-label="搜索提醒" placeholder="搜索名称或内容…" value={query} onChange={(event) => setQuery(event.target.value)} variant="secondary" maxLength={200} />
+    <div className="grid gap-6 pb-12">
+      <PageHeading title="所有提醒" description="管理提醒的排期、重复规则与投递设备。" action={<Button onPress={() => openTask()}><Glyph name="plus" />新建提醒</Button>} />
+      <RecordList label="提醒状态" searchLabel="搜索提醒" filters={filters} filter={filter} query={query}
+        onFilter={(value) => { setFilter(value); setSelected([]); }} onSearch={(value) => { setQuery(value); setSelected([]); }}>
+        {error && <Notice action={<Button variant="ghost" onPress={() => void refresh()}>重试</Button>}>{error}</Notice>}
+        {!data ? !error && <Loading>正在读取提醒</Loading> : !data.tasks.length ? <Card className="rounded-2xl">
+          <Empty title={search ? "没有匹配的提醒" : "暂无提醒"} description={search ? "试试其他关键词，或切换提醒状态。" : filter === "all" ? "创建提醒后，可以在这里管理排期。" : "当前状态下没有提醒。"} />
+        </Card> : <>
+          <Card className="hidden min-w-0 gap-4 rounded-2xl p-4 md:flex">
+            <Table variant="secondary">
+              <Table.ScrollContainer>
+                <Table.Content aria-label="提醒列表">
+                  <Table.Header>
+                    <Table.Column aria-label="选择" className="w-12 whitespace-nowrap">{selectPage}</Table.Column>
+                    <Table.Column isRowHeader className="min-w-36">提醒事项</Table.Column>
+                    <Table.Column className="whitespace-nowrap">下次排期</Table.Column>
+                    <Table.Column className="whitespace-nowrap">投递计数</Table.Column>
+                    <Table.Column className="whitespace-nowrap">状态</Table.Column>
+                    <Table.Column aria-label="操作" className="w-24" />
+                  </Table.Header>
+                  <Table.Body>
+                    {data.tasks.map((task) => <Table.Row key={task.id} id={task.id}>
+                      <Table.Cell>{selectTask(task)}</Table.Cell>
+                      <Table.Cell className="max-w-60"><TaskName task={task} /></Table.Cell>
+                      <Table.Cell className="whitespace-nowrap"><TaskSchedule task={task} /></Table.Cell>
+                      <Table.Cell className="whitespace-nowrap"><TaskCounts task={task} /></Table.Cell>
+                      <Table.Cell><TaskBadge task={task} /></Table.Cell>
+                      <Table.Cell>{taskActions(task)}</Table.Cell>
+                    </Table.Row>)}
+                  </Table.Body>
+                </Table.Content>
+              </Table.ScrollContainer>
+            </Table>
+          </Card>
+          <div className="grid gap-3 md:hidden">
+            <div className="flex items-center gap-2 px-2 text-sm text-muted">{selectPage}<span aria-hidden="true">选择本页</span></div>
+            <ul className="grid gap-3">
+              {data.tasks.map((task) => <li key={task.id}>
+                <Card className="grid grid-cols-[auto_minmax(0,1fr)] items-start gap-3 rounded-2xl p-4">
+                  {selectTask(task)}
+                  <div className="min-w-0 space-y-3">
+                    <TaskName task={task} />
+                    <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3"><TaskSchedule task={task} /><TaskBadge task={task} /></div>
+                    <div className="flex flex-wrap items-center justify-between gap-2"><TaskCounts task={task} />{taskActions(task)}</div>
+                  </div>
+                </Card>
+              </li>)}
+            </ul>
           </div>
-        </div>
-        {error && <Notice>{error}<Button variant="ghost" size="sm" onPress={() => void refresh()}>重试</Button></Notice>}
-        {!data ? error ? null : <div className="loading-state">正在整理你的提醒…</div> : !data.tasks.length ? (
-          <Empty
-            title={search ? "没有找到相关提醒" : filter === "all" ? "给未来的自己，一个提醒" : "这里暂时没有提醒"}
-            description={search ? "试试其他关键词，或切换提醒状态。" : filter === "archived" ? "归档会停止未来排期；历史记录会保留，直到你主动清理。" : "不必把所有事都记在心里，让 Barker 帮你分担。"}
-            action={filter === "all" && !search ? <Button variant="outline" onPress={() => openTask()}>创建第一个提醒</Button> : undefined}
-          />
-        ) : (
-          <div className="table-scroll">
-            <table className="task-table">
-              <thead>
-                <tr><th>选择</th><th>提醒事项</th><th>重复周期</th><th>下一次提醒</th><th>投递计数</th><th>状态</th><th><span className="sr-only">操作</span></th></tr>
-              </thead>
-              <tbody>
-                {data.tasks.map((task) => (
-                  <tr key={task.id}>
-                    <td><Selection label={`选择 ${task.name}`} selected={selected.includes(task.id)} onChange={(value) => setSelected((current) => value ? [...current, task.id] : current.filter((id) => id !== task.id))} /></td>
-                    <td>
-                      <div className="task-name-cell">
-                        <span className={`task-symbol ${task.status === "paused" || task.status === "archived" ? "subdued" : ""}`}>
-                          <Glyph name={task.status === "archived" ? "archive" : "bell"} size={19} />
-                        </span>
-                        <div>
-                          <strong>{task.name}</strong>
-                          <p>{task.description || "给重要的事，留一个准时的提醒。"}</p>
-                          {task.lastError && <span className="task-error"><Glyph name="warning" size={12} />{task.pendingCount > 0 ? "有消息等待重试" : task.lastError}</span>}
-                        </div>
-                      </div>
-                    </td>
-                    <td>
-                      <span className="schedule-cell"><Glyph name="refresh" size={13} />{PRESET_LABELS[task.preset]}</span>
-                      <code className="cron-caption">{task.cron}</code>
-                      <small className="field-hint">{task.timeZone}</small>
-                    </td>
-                    <td><span className="next-run-cell">{task.status === "active" ? formatTime(task.nextRunAt) : task.status === "paused" ? "恢复后继续" : "—"}</span></td>
-                    <td>
-                      <span className="progress-count">{task.sentCount}<span> 次已接收</span></span>
-                      <small className="progress-caption">累计排期 {task.queuedCount} · {task.repeatCount ? `上限 ${task.repeatCount}` : task.endDate ? "按日期结束" : "持续重复"}</small>
-                      <small className="progress-caption">{task.pendingCount ? `${task.pendingCount} 条等待投递` : task.endDate ? `截至 ${task.endDate}` : task.sentCount ? `${task.sentCount} 次 Bark 已接收` : "尚未投递"}</small>
-                    </td>
-                    <td><TaskBadge task={task} /></td>
-                    <td><TaskActions task={task} busy={Boolean(busy)} onToggle={() => void toggle(task)} onArchive={() => setArchive(task)} onRestore={() => void restore(task)} onDelete={() => setDestroy(task)} /></td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-        {data && <Pagination page={data.page} total={data.total} pageSize={PAGE_SIZE} onChange={setPage} />}
-      </Card>
-      <div className="page-note"><Glyph name="shield" size={16} /><p>暂停只停止未来排期，队列中的提醒仍会继续投递；归档不会删除任何消息。</p></div>
+          <Pagination page={data.page} total={data.total} pageSize={PAGE_SIZE} onChange={(value) => { setPage(value); setSelected([]); }} />
+        </>}
+      </RecordList>
+      <p className="flex items-start gap-2 text-xs leading-relaxed text-muted"><Glyph name="shield" size={16} />暂停和归档只停止后续排期，已排队消息仍会投递。</p>
+      <BulkActions count={selectedTasks.length} disabled={Boolean(busy)} onClear={() => setSelected([])}>
+        <Button variant="ghost" isDisabled={!canPause || Boolean(busy)} onPress={() => void bulk("paused")}>暂停</Button>
+        <Button variant="ghost" isDisabled={!canResume || Boolean(busy)} onPress={() => void bulk("active")}>恢复</Button>
+        <Button variant="danger-soft" isDisabled={!canArchive || Boolean(busy)} onPress={() => setConfirmBulkArchive(true)}>归档</Button>
+      </BulkActions>
       {archive && (
         <Confirm title={`归档「${archive.name}」？`} confirmLabel="确认归档" onClose={() => setArchive(null)} onConfirm={() => void archiveTask()} busy={busy === archive.id}>
           <p>未来的排期将停止。已经到期的提醒会继续投递，全部历史记录都会保留，你也可以随时复制为新提醒。</p>
@@ -204,11 +184,36 @@ export default function TasksPage() {
   );
 }
 
+function TaskName({ task }: { task: Task }) {
+  return <div className="min-w-0 space-y-1">
+    <strong className="line-clamp-2 text-sm font-semibold break-words">{task.name}</strong>
+    {task.description && <p className="line-clamp-2 text-xs leading-relaxed break-words text-muted">{task.description}</p>}
+    {task.lastError && <p className="line-clamp-2 text-xs break-words text-warning-soft-foreground">{task.pendingCount > 0 ? "有消息等待处理" : task.lastError}</p>}
+  </div>;
+}
+
+function TaskSchedule({ task }: { task: Task }) {
+  const { formatTime } = useTime();
+  return <div className="space-y-1 text-sm tabular-nums">
+    {task.status === "active" && task.nextRunAt ? <time dateTime={task.nextRunAt}>{formatTime(task.nextRunAt)}</time> : <p>{task.status === "paused" ? "恢复后继续" : "—"}</p>}
+    <p className="text-xs text-muted">{PRESET_LABELS[task.preset]} · {task.timeZone}</p>
+    {task.preset === "custom" && <code className="text-xs text-muted">{task.cron}</code>}
+  </div>;
+}
+
+function TaskCounts({ task }: { task: Task }) {
+  return <div className="space-y-1 text-xs text-muted tabular-nums">
+    <p className="text-sm text-foreground">{task.sentCount} 次已接收</p>
+    <p>排期 {task.queuedCount}{task.repeatCount ? ` / ${task.repeatCount}` : task.endDate ? ` · 截至 ${task.endDate}` : ""}</p>
+    {task.pendingCount > 0 && <p>{task.pendingCount} 条待投递</p>}
+  </div>;
+}
+
 function TaskActions({ task, busy, onToggle, onArchive, onRestore, onDelete }: { task: Task; busy: boolean; onToggle: () => void; onArchive: () => void; onRestore: () => void; onDelete: () => void }) {
   const { openTask } = useWorkspace();
   const editable = task.status === "active" || task.status === "paused";
   return (
-    <div className="row-actions">
+    <div className="flex shrink-0 items-center justify-end gap-1">
       {editable && <IconButton label={`编辑 ${task.name}`} icon="edit" onPress={() => openTask(task)} isDisabled={busy} />}
       <Dropdown>
         <IconButton label={`更多操作 ${task.name}`} icon="more" isDisabled={busy} />
@@ -225,8 +230,8 @@ function TaskActions({ task, busy, onToggle, onArchive, onRestore, onDelete }: {
             </Dropdown.Item>}
             <Dropdown.Item id="copy" textValue="复制为新提醒"><Glyph name="copy" /><Label>复制为新提醒</Label></Dropdown.Item>
             {task.status !== "archived" && <Dropdown.Item id="archive" textValue="归档提醒"><Glyph name="archive" /><Label>归档提醒</Label></Dropdown.Item>}
-            {task.status === "archived" && <Dropdown.Item id="restore" textValue="恢复归档提醒"><Label>恢复归档提醒</Label></Dropdown.Item>}
-            {task.status === "archived" && <Dropdown.Item id="delete" textValue="永久删除"><Label>永久删除</Label></Dropdown.Item>}
+            {task.status === "archived" && <Dropdown.Item id="restore" textValue="恢复归档提醒"><Glyph name="play" /><Label>恢复归档提醒</Label></Dropdown.Item>}
+            {task.status === "archived" && <Dropdown.Item id="delete" textValue="永久删除" variant="danger"><Glyph name="trash" /><Label>永久删除</Label></Dropdown.Item>}
           </Dropdown.Menu>
         </Dropdown.Popover>
       </Dropdown>
