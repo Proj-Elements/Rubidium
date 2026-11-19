@@ -1,9 +1,9 @@
 "use client";
 
-import { Avatar, Breadcrumbs, Button, Dropdown, Drawer, Label } from "@heroui/react";
+import { Avatar, Breadcrumbs, Button, Chip, Dropdown, Drawer, Label } from "@heroui/react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useState, type Key, type ReactNode } from "react";
+import { useEffect, useState, type Key, type ReactNode } from "react";
 import { Glyph, type IconName } from "./icons";
 import { IconButton } from "./primitives";
 import { ThemeToggle } from "./theme-toggle";
@@ -21,44 +21,57 @@ const navigation: Array<{ href: string; label: string; icon: IconName }> = [
 export function Shell({ children }: { children: ReactNode }) {
   const path = usePathname();
   const current = navigation.find((item) => item.href === path)?.label ?? "工作空间";
-  const { dashboard, error, refresh, openTask } = useWorkspace();
+  const { dashboard, error, refresh } = useWorkspace();
   const [mobileOpen, setMobileOpen] = useState(false);
 
+  useEffect(() => {
+    const desktop = window.matchMedia("(min-width: 64rem)");
+    function closeOnDesktop() { if (desktop.matches) setMobileOpen(false); }
+    desktop.addEventListener("change", closeOnDesktop);
+    return () => desktop.removeEventListener("change", closeOnDesktop);
+  }, []);
+
   return <div className="app-layout">
-    <a href="#main" className="skip-link">跳转到主要内容</a>
+    <a href="#main" className="link skip-link">跳转到主要内容</a>
     <aside className="sidebar"><WorkspaceNavigation /></aside>
     <div className="main-layout">
       <header className="topbar">
-        <div className="breadcrumb-heading">
-          <span className="mobile-toggle"><IconButton icon="menu" label="打开导航" onPress={() => setMobileOpen(true)} /></span>
-          <Breadcrumbs className="breadcrumb" separator={<Glyph name="chevron" size={13} />}>
-            <Breadcrumbs.Item href="/" className="breadcrumb-root">工作空间</Breadcrumbs.Item>
-            <Breadcrumbs.Item className="breadcrumb-current">{current}</Breadcrumbs.Item>
-          </Breadcrumbs>
-        </div>
-        <div className="topbar-trailing">
-          <span className={`sync-status ${error ? "offline" : ""}`} role="status" aria-live="polite">
-            <span className="status-dot" />{error ? "同步中断" : dashboard ? "自动同步中" : "正在连接"}
-          </span>
-          <span className="timezone">{dashboard?.displayTimeZone ?? "Asia/Shanghai"}</span>
-          <ThemeToggle />
-          <IconButton icon="refresh" label="刷新工作空间" onPress={() => void refresh()} />
+        <div className="topbar-inner">
+          <div className="flex min-w-0 items-center gap-2">
+            <div className="mobile-toggle">
+              <Drawer isOpen={mobileOpen} onOpenChange={setMobileOpen}>
+                <IconButton icon="menu" label="打开导航" />
+                <Drawer.Backdrop isDismissable>
+                  <Drawer.Content placement="left">
+                    <Drawer.Dialog className="mobile-nav-dialog gap-4 px-5 pt-4 pb-5 text-foreground">
+                      <Drawer.Header className="flex-row items-center justify-between gap-2">
+                        <Drawer.Heading>工作空间导航</Drawer.Heading>
+                        <IconButton icon="close" label="关闭导航" autoFocus onPress={() => setMobileOpen(false)} />
+                      </Drawer.Header>
+                      <Drawer.Body className="flex flex-col text-foreground"><WorkspaceNavigation onNavigate={() => setMobileOpen(false)} /></Drawer.Body>
+                    </Drawer.Dialog>
+                  </Drawer.Content>
+                </Drawer.Backdrop>
+              </Drawer>
+            </div>
+            <Breadcrumbs className="breadcrumb" aria-label="当前位置">
+              <Breadcrumbs.Item href="/" className="breadcrumb-root">工作空间</Breadcrumbs.Item>
+              <Breadcrumbs.Item>{current}</Breadcrumbs.Item>
+            </Breadcrumbs>
+          </div>
+          <div className="flex shrink-0 items-center gap-1 sm:gap-3">
+            <Chip size="sm" variant="soft" color={error ? "warning" : dashboard ? "success" : "default"} role="status" className="sync-status">
+              <Chip.Label>{error ? "同步中断" : dashboard ? "已连接" : "正在连接"}</Chip.Label>
+            </Chip>
+            <span className="hidden text-xs text-muted tabular-nums sm:block">{dashboard?.displayTimeZone ?? "Asia/Shanghai"}</span>
+            <ThemeToggle />
+            <IconButton icon="refresh" label="刷新工作空间" onPress={() => void refresh()} />
+          </div>
         </div>
       </header>
-      <main id="main" className="workspace-main">{children}</main>
-      <footer className="workspace-footer"><span>留给生活更多从容。</span><span>Barker <span className="footer-dot" /> 按任务时区调度</span></footer>
+      <main id="main" className="workspace-main" tabIndex={-1}>{children}</main>
+      <footer className="workspace-footer">Barker · 按任务时区调度</footer>
     </div>
-    <Drawer.Backdrop isOpen={mobileOpen} onOpenChange={setMobileOpen} isDismissable>
-      <Drawer.Content className="mobile-nav-drawer" placement="left">
-        <Drawer.Dialog className="mobile-nav-dialog">
-          <Drawer.Header className="mobile-nav-heading">
-            <Drawer.Heading>你的工作空间</Drawer.Heading>
-            <IconButton icon="close" label="关闭导航" onPress={() => setMobileOpen(false)} />
-          </Drawer.Header>
-          <Drawer.Body className="mobile-nav-content"><WorkspaceNavigation onNavigate={() => setMobileOpen(false)} /></Drawer.Body>
-        </Drawer.Dialog>
-      </Drawer.Content>
-    </Drawer.Backdrop>
   </div>;
 }
 
@@ -74,30 +87,29 @@ function WorkspaceNavigation({ onNavigate }: { onNavigate?: () => void }) {
   }
 
   return <>
-    <Link href="/" className="brand" onClick={onNavigate} aria-label="Barker 工作概览">
+    <Link href="/" className="link brand" onNavigate={onNavigate} aria-label="Barker 工作概览">
       <span className="brand-mark"><Glyph name="bell" size={22} /></span>
       <span>barker<span className="brand-period">.</span></span>
     </Link>
-    <Button className="sidebar-create" variant="outline" onPress={() => { onNavigate?.(); openTask(); }}>
+    <Button className="mt-7 mb-6 shrink-0 justify-start" fullWidth variant="outline" onPress={() => { onNavigate?.(); openTask(); }}>
       <Glyph name="plus" />新建提醒
     </Button>
-    <p className="nav-section">我的工作空间</p>
-    <nav aria-label="主导航">
-      {navigation.map((item) => <Link href={item.href} key={item.href} className={`nav-item ${path === item.href ? "selected" : ""}`} aria-current={path === item.href ? "page" : undefined} onClick={onNavigate}>
+    <p className="mb-2 px-3 text-xs font-medium text-muted">工作空间</p>
+    <nav aria-label="主导航" className="grid gap-1">
+      {navigation.map((item) => <Link href={item.href} key={item.href} className="link nav-item" aria-current={path === item.href ? "page" : undefined} onNavigate={onNavigate}>
         <Glyph name={item.icon} /><span>{item.label}</span>
-        {item.href === "/tasks" && Boolean(dashboard?.stats.active) && <span className="nav-count">{dashboard?.stats.active}</span>}
-        {item.href === "/deliveries" && Boolean(dashboard?.deliveries.retrying) && <span className="nav-count caution">{dashboard?.deliveries.retrying}</span>}
+        {item.href === "/tasks" && Boolean(dashboard?.stats.active) && <Chip size="sm" variant="soft" className="nav-count" aria-hidden="true"><Chip.Label>{dashboard?.stats.active}</Chip.Label></Chip>}
+        {item.href === "/deliveries" && Boolean(dashboard?.deliveries.retrying) && <Chip size="sm" variant="soft" color="warning" className="nav-count" aria-hidden="true"><Chip.Label>{dashboard?.deliveries.retrying}</Chip.Label></Chip>}
       </Link>)}
     </nav>
-    <div className="sidebar-bottom">
-      <div className="sidebar-note"><Glyph name="shield" size={22} /><h3>每条提醒都有记录</h3><p>到期消息持久保存，自动重试。<br />查看投递状态，安心安排。</p></div>
+    <div className="mt-auto pt-8">
       <Dropdown>
-        <Button variant="ghost" className="account-button">
+        <Button variant="ghost" fullWidth className="h-auto justify-start gap-3 px-2 py-2.5 text-start">
           <Avatar size="sm" color="accent" aria-hidden="true"><Avatar.Fallback>B</Avatar.Fallback></Avatar>
-          <span className="account-label">个人工作空间<small>私密安全，随时可访问</small></span>
-          <Glyph name="chevronDown" size={14} />
+          <span className="flex-1">个人工作空间</span>
+          <Glyph name="chevronDown" size={14} className="text-muted" />
         </Button>
-        <Dropdown.Popover className="account-menu">
+        <Dropdown.Popover>
           <Dropdown.Menu aria-label="工作空间账户操作" onAction={handleAccountAction}>
             <Dropdown.Item id="settings" textValue="推送设置"><Glyph name="gear" /><Label>推送设置</Label></Dropdown.Item>
             <Dropdown.Item id="logout" textValue="退出工作空间"><Glyph name="logout" /><Label>退出工作空间</Label></Dropdown.Item>

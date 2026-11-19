@@ -8,7 +8,7 @@ import type { Dashboard, Task } from "@/lib/types";
 import { api, errorMessage } from "@/lib/ui";
 import { Gate } from "./gate";
 import { Shell } from "./nav";
-import { Notice } from "./primitives";
+import { Loading, Notice } from "./primitives";
 import { useResource } from "./use-resource";
 import { WorkspaceContext } from "./workspace-context";
 import { TaskEditor } from "./task-editor";
@@ -32,7 +32,13 @@ export function Workspace({ children }: { children: ReactNode }) {
     window.addEventListener("barker:unauthorized", expired);
     return () => { alive = false; window.removeEventListener("barker:unauthorized", expired); };
   }, []);
-  return <I18nProvider locale="zh-CN"><Toast.Provider placement="top end" />{authenticated === null ? <main className="boot-screen"><span className="brand-mark"><Glyph name="bell" size={25} /></span>{error ? <><Notice>{error}</Notice><Button variant="secondary" onPress={() => void checkSession()}>重新连接</Button></> : <p>正在打开你的工作空间…</p>}</main> : !authenticated ? <Gate onAuthed={() => setAuthenticated(true)} /> : <AuthenticatedWorkspace logout={async () => { await api("/api/session", { method: "DELETE" }); setAuthenticated(false); }}>{children}</AuthenticatedWorkspace>}</I18nProvider>;
+  return <I18nProvider locale="zh-CN">
+    <Toast.Provider placement="top end" />
+    {authenticated === null ? <main className="flex min-h-dvh flex-col items-center justify-center gap-4 px-4">
+      <span className="brand-mark"><Glyph name="bell" size={22} /></span>
+      {error ? <Notice action={<Button variant="ghost" onPress={() => void checkSession()}>重新连接</Button>}>{error}</Notice> : <Loading>正在打开工作空间</Loading>}
+    </main> : !authenticated ? <Gate onAuthed={() => setAuthenticated(true)} /> : <AuthenticatedWorkspace logout={async () => { await api("/api/session", { method: "DELETE" }); setAuthenticated(false); }}>{children}</AuthenticatedWorkspace>}
+  </I18nProvider>;
 }
 
 function AuthenticatedWorkspace({ children, logout }: { children: ReactNode; logout: () => Promise<void> }) {

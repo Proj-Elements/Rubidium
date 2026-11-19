@@ -50,7 +50,7 @@ export default function OverviewPage() {
       <Alert.Content className="gap-2">
         <Alert.Title>连接 Bark 后即可接收提醒</Alert.Title>
         <Alert.Description>未连接默认设备时，对应消息仍会保留在队列中。</Alert.Description>
-        <Link className="workspace-link w-fit" href="/settings">配置设备<Glyph name="arrow" size={14} /></Link>
+        <Link className="link workspace-link" href="/settings">配置设备<Glyph name="arrow" size={14} /></Link>
       </Alert.Content>
     </Alert>}
 
@@ -81,7 +81,7 @@ export default function OverviewPage() {
       </Card>
 
       <Card className="min-w-0 gap-4 rounded-2xl p-5 sm:p-6">
-        <CardHeading title="未来七天" description={`按 ${timeZone} 显示`} action={<Link href="/tasks" className="workspace-link">全部提醒<Glyph name="arrow" size={14} /></Link>} />
+        <CardHeading title="未来七天" description={`按 ${timeZone} 显示`} action={<Link href="/tasks" className="link workspace-link">全部提醒<Glyph name="arrow" size={14} /></Link>} />
         {dashboard ? <Card.Content className="gap-4">
           <div className="-mx-1 overflow-x-auto p-1">
             <ToggleButtonGroup className="week-strip w-max gap-1" aria-label="按日期筛选提醒" selectionMode="single" disallowEmptySelection isDetached selectedKeys={[date ?? "all"]} onSelectionChange={(keys) => {
@@ -133,7 +133,7 @@ export default function OverviewPage() {
       </Card>
 
       <Card className="min-w-0 gap-4 rounded-2xl p-5 sm:p-6">
-        <CardHeading title="最近投递" action={<Link href="/deliveries" className="workspace-link">查看记录<Glyph name="arrow" size={14} /></Link>} />
+        <CardHeading title="最近投递" action={<Link href="/deliveries" className="link workspace-link">查看记录<Glyph name="arrow" size={14} /></Link>} />
         {dashboard?.recent.length ? <ul className="grid gap-1" aria-label="最近投递记录">
           {dashboard.recent.map((item) => <li key={item.id} className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 py-2.5">
             <div className="min-w-0 space-y-1">

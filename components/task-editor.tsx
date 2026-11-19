@@ -138,7 +138,7 @@ export function TaskEditor({ task, duplicate = false, onClose }: { task?: Task; 
             </section>}
 
             <Pick label="投递设备" value={deviceId} onChange={setDeviceId} options={(devices?.devices ?? [{ id: "default", name: "默认设备" }]).map((device) => ({ value: device.id, label: device.name }))} />
-            {dashboard && !dashboard.deviceKeyConfigured && deviceId === "default" && <Notice kind="info" action={<Link href="/settings" className="workspace-link">前往设置</Link>}>默认设备未连接。</Notice>}
+            {dashboard && !dashboard.deviceKeyConfigured && deviceId === "default" && <Notice kind="info" action={<Link href="/settings" className="link workspace-link">前往设置</Link>}>默认设备未连接。</Notice>}
 
             <section className="grid gap-2 rounded-xl bg-surface-secondary p-4 text-sm">
               <div className="preview-title flex flex-wrap items-center justify-between gap-2"><h3 className="font-semibold">接下来的提醒</h3><code className="text-xs text-muted">{generatedCron || "—"}</code></div>
