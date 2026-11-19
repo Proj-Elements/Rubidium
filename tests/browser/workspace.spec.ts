@@ -221,7 +221,7 @@ test("disconnecting clears a typed replacement key before saving", async ({ page
   const key = page.getByLabel("Device Key", { exact: true });
   await key.fill("unsaved-key");
   await page.getByRole("button", { name: "断开设备", exact: true }).click();
-  await page.getByRole("dialog").getByRole("button", { name: "断开设备", exact: true }).click();
+  await page.getByRole("alertdialog").getByRole("button", { name: "断开设备", exact: true }).click();
   await expect(key).toHaveValue("");
   await page.getByRole("button", { name: "保存设置", exact: true }).click();
   await expect(page.getByRole("status").filter({ hasText: "设备连接已清除" })).toBeVisible();

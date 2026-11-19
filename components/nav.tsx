@@ -1,11 +1,12 @@
 "use client";
 
-import { Breadcrumbs, Button, Dropdown, Drawer, Label, Toast, Tooltip } from "@heroui/react";
+import { Avatar, Breadcrumbs, Button, Dropdown, Drawer, Label } from "@heroui/react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useState, type Key, type ReactNode } from "react";
+import { useState, type Key, type ReactNode } from "react";
 import { Glyph, type IconName } from "./icons";
 import { IconButton } from "./primitives";
+import { ThemeToggle } from "./theme-toggle";
 import { confirmUnsavedNavigation } from "./use-unsaved";
 import { useWorkspace } from "./workspace-context";
 import { errorMessage } from "@/lib/ui";
@@ -92,7 +93,7 @@ function WorkspaceNavigation({ onNavigate }: { onNavigate?: () => void }) {
       <div className="sidebar-note"><Glyph name="shield" size={22} /><h3>每条提醒都有记录</h3><p>到期消息持久保存，自动重试。<br />查看投递状态，安心安排。</p></div>
       <Dropdown>
         <Button variant="ghost" className="account-button">
-          <span className="account-avatar" aria-hidden="true">B</span>
+          <Avatar size="sm" color="accent" aria-hidden="true"><Avatar.Fallback>B</Avatar.Fallback></Avatar>
           <span className="account-label">个人工作空间<small>私密安全，随时可访问</small></span>
           <Glyph name="chevronDown" size={14} />
         </Button>
@@ -105,30 +106,4 @@ function WorkspaceNavigation({ onNavigate }: { onNavigate?: () => void }) {
       </Dropdown>
     </div>
   </>;
-}
-
-function ThemeToggle() {
-  const [dark, setDark] = useState(false);
-
-  useEffect(() => {
-    const saved = localStorage.getItem("barker:appearance");
-    const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
-    const initial = saved === "dark" || (saved !== "light" && prefersDark);
-    setDark(initial);
-    document.documentElement.dataset.theme = saved === "light" || saved === "dark" ? saved : "system";
-  }, []);
-
-  function toggleTheme() {
-    const next = !dark;
-    setDark(next);
-    document.documentElement.dataset.theme = next ? "dark" : "light";
-    localStorage.setItem("barker:appearance", next ? "dark" : "light");
-  }
-
-  return <Tooltip delay={300}>
-    <Button type="button" isIconOnly aria-label={dark ? "切换到浅色外观" : "切换到深色外观"} variant="ghost" onPress={toggleTheme}>
-      <Glyph name={dark ? "sun" : "moon"} />
-    </Button>
-    <Tooltip.Content>{dark ? "浅色外观" : "深色外观"}</Tooltip.Content>
-  </Tooltip>;
 }
