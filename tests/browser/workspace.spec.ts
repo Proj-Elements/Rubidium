@@ -295,11 +295,11 @@ test("closing a changed mobile task editor requires discarding its contents", as
   await login(page);
   await page.getByRole("button", { name: "新建提醒", exact: true }).last().click();
   await page.getByLabel("提醒名称", { exact: true }).fill("尚未保存的提醒");
-  page.once("dialog", (dialog) => void dialog.dismiss());
   await page.getByRole("button", { name: "关闭编辑器", exact: true }).click();
+  await page.getByRole("alertdialog").getByRole("button", { name: "继续编辑" }).click();
   await expect(page.getByLabel("提醒名称", { exact: true })).toHaveValue("尚未保存的提醒");
   await page.screenshot({ path: test.info().outputPath("mobile-editor.png"), fullPage: true, animations: "disabled" });
-  page.once("dialog", (dialog) => void dialog.accept());
   await page.getByRole("button", { name: "关闭编辑器", exact: true }).click();
+  await page.getByRole("alertdialog").getByRole("button", { name: "放弃修改" }).click();
   await expect(page.getByRole("heading", { name: "留一个提醒给未来", exact: true })).toBeHidden();
 });

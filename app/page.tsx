@@ -1,82 +1,150 @@
 "use client";
 
-import { Button, Card, Chip } from "@heroui/react";
+import { Alert, Button, Card, Meter, ToggleButton, ToggleButtonGroup } from "@heroui/react";
 import Link from "next/link";
 import { useState } from "react";
-import { Glyph, type IconName } from "@/components/icons";
-import { Empty, Notice, TaskBadge } from "@/components/primitives";
+import { AgendaDetails } from "@/components/agenda-details";
+import { Glyph } from "@/components/icons";
+import { CardHeading, DeliveryBadge, Empty, Loading, Notice, PageHeading } from "@/components/primitives";
+import { useTime } from "@/components/use-time";
 import { useWorkspace } from "@/components/workspace-context";
 import { localDateValue, PRESET_LABELS } from "@/lib/ui";
-import { useTime } from "@/components/use-time";
-import type { DeliveryStatus } from "@/lib/types";
-import { AgendaDetails } from "@/components/agenda-details";
 
-const deliveryLabels: Record<DeliveryStatus, string> = { sent: "Bark 已接收", pending: "等待投递", sending: "正在发送", cancelled: "已取消", expired: "已过期" };
+const weekday = new Intl.DateTimeFormat("zh-CN", { timeZone: "UTC", weekday: "short" });
 
 export default function OverviewPage() {
-  const { dashboard, error: dashboardError, openTask } = useWorkspace();
+  const { dashboard, error, openTask } = useWorkspace();
   const [selectedDay, setSelectedDay] = useState<string | null>(null);
   const [details, setDetails] = useState(false);
-  const { timeZone: zone, formatTime, clockTime } = useTime();
-  const upcoming = (dashboard?.tasks ?? []).filter((task) => task.status === "active" && task.nextRunAt).sort((left, right) => left.nextRunAt!.localeCompare(right.nextRunAt!));
-  const displayed = (dashboard?.upcoming ?? []).filter((item) => !selectedDay || localDateValue(new Date(item.occurrenceAt), zone) === selectedDay).flatMap((item) => {
-    const task = dashboard?.tasks.find((task) => task.id === item.taskId);
-    return task ? [{ ...task, nextRunAt: item.occurrenceAt }] : [];
-  });
-  const total = selectedDay ? dashboard?.upcomingDays.find((day) => day.date === selectedDay)?.total ?? 0 : dashboard?.upcomingDays.reduce((sum, day) => sum + day.total, 0) ?? 0;
-  const hidden = Math.max(0, total - 4);
-  const next = upcoming[0];
+  const { timeZone, formatTime, clockTime } = useTime();
   const days = dashboard?.upcomingDays ?? [];
-  const metrics: Array<{ label: string; value: number | undefined; detail: string; icon: IconName; caution?: boolean }> = [
-    { label: "进行中的提醒", value: dashboard?.stats.active, detail: "按各自时区继续排期", icon: "calendar" },
-    { label: "今日 Bark 已接收", value: dashboard?.stats.todaySent, detail: `以 ${zone} 统计`, icon: "circleCheck" },
-    { label: "等待投递", value: dashboard?.deliveries.pending, detail: "包含正在发送的消息", icon: "send" },
-    { label: "自动重试中", value: dashboard?.deliveries.retrying, detail: dashboard?.deliveries.retrying ? "查看记录了解失败原因" : "目前没有需要重试的消息", icon: "refresh", caution: Boolean(dashboard?.deliveries.retrying) },
-  ];
-  const maxActivity = Math.max(1, ...(dashboard?.activity.map((day) => day.sent) ?? [1]));
-  return <div className="page-stack">
-    <div className="page-heading"><div><p className="eyebrow">为重要的事，留一个位置</p><h1>日常有序，心里有数<span className="heading-period">。</span></h1><p>查看下一条提醒和投递状态。</p></div><Button onPress={() => openTask()}><Glyph name="plus" size={17} />新建提醒</Button></div>
-    {dashboard && !dashboard.deviceKeyConfigured && <div className="setup-banner"><span className="setup-symbol"><Glyph name="link" size={20} /></span><div><strong>连接 Bark 设备</strong><p>配置后，队列中的提醒会按策略投递。</p></div><Link href="/settings" className="text-action">连接 Bark<Glyph name="arrow" size={16} /></Link></div>}
-    <div className="hero-grid">
-      <Card className="next-panel">
-        <div className="section-top"><h2>下一个时刻</h2><span className="mini-label">{zone}</span></div>
-        {next ? <>
-          <div className="next-time">{clockTime(next.nextRunAt!)}<span>{formatTime(next.nextRunAt!, { hour: undefined, minute: undefined })}</span></div>
-          <div className="next-task"><span className="task-symbol"><Glyph name="bell" size={21} /></span><div><h3>{next.name}</h3><p>{next.description || "下一次触发时，Barker 会将提醒加入投递队列。"}</p></div></div>
-          <div className="next-bottom"><span><Glyph name="refresh" size={14} />{PRESET_LABELS[next.preset]}</span><Link href="/tasks" className="text-action">管理提醒<Glyph name="arrow" size={15} /></Link></div>
-        </> : <div className="next-empty"><Glyph name="clock" size={33} /><h3>暂无下一条提醒</h3><Button variant="ghost" onPress={() => openTask()}>开始安排</Button></div>}
+  const day = days.find((item) => item.date === selectedDay);
+  const date = day?.date ?? null;
+  const tasks = new Map(dashboard?.tasks.map((task) => [task.id, task]));
+  const next = dashboard?.tasks.filter((task) => task.status === "active" && task.nextRunAt)
+    .sort((left, right) => left.nextRunAt!.localeCompare(right.nextRunAt!))[0];
+  const upcoming = (dashboard?.upcoming ?? [])
+    .filter((item) => !date || localDateValue(new Date(item.occurrenceAt), timeZone) === date)
+    .flatMap((item) => {
+      const task = tasks.get(item.taskId);
+      return task ? [{ ...item, task }] : [];
+    });
+  const total = day?.total ?? days.reduce((sum, item) => sum + item.total, 0);
+  const hidden = Math.max(0, total - Math.min(upcoming.length, 4));
+  const activity = dashboard?.activity ?? [];
+  const dailyMaximum = Math.max(1, ...activity.map((item) => item.sent));
+  const metrics = [
+    { label: "进行中的提醒", value: dashboard?.stats.active, icon: "calendar" },
+    { label: "今日 Bark 已接收", value: dashboard?.stats.todaySent, icon: "circleCheck" },
+    { label: "等待投递", value: dashboard?.deliveries.pending, icon: "send" },
+    { label: "自动重试中", value: dashboard?.deliveries.retrying, icon: "refresh" },
+  ] as const;
+
+  return <div className="grid gap-6">
+    <PageHeading title="日常有序，心里有数" description="查看近期排期与通知状态，把重要的事交给 Barker。" action={
+      <Button onPress={() => openTask()}><Glyph name="plus" />新建提醒</Button>
+    } />
+
+    {dashboard && !dashboard.deviceKeyConfigured && <Alert status="accent" className="items-start rounded-2xl" role="status">
+      <Alert.Indicator />
+      <Alert.Content className="gap-2">
+        <Alert.Title>连接 Bark 后即可接收提醒</Alert.Title>
+        <Alert.Description>未连接默认设备时，对应消息仍会保留在队列中。</Alert.Description>
+        <Link className="workspace-link w-fit" href="/settings">配置设备<Glyph name="arrow" size={14} /></Link>
+      </Alert.Content>
+    </Alert>}
+
+    <section aria-label="提醒指标" className="grid grid-cols-2 items-stretch gap-3 md:grid-cols-4 md:gap-4">
+      {metrics.map(({ label, value, icon }) => <Card key={label} className="flex-row items-start justify-between gap-2 rounded-2xl p-4 sm:p-5">
+        <div className="min-w-0 space-y-3">
+          <p className="text-xs leading-snug text-muted sm:text-sm">{label}</p>
+          <p className="text-3xl leading-none font-semibold tracking-tight tabular-nums">{value ?? "—"}</p>
+        </div>
+        <span className={`icon-well ${icon === "refresh" && value ? "text-warning-soft-foreground" : ""}`}><Glyph name={icon} size={17} /></span>
+      </Card>)}
+    </section>
+
+    <div className="grid items-start gap-4 lg:grid-cols-[minmax(15rem,0.75fr)_minmax(0,1.65fr)] lg:gap-6">
+      <Card className="next-panel min-w-0 gap-4 rounded-2xl p-5 sm:p-6">
+        <CardHeading title="下一条提醒" action={<span className="icon-well"><Glyph name="clock" /></span>} />
+        {next?.nextRunAt ? <Card.Content className="gap-4">
+          <div>
+            <time dateTime={next.nextRunAt} className="block text-5xl leading-none font-semibold tracking-tight text-accent tabular-nums">{clockTime(next.nextRunAt)}</time>
+            <p className="mt-2 text-sm text-muted tabular-nums">{formatTime(next.nextRunAt, { hour: undefined, minute: undefined })}</p>
+          </div>
+          <div className="next-task min-w-0 space-y-1">
+            <h3 className="line-clamp-2 text-sm font-semibold break-words">{next.name}</h3>
+            <p className="line-clamp-2 text-sm leading-relaxed break-words text-muted">{next.description || PRESET_LABELS[next.preset]}</p>
+          </div>
+          <Button variant="outline" className="self-start" onPress={() => openTask(next)}>查看提醒</Button>
+        </Card.Content> : dashboard ? <Card.Content className="gap-1 text-sm text-muted"><p>暂无下一次排期</p><p>启用提醒后，开始时间会显示在这里。</p></Card.Content> : error ? null : <Loading>正在同步</Loading>}
+      </Card>
+
+      <Card className="min-w-0 gap-4 rounded-2xl p-5 sm:p-6">
+        <CardHeading title="未来七天" description={`按 ${timeZone} 显示`} action={<Link href="/tasks" className="workspace-link">全部提醒<Glyph name="arrow" size={14} /></Link>} />
+        {dashboard ? <Card.Content className="gap-4">
+          <div className="-mx-1 overflow-x-auto p-1">
+            <ToggleButtonGroup className="week-strip w-max gap-1" aria-label="按日期筛选提醒" selectionMode="single" disallowEmptySelection isDetached selectedKeys={[date ?? "all"]} onSelectionChange={(keys) => {
+              const selected = keys.values().next().value;
+              setSelectedDay(typeof selected === "string" && selected !== "all" ? selected : null);
+            }}>
+              <ToggleButton id="all" variant="ghost" className="min-h-16 min-w-13 flex-col gap-1">全部</ToggleButton>
+              {days.map((item, index) => <ToggleButton key={item.date} id={item.date} variant="ghost" className="min-h-16 min-w-13 flex-col gap-0.5 tabular-nums" aria-label={`${item.date}，${item.total} 条`}>
+                <small className="text-xs opacity-75">{index === 0 ? "今天" : weekday.format(new Date(`${item.date}T12:00:00Z`))}</small>
+                <span className="leading-none font-semibold">{Number(item.date.slice(8))}</span>
+                <small className="text-xs opacity-75">{item.total} 条</small>
+              </ToggleButton>)}
+            </ToggleButtonGroup>
+          </div>
+
+          {upcoming.length ? <ul className="grid gap-1" aria-label="近期排期">
+            {upcoming.slice(0, 4).map(({ task, occurrenceAt }) => <li key={`${task.id}:${occurrenceAt}`}>
+              <Button variant="ghost" fullWidth className="upcoming-row h-auto min-h-12 justify-start gap-3 rounded-xl px-2 py-2 text-start" onPress={() => openTask(task)}>
+                <span className="flex min-w-13 flex-col items-start gap-0.5 tabular-nums">
+                  <time dateTime={occurrenceAt} className="font-semibold">{clockTime(occurrenceAt)}</time>
+                  <small className="text-xs text-muted">{localDateValue(new Date(occurrenceAt), timeZone).slice(5).replace("-", "/")}</small>
+                </span>
+                <span className="min-w-0 flex-1"><span className="block truncate font-medium">{task.name}</span><small className="block truncate text-xs text-muted">{PRESET_LABELS[task.preset]}</small></span>
+                <Glyph name="chevron" size={14} className="text-muted" />
+              </Button>
+            </li>)}
+          </ul> : <Empty title="没有排期" description={date ? "这一天没有提醒，可以选择其他日期。" : "未来七天暂无已安排的提醒。"} icon="calendar" />}
+
+          {dashboard.forecastTruncated && <Notice kind="info">排期较多，当前仅显示部分预测。</Notice>}
+          {(hidden > 0 || dashboard.forecastTruncated) && <p className="forecast-overflow flex flex-wrap items-center justify-between gap-2 text-sm text-muted tabular-nums">
+            {hidden > 0 && <span>{date ? "当天" : "七天内"}共 {total} 条，另有 {hidden} 条未展开。</span>}
+            <Button variant="outline" onPress={() => setDetails(true)}>查看完整排期</Button>
+          </p>}
+        </Card.Content> : error ? null : <Loading>正在读取排期</Loading>}
       </Card>
     </div>
-    <section className="metrics-grid" aria-label="提醒概况">{metrics.map((metric) => <Card key={metric.label} className="metric-card"><div><p>{metric.label}</p><strong className={metric.caution ? "text-warning" : ""}>{metric.value ?? "—"}<small>条</small></strong><span>{metric.detail}</span></div><span className={`metric-symbol ${metric.caution ? "caution" : ""}`}><Glyph name={metric.icon} size={21} /></span></Card>)}</section>
-    <Card className="upcoming-panel"><div className="section-top"><div><h2>接下来的安排</h2><p>未来七天的排期，时间按 {zone} 显示。</p></div><Link href="/tasks" className="text-action">全部提醒<Glyph name="arrow" size={15} /></Link></div>
-      <div className="week-strip"><button className={`week-all ${selectedDay === null ? "chosen" : ""}`} onClick={() => setSelectedDay(null)} aria-pressed={selectedDay === null}>全部<small>提醒</small></button>{days.map((day, index) => {
-        const date = day.date;
-        const count = dashboard?.upcomingDays.find((item) => item.date === date)?.total ?? 0;
-        return <button key={date} className={selectedDay === date ? "chosen" : ""} aria-pressed={selectedDay === date} onClick={() => setSelectedDay(date)}><small>{index === 0 ? "今天" : new Intl.DateTimeFormat("zh-CN", { timeZone: "UTC", weekday: "short" }).format(new Date(`${date}T12:00:00Z`))}</small><span>{Number(date.slice(8))}</span><small>{count} 条</small></button>;
-      })}</div>
-      {!dashboard ? dashboardError ? null : <div className="loading-state">正在同步你的安排…</div> : !displayed.length ? <Empty title="这里暂时没有提醒" description="新建周期提醒，或选择其他日期。" action={<Button variant="outline" onPress={() => openTask()}>新建提醒</Button>} /> : <div className="upcoming-list">{displayed.slice(0, 4).map((task) => (
-        <button className="upcoming-row" key={`${task.id}:${task.nextRunAt}`} onClick={() => openTask(task)}>
-          <span className="upcoming-time">{clockTime(task.nextRunAt!)}<small>{localDateValue(new Date(task.nextRunAt!), zone).replaceAll("-", "/")}</small></span>
-          <span className="upcoming-copy"><strong>{task.name}</strong><small>{PRESET_LABELS[task.preset]}<span>·</span>{task.description || (task.sentCount ? `${task.sentCount} 次 Bark 已接收` : "尚未投递")}</small></span>
-          <TaskBadge task={task} /><Glyph name="chevron" size={14} className="row-chevron" />
-        </button>
-      ))}</div>}
-      {dashboard?.forecastTruncated ? <Notice kind="info">待处理排期较多，当前仅显示部分预测。请稍后查看完整排期。</Notice> : hidden > 0 && <p className="forecast-overflow">{selectedDay ? "当天" : "七天内"}共 {total} 条，另有 {hidden} 条未展开。<Button size="sm" variant="ghost" onPress={() => setDetails(true)}>查看完整排期</Button></p>}
-    </Card>
-    <div className="overview-bottom-grid"><Card className="activity-panel"><div className="section-top"><h2>投递节奏</h2><span className="mini-label">最近 7 天</span></div><div className="activity-total"><strong>{dashboard?.activity.reduce((sum, day) => sum + day.sent, 0) ?? "—"}</strong><span>条 Bark 已接收</span></div><div className="activity-chart" role="img" aria-label={dashboard?.activity.map((day) => `${day.date}：${day.sent}条`).join("；") ?? "正在加载"}>{dashboard?.activity.map((day, index) => <div className="activity-column" key={day.date}><div className={`activity-bar ${index === 6 ? "today" : ""}`} style={{ height: `${Math.max(3, day.sent / maxActivity * 88)}px` }} title={`${day.date} · ${day.sent} 条`} /><span>{index === 6 ? "今天" : day.date.slice(5).replace("-", "/")}</span></div>)}</div></Card>
-      <Card className="recent-panel"><div className="section-top"><div><h2>最近投递</h2><p>按最近一次投递活动排序。</p></div><Link href="/deliveries" className="text-action">查看记录<Glyph name="arrow" size={15} /></Link></div>
-        {dashboard?.recent.length ? <div className="recent-list">{dashboard.recent.map((item) => {
-          const failed = item.status === "pending" && Boolean(item.lastError);
-          const label = failed ? item.manualOnly ? "等待人工处理" : "等待重试" : deliveryLabels[item.status];
-          return <div key={item.id} className="recent-row">
-            <span className={`delivery-symbol ${item.status === "sent" ? "delivered" : failed ? "retrying" : ""}`}><Glyph name={item.status === "sent" ? "check" : "clock"} size={17} /></span>
-            <div><strong>{item.taskName}</strong><small>{label}</small></div>
-            <time dateTime={item.updatedAt}>{formatTime(item.updatedAt)}</time>
-            <Chip variant="soft" color={item.status === "sent" ? "success" : failed ? "warning" : "default"} size="sm">{label}</Chip>
-          </div>;
-        })}</div> : <div className="inline-empty"><Glyph name="inbox" size={20} /><p>{dashboard ? "暂无投递记录。" : dashboardError ? "暂时无法读取投递记录。" : "正在读取投递记录…"}</p></div>}
+
+    <div className="grid items-start gap-4 lg:grid-cols-[minmax(15rem,0.75fr)_minmax(0,1.65fr)] lg:gap-6">
+      <Card className="gap-4 rounded-2xl p-5 sm:p-6">
+        <CardHeading title="投递节奏" description="最近七天 Bark 接收数量" />
+        {activity.length ? <Card.Content className="gap-2.5">
+          {activity.map((item, index) => {
+            const label = index === activity.length - 1 ? "今天" : item.date.slice(5).replace("-", "/");
+            return <Meter key={item.date} aria-label={`${item.date} Bark 接收数量`} value={item.sent} maxValue={dailyMaximum} valueLabel={`${item.sent} 条`} className="activity-meter items-center gap-3 text-xs tabular-nums" size="sm">
+              <span className="text-muted">{label}</span><Meter.Track><Meter.Fill /></Meter.Track><Meter.Output>{item.sent}</Meter.Output>
+            </Meter>;
+          })}
+        </Card.Content> : error ? null : <Loading>正在读取统计</Loading>}
+      </Card>
+
+      <Card className="min-w-0 gap-4 rounded-2xl p-5 sm:p-6">
+        <CardHeading title="最近投递" action={<Link href="/deliveries" className="workspace-link">查看记录<Glyph name="arrow" size={14} /></Link>} />
+        {dashboard?.recent.length ? <ul className="grid gap-1" aria-label="最近投递记录">
+          {dashboard.recent.map((item) => <li key={item.id} className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 py-2.5">
+            <div className="min-w-0 space-y-1">
+              <p className="truncate text-sm font-medium">{item.taskName}</p>
+              <time dateTime={item.updatedAt} className="block text-xs text-muted tabular-nums">{formatTime(item.updatedAt)}</time>
+            </div>
+            <DeliveryBadge item={item} />
+          </li>)}
+        </ul> : dashboard ? <Empty title="暂无投递记录" description="提醒触发后，最近的投递状态会显示在这里。" /> : error ? null : <Loading>正在读取投递记录</Loading>}
       </Card>
     </div>
-    {details && <AgendaDetails date={selectedDay} onClose={() => setDetails(false)} />}
+    {details && <AgendaDetails date={date} onClose={() => setDetails(false)} />}
   </div>;
 }

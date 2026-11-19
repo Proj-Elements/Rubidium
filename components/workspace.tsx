@@ -40,7 +40,12 @@ function AuthenticatedWorkspace({ children, logout }: { children: ReactNode; log
   const { data: dashboard, error, refresh } = useResource<Dashboard>("/api/overview", path === "/" ? 15_000 : 60_000);
   const [editor, setEditor] = useState<{ task?: Task; duplicate?: boolean } | null>(null);
   return <WorkspaceContext.Provider value={{ dashboard, error, refresh, logout, openTask: (task, duplicate) => setEditor({ task, duplicate }), notify: (message, kind = "success") => { if (kind === "error") toast.danger(message); else toast.success(message); } }}>
-    <Shell><div className="workspace-notices">{error && <Notice>{dashboard ? "暂时无法同步，当前显示上次数据。" : "暂时无法读取工作区。"}{error}<Button size="sm" variant="ghost" onPress={() => void refresh()}>重试</Button></Notice>}</div>{children}</Shell>
+    <Shell>
+      {error && <div className="mb-6"><Notice action={<Button variant="ghost" onPress={() => void refresh()}>重试</Button>}>
+        <p>{dashboard ? "暂时无法同步，当前显示上次数据。" : "暂时无法读取工作区。"}</p><p>{error}</p>
+      </Notice></div>}
+      {children}
+    </Shell>
     {editor && <TaskEditor task={editor.task} duplicate={editor.duplicate} onClose={() => setEditor(null)} />}
   </WorkspaceContext.Provider>;
 }
