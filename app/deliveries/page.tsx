@@ -1,6 +1,6 @@
 "use client";
 
-import { Button, Card, Chip, Drawer, Dropdown, Form, Label, Modal, ScrollShadow } from "@heroui/react";
+import { Button, Card, Chip, Drawer, Dropdown, Form, Label, Modal, ScrollShadow, Table } from "@heroui/react";
 import { useState, type FormEvent } from "react";
 import { Glyph } from "@/components/icons";
 import { AreaField, Confirm, DeliveryBadge, deliveryLabels, Details, Empty, Field, IconButton, Loading, Notice, PageHeading } from "@/components/primitives";
@@ -67,11 +67,50 @@ export default function DeliveriesPage() {
         <Empty title={filtered ? "没有匹配的记录" : "暂无投递记录"} description={filtered ? "试试其他关键词，或切换投递状态。" : "提醒触发后，会在这里显示通知和尝试结果。"}
           icon={filtered ? "search" : "inbox"} action={filtered && <Button variant="outline" className="max-sm:min-h-11" onPress={clearFilters}>清除筛选</Button>} />
       </Card> : <>
-        {pending.length > 0 && <div className="px-2">
+        {pending.length > 0 && <div className="px-2 md:hidden">
           <Selection text="选择本页待投递消息" selected={selectedIds.length === pending.length} partial={selectedIds.length > 0 && selectedIds.length !== pending.length}
             disabled={Boolean(busy)} onChange={(value) => setSelected(value ? pending.map((item) => item.id) : [])} />
         </div>}
-        <ul className="grid gap-3">
+        <Card className="hidden min-w-0 gap-0 overflow-visible p-2 md:flex sm:p-3">
+          <Table variant="secondary">
+            <Table.ScrollContainer>
+              <Table.Content aria-label="投递记录列表" className="min-w-[760px]" selectionMode="multiple" selectedKeys={selectedIds}
+                disabledKeys={data.deliveries.filter((item) => item.status !== "pending").map((item) => item.id)}
+                onSelectionChange={(keys) => setSelected(keys === "all" ? pending.map((item) => item.id) : [...keys].map(String))}>
+                <Table.Header>
+                  <Table.Column aria-label="选择" className="w-12"><Selection label="选择本页待投递消息" slot="selection" /></Table.Column>
+                  <Table.Column isRowHeader className="min-w-52">提醒</Table.Column>
+                  <Table.Column className="min-w-60">排期与状态时间</Table.Column>
+                  <Table.Column className="whitespace-nowrap">投递状态</Table.Column>
+                  <Table.Column className="whitespace-nowrap">尝试次数</Table.Column>
+                  <Table.Column aria-label="操作" className="w-24" />
+                </Table.Header>
+                <Table.Body>
+                  {data.deliveries.map((item) => <Table.Row key={item.id} id={item.id}>
+                    <Table.Cell><Selection slot="selection" /></Table.Cell>
+                    <Table.Cell className="max-w-64">
+                      <div className="min-w-0 space-y-1">
+                        <p className="truncate text-sm font-medium">{item.taskName}</p>
+                        {item.description && <p className="line-clamp-1 text-xs text-muted">{item.description}</p>}
+                      </div>
+                    </Table.Cell>
+                    <Table.Cell><DeliveryTimes item={item} /></Table.Cell>
+                    <Table.Cell><DeliveryBadge item={item} /></Table.Cell>
+                    <Table.Cell className="tabular-nums">{item.attempts}</Table.Cell>
+                    <Table.Cell>
+                      <div className="flex items-center justify-end gap-1">
+                        <IconButton icon="inbox" label={`查看详情 ${item.taskName}`} onPress={() => setDetails(item)} />
+                        {item.status === "pending" && <DeliveryActions item={item} busy={Boolean(busy)} onEdit={() => setEdit(item)} onCancel={() => setCancel(item)} />}
+                      </div>
+                    </Table.Cell>
+                  </Table.Row>)}
+                </Table.Body>
+              </Table.Content>
+            </Table.ScrollContainer>
+          </Table>
+        </Card>
+
+        <ul className="grid gap-3 md:hidden">
           {data.deliveries.map((item) => <li key={item.id}>
             <Card render={(props) => <article {...props} />} className="grid grid-cols-[1.5rem_minmax(0,1fr)] items-start gap-3 p-4 sm:p-5">
               {item.status === "pending" ? <Selection label={`选择投递 ${item.taskName}`} selected={selectedIds.includes(item.id)} disabled={Boolean(busy)}
@@ -82,16 +121,7 @@ export default function DeliveriesPage() {
                     <Card.Title render={(props) => <h2 {...props} />} className="line-clamp-2 font-semibold break-words">{item.taskName}</Card.Title>
                     <DeliveryBadge item={item} />
                   </div>
-                  {item.status === "pending" && <Dropdown>
-                    <IconButton icon="more" label={`更多操作 ${item.taskName}`} isDisabled={Boolean(busy)} />
-                    <Dropdown.Popover><Dropdown.Menu aria-label="投递操作" onAction={(key) => {
-                      if (key === "edit") setEdit(item);
-                      if (key === "cancel") setCancel(item);
-                    }}>
-                      <Dropdown.Item id="edit" textValue="修正消息内容"><Glyph name="edit" /><Label>修正消息内容</Label></Dropdown.Item>
-                      <Dropdown.Item id="cancel" variant="danger" textValue="取消投递"><Glyph name="close" /><Label>取消投递</Label></Dropdown.Item>
-                    </Dropdown.Menu></Dropdown.Popover>
-                  </Dropdown>}
+                  {item.status === "pending" && <DeliveryActions item={item} busy={Boolean(busy)} onEdit={() => setEdit(item)} onCancel={() => setCancel(item)} />}
                 </Card.Header>
                 <Card.Content className="gap-2">
                   {item.description && <p className="line-clamp-2 text-sm leading-relaxed break-words text-muted">{item.description}</p>}
@@ -132,6 +162,19 @@ export default function DeliveriesPage() {
     }} />}
     {details && <DeliveryDetails item={data?.deliveries.find((item) => item.id === details.id) ?? details} onClose={() => setDetails(null)} />}
   </div>;
+}
+
+function DeliveryActions({ item, busy, onEdit, onCancel }: { item: Delivery; busy: boolean; onEdit: () => void; onCancel: () => void }) {
+  return <Dropdown>
+    <IconButton icon="more" label={`更多操作 ${item.taskName}`} isDisabled={busy} />
+    <Dropdown.Popover><Dropdown.Menu aria-label="投递操作" onAction={(key) => {
+      if (key === "edit") onEdit();
+      if (key === "cancel") onCancel();
+    }}>
+      <Dropdown.Item id="edit" textValue="修正消息内容"><Glyph name="edit" /><Label>修正消息内容</Label></Dropdown.Item>
+      <Dropdown.Item id="cancel" variant="danger" textValue="取消投递"><Glyph name="close" /><Label>取消投递</Label></Dropdown.Item>
+    </Dropdown.Menu></Dropdown.Popover>
+  </Dropdown>;
 }
 
 function DeliveryTimes({ item }: { item: Delivery }) {
