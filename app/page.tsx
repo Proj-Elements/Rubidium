@@ -1,6 +1,6 @@
 "use client";
 
-import { Alert, Button, Card, Meter, ToggleButton, ToggleButtonGroup } from "@heroui/react";
+import { Alert, Button, Card, Meter, ScrollShadow, ToggleButton, ToggleButtonGroup } from "@heroui/react";
 import Link from "next/link";
 import { useState } from "react";
 import { AgendaDetails } from "@/components/agenda-details";
@@ -60,7 +60,7 @@ export default function OverviewPage() {
           <p className="text-xs leading-snug text-muted sm:text-sm">{label}</p>
           <p className="text-3xl leading-none font-semibold tracking-tight tabular-nums">{value ?? "—"}</p>
         </div>
-        <span className={`icon-well ${icon === "refresh" && value ? "text-warning-soft-foreground" : ""}`}><Glyph name={icon} size={17} /></span>
+        <span className="icon-well"><Glyph name={icon} size={17} className={icon === "refresh" && value ? "text-warning-soft-foreground" : undefined} /></span>
       </Card>)}
     </section>
 
@@ -83,7 +83,7 @@ export default function OverviewPage() {
       <Card className="min-w-0 gap-4 rounded-2xl p-5 sm:p-6">
         <CardHeading title="未来七天" description={`按 ${timeZone} 显示`} action={<Link href="/tasks" className="link workspace-link">全部提醒<Glyph name="arrow" size={14} /></Link>} />
         {dashboard ? <Card.Content className="gap-4">
-          <div className="-mx-1 overflow-x-auto p-1">
+          <ScrollShadow className="-mx-1 max-w-full overflow-x-auto p-1" orientation="horizontal" size={16}>
             <ToggleButtonGroup className="week-strip w-max gap-1" aria-label="按日期筛选提醒" selectionMode="single" disallowEmptySelection isDetached selectedKeys={[date ?? "all"]} onSelectionChange={(keys) => {
               const selected = keys.values().next().value;
               setSelectedDay(typeof selected === "string" && selected !== "all" ? selected : null);
@@ -95,7 +95,7 @@ export default function OverviewPage() {
                 <small className="text-xs opacity-75">{item.total} 条</small>
               </ToggleButton>)}
             </ToggleButtonGroup>
-          </div>
+          </ScrollShadow>
 
           {upcoming.length ? <ul className="grid gap-1" aria-label="近期排期">
             {upcoming.slice(0, 4).map(({ task, occurrenceAt }) => <li key={`${task.id}:${occurrenceAt}`}>

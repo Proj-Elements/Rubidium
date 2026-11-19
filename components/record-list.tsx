@@ -35,7 +35,7 @@ export function RecordList({ label, searchLabel, filters, filter, query, onFilte
 }) {
   return <Tabs className="min-w-0 gap-5" selectedKey={filter} onSelectionChange={(key) => onFilter(String(key))}>
     <div className="flex min-w-0 flex-wrap items-center justify-between gap-3">
-      <Tabs.ListContainer className="max-w-full min-w-0 overflow-x-auto p-1">
+      <Tabs.ListContainer className="max-w-full min-w-0">
         <Tabs.List aria-label={label} className="w-max flex-nowrap">
           {filters.map((item) => <Tabs.Tab key={item.id} id={item.id} className="whitespace-nowrap">{item.label}<Tabs.Indicator /></Tabs.Tab>)}
         </Tabs.List>
@@ -48,7 +48,7 @@ export function RecordList({ label, searchLabel, filters, filter, query, onFilte
         </SearchField.Group>
       </SearchField>
     </div>
-    <Tabs.Panel id={filter} className="grid min-w-0 gap-4">{children}</Tabs.Panel>
+    <Tabs.Panel id={filter} className="grid min-w-0 gap-4 p-0">{children}</Tabs.Panel>
   </Tabs>;
 }
 

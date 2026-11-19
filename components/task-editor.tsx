@@ -104,7 +104,7 @@ export function TaskEditor({ task, duplicate = false, onClose }: { task?: Task; 
     <Modal.Backdrop isOpen onOpenChange={(open) => { if (!open) close(); }} isDismissable={!busy} isKeyboardDismissDisabled={busy}>
       <Modal.Container size="lg" placement="center" scroll="inside"><Modal.Dialog className="p-0">
         <Form className="flex min-h-0 flex-col" onSubmit={save}>
-          <Modal.Header className="flex-row items-start justify-between gap-3 px-5 pt-5 sm:px-6">
+          <Modal.Header className="shrink-0 flex-row items-start justify-between gap-3 px-5 pt-5 sm:px-6">
             <div className="space-y-1">
               <Modal.Heading className="text-xl font-semibold">{editing ? "编辑提醒" : duplicate ? "复制为新提醒" : "留一个提醒给未来"}</Modal.Heading>
               <p className="text-sm text-muted">填写通知内容并安排发送时间。</p>
@@ -112,7 +112,7 @@ export function TaskEditor({ task, duplicate = false, onClose }: { task?: Task; 
             <IconButton label="关闭编辑器" icon="close" isDisabled={busy} onPress={close} />
           </Modal.Header>
 
-          <Modal.Body className="gap-5 px-5 py-4 sm:px-6">
+          <Modal.Body className="grid content-start gap-4 px-5 py-4 sm:gap-5 sm:px-6">
             {error && <Notice>{error}</Notice>}
             <Field label="提醒名称" value={name} onChange={(event) => setName(event.target.value)} required maxLength={80} autoFocus />
             <AreaField label="提醒内容" rows={3} value={description} onChange={(event) => setDescription(event.target.value)} maxLength={2000} hint="标题与正文合计最多 3000 个 UTF-8 字节。" />
@@ -125,15 +125,15 @@ export function TaskEditor({ task, duplicate = false, onClose }: { task?: Task; 
             {preset === "monthly" && Number(startsAt.slice(8, 10)) > 28 && <Notice kind="info">短月不存在的日期会跳过。</Notice>}
             {preset !== "once" && <section className="grid gap-2" aria-label="结束条件">
               <div className="flex flex-wrap items-center justify-between gap-2 text-sm"><h3 className="font-medium">何时结束</h3>{persisted && <span className="text-muted tabular-nums">已排期 {persisted.queuedCount} 次</span>}</div>
-              <Tabs selectedKey={limit} onSelectionChange={(key) => setLimit(String(key))}>
-                <Tabs.ListContainer><Tabs.List aria-label="提醒结束方式" className="w-fit">
+              <Tabs className="min-w-0" selectedKey={limit} onSelectionChange={(key) => setLimit(String(key))}>
+                <Tabs.ListContainer className="w-fit max-w-full self-start"><Tabs.List aria-label="提醒结束方式" className="whitespace-nowrap">
                   <Tabs.Tab id="count">按次数<Tabs.Indicator /></Tabs.Tab>
                   <Tabs.Tab id="date">按日期<Tabs.Indicator /></Tabs.Tab>
                   <Tabs.Tab id="never">持续重复<Tabs.Indicator /></Tabs.Tab>
                 </Tabs.List></Tabs.ListContainer>
-                <Tabs.Panel id="count" className="pt-3"><NumericField label="重复次数" minValue={1} maxValue={100000} value={count} onChange={setCount} isRequired /></Tabs.Panel>
-                <Tabs.Panel id="date" className="pt-3"><CalendarField label="截止日期（含当天）" value={endDate} onChange={setEndDate} timeZone={timeZone} dateOnly /></Tabs.Panel>
-                <Tabs.Panel id="never" className="pt-3 text-sm text-muted">持续排期，直到暂停或归档。</Tabs.Panel>
+                <Tabs.Panel id="count" className="px-0 pt-2"><NumericField label="重复次数" minValue={1} maxValue={100000} value={count} onChange={setCount} isRequired /></Tabs.Panel>
+                <Tabs.Panel id="date" className="px-0 pt-2"><CalendarField label="截止日期（含当天）" value={endDate} onChange={setEndDate} timeZone={timeZone} dateOnly /></Tabs.Panel>
+                <Tabs.Panel id="never" className="px-0 pt-2 text-sm text-muted">持续排期，直到暂停或归档。</Tabs.Panel>
               </Tabs>
             </section>}
 

@@ -15,14 +15,14 @@ type SettingsPayload = { settings: Omit<BarkSettings, "deviceKey">; deviceKeyCon
 
 export default function SettingsPage() {
   const { data, error, refresh } = useResource<SettingsPayload>("/api/settings", 15_000);
-  const panel = "grid min-w-0 gap-4 data-[inert]:hidden";
+  const panel = "grid min-w-0 gap-4 p-0 data-[inert]:hidden";
 
   return <div className="grid gap-6">
     <PageHeading title="推送设置" description="连接 Bark 设备，管理工作空间的访问与存储。" />
     {error && <Notice action={<Button variant="ghost" onPress={() => void refresh()}>重试</Button>}>{error}</Notice>}
     <Tabs className="min-w-0 gap-5" defaultSelectedKey="connection">
-      <Tabs.ListContainer className="max-w-full min-w-0 overflow-x-auto p-1">
-        <Tabs.List className="w-max flex-nowrap whitespace-nowrap" aria-label="工作空间设置分类">
+      <Tabs.ListContainer className="w-fit max-w-full min-w-0 self-start">
+        <Tabs.List className="whitespace-nowrap max-sm:[&>[role=tab]]:px-3" aria-label="工作空间设置分类">
           <Tabs.Tab id="connection">连接配置<Tabs.Indicator /></Tabs.Tab>
           <Tabs.Tab id="devices">更多设备<Tabs.Indicator /></Tabs.Tab>
           <Tabs.Tab id="access">访问安全<Tabs.Indicator /></Tabs.Tab>
@@ -167,9 +167,10 @@ function HistorySettings({ dataDir }: { dataDir?: string }) {
     try {
       const result = await api<{ removed: number }>("/api/deliveries", { method: "DELETE", body: JSON.stringify({ before: new Date(Date.now() - 30 * 86_400_000).toISOString(), all: true, compact: true }) });
       notify(`已清理 ${result.removed} 条结束记录，并回收数据库空间。`);
+      setConfirmPrune(false);
       void refresh();
     } catch (error) { notify(errorMessage(error), "error"); }
-    finally { setConfirmPrune(false); setPruning(false); }
+    finally { setPruning(false); }
   }
 
   return <Card className="gap-4 rounded-2xl p-5 sm:p-6">

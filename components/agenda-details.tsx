@@ -16,7 +16,7 @@ export function AgendaDetails({ date, onClose }: { date: string | null; onClose:
   const { data, error, refresh } = useResource<{ items: Array<{ occurrenceAt: string; taskId: string; name: string }>; total: number; next: { occurrenceAt: string; taskId: string } | null }>(`/api/upcoming?${query}`, 0);
   return <Modal.Backdrop isOpen onOpenChange={(open) => { if (!open) onClose(); }}><Modal.Container size="lg" placement="center" scroll="inside"><Modal.Dialog>
     <Modal.Header><Modal.Heading>{date ? `${date} 排期` : "未来七天完整排期"}</Modal.Heading></Modal.Header>
-    <Modal.Body className="gap-4">
+    <Modal.Body className="grid content-start gap-4">
       {error && <Notice action={<Button variant="ghost" onPress={() => void refresh()}>重试</Button>}>{error}</Notice>}
       {data ? <>
         {data.items.length ? <ScrollShadow className="max-h-[45dvh] overflow-y-auto" size={16}>

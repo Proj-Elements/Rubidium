@@ -162,7 +162,7 @@ function DeliveryEditor({ item, onClose, onSaved }: { item: Delivery; onClose: (
     <Modal.Container placement="center" scroll="inside"><Modal.Dialog>
       <Form onSubmit={save} className="flex min-h-0 flex-col">
         <Modal.Header><Modal.Heading>修正消息内容</Modal.Heading></Modal.Header>
-        <Modal.Body className="gap-4">
+        <Modal.Body className="grid content-start gap-4">
           {error && <Notice>{error}</Notice>}
           <Field label="消息标题" value={title} onChange={(event) => setTitle(event.target.value)} maxLength={80} required disabled={busy} />
           <AreaField label="消息正文" value={body} onChange={(event) => setBody(event.target.value)} maxLength={2000} rows={4} disabled={busy} />

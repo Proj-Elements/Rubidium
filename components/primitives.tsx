@@ -77,7 +77,7 @@ export function Details({ title, children }: { title: string; children: ReactNod
         {title}<Disclosure.Indicator />
       </Disclosure.Trigger>
     </Disclosure.Heading>
-    <Disclosure.Content><Disclosure.Body className="grid gap-4 pt-2">{children}</Disclosure.Body></Disclosure.Content>
+    <Disclosure.Content><Disclosure.Body className="grid gap-4 px-0 pt-2">{children}</Disclosure.Body></Disclosure.Content>
   </Disclosure>;
 }
 
