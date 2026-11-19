@@ -6,7 +6,7 @@ async function login(page: Page) {
   await page.goto("/");
   await page.getByLabel("访问密码").fill("browser-regression-password");
   await page.getByRole("button", { name: "进入工作空间" }).click();
-  await expect(page.getByRole("heading", { name: /日常有序/ })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "提醒概览" })).toBeVisible();
   const listing = await (await page.request.get("/api/tasks")).json();
   for (const task of listing.tasks) {
     if (task.status !== "archived") await page.request.delete(`/api/tasks/${task.id}`, { headers: { "if-match": String(task.revision) } });

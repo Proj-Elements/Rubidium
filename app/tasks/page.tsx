@@ -23,7 +23,7 @@ const filters = [
 const PAGE_SIZE = 10;
 
 export default function TasksPage() {
-  const { openTask, refresh: refreshDashboard, notify } = useWorkspace();
+  const { refresh: refreshDashboard, notify } = useWorkspace();
   const { filter, setFilter, setPage, query, setQuery, search, params, selected, setSelected, clearFilters } = useRecordQuery(PAGE_SIZE, filters);
   const [archive, setArchive] = useState<Task | null>(null);
   const [busy, setBusy] = useState("");
@@ -114,7 +114,7 @@ export default function TasksPage() {
 
   return (
     <div className="grid gap-6 pb-12">
-      <PageHeading title="所有提醒" description="管理提醒的排期、重复规则与投递设备。" action={<Button className="max-sm:min-h-11" onPress={() => openTask()}><Glyph name="plus" />新建提醒</Button>} />
+      <PageHeading title="所有提醒" />
       <RecordList label="提醒状态" searchLabel="搜索提醒" filters={filters} filter={filter} query={query} onFilter={setFilter} onSearch={setQuery}>
         {error && <Notice action={<Button variant="ghost" onPress={() => void refresh()}>重试</Button>}>{error}</Notice>}
         {!data ? !error && <Loading>正在读取提醒</Loading> : !data.tasks.length ? <Card className="rounded-2xl">

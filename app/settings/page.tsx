@@ -18,7 +18,7 @@ export default function SettingsPage() {
   const panel = "grid min-w-0 gap-4 p-0 data-[inert]:hidden";
 
   return <div className="grid gap-6">
-    <PageHeading title="推送设置" description="连接 Bark 设备，管理工作空间的访问与存储。" />
+    <PageHeading title="推送设置" />
     {error && <Notice action={<Button variant="ghost" onPress={() => void refresh()}>重试</Button>}>{error}</Notice>}
     <Tabs className="min-w-0 gap-5" defaultSelectedKey="connection">
       <Tabs.ListContainer className="w-fit max-w-full min-w-0 self-start">

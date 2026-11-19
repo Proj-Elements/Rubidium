@@ -60,7 +60,7 @@ export default function DeliveriesPage() {
   }
 
   return <div className="grid gap-6 pb-12">
-    <PageHeading title="投递记录" description="查看每次发送的结果，必要时修正、重试或取消待投递消息。" />
+    <PageHeading title="投递记录" />
     <RecordList label="投递状态" searchLabel="搜索记录" filters={filters} filter={filter} query={query} onFilter={setFilter} onSearch={setQuery}>
       {error && <Notice action={<Button variant="ghost" onPress={() => void refresh()}>重试</Button>}>{error}</Notice>}
       {!data ? !error && <Loading>正在读取投递记录</Loading> : !data.deliveries.length ? <Card className="rounded-2xl">

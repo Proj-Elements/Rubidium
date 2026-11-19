@@ -43,9 +43,7 @@ export default function OverviewPage() {
   ] as const;
 
   return <div className="grid gap-6">
-    <PageHeading title="日常有序，心里有数" description="查看即将到来的提醒与投递状态。" action={
-      <Button className="max-sm:min-h-11" onPress={() => openTask()}><Glyph name="plus" />新建提醒</Button>
-    } />
+    <PageHeading title="提醒概览" />
 
     {dashboard && !dashboard.deviceKeyConfigured && <Alert status="accent" className="items-start rounded-2xl" role="status">
       <Alert.Indicator />
