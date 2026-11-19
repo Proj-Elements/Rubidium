@@ -129,7 +129,7 @@ export default function OverviewPage() {
                 <time dateTime={item.updatedAt} className="block text-xs text-muted tabular-nums">{formatTime(item.updatedAt)}</time>
               </div>
               <DeliveryBadge item={item} />
-            </li>
+            </li>)}
             </ul>
           )}
         </Card>
