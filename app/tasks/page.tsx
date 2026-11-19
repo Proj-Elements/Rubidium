@@ -124,9 +124,11 @@ export default function TasksPage() {
           <Card className="hidden min-w-0 gap-4 rounded-2xl p-4 md:flex">
             <Table variant="secondary">
               <Table.ScrollContainer>
-                <Table.Content aria-label="提醒列表">
+                <Table.Content aria-label="提醒列表" selectionMode="multiple" selectedKeys={selectedTasks.map(({ id }) => id)}
+                  disabledKeys={busy ? data.tasks.map(({ id }) => id) : undefined}
+                  onSelectionChange={(keys) => setSelected(keys === "all" ? data.tasks.map(({ id }) => id) : [...keys].map(String))}>
                   <Table.Header>
-                    <Table.Column aria-label="选择" className="w-12 whitespace-nowrap">{selectPage}</Table.Column>
+                    <Table.Column aria-label="选择" className="w-12 whitespace-nowrap"><Selection label="选择本页提醒" slot="selection" /></Table.Column>
                     <Table.Column isRowHeader className="min-w-36">提醒事项</Table.Column>
                     <Table.Column className="whitespace-nowrap">下次排期</Table.Column>
                     <Table.Column className="whitespace-nowrap">投递计数</Table.Column>
@@ -135,7 +137,7 @@ export default function TasksPage() {
                   </Table.Header>
                   <Table.Body>
                     {data.tasks.map((task) => <Table.Row key={task.id} id={task.id}>
-                      <Table.Cell>{selectTask(task)}</Table.Cell>
+                      <Table.Cell><Selection label={`选择 ${task.name}`} slot="selection" /></Table.Cell>
                       <Table.Cell className="max-w-60"><TaskName task={task} /></Table.Cell>
                       <Table.Cell className="whitespace-nowrap"><TaskSchedule task={task} /></Table.Cell>
                       <Table.Cell className="whitespace-nowrap"><TaskCounts task={task} /></Table.Cell>
