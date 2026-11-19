@@ -170,7 +170,6 @@
   .page-heading { display: flex; min-height: 3.5rem; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 0.5rem 1rem; }
   .page-heading h1 { font-size: 1.65rem; line-height: 1.2; font-weight: 680; }
   .page-context { color: var(--muted); font-size: 0.8rem; }
-  .card.card { border: 1px solid color-mix(in oklab, var(--border) 72%, transparent); border-radius: var(--surface-radius); }
   .card-header { min-width: 0; }
   .label.label { color: var(--foreground); font-size: 0.8125rem; font-weight: 620; line-height: 1.35; }
   .description.description { color: var(--muted); font-size: 0.75rem; line-height: 1.5; }
@@ -230,4 +229,8 @@
     .sidebar > .link { margin-inline-start: 0.5rem; }
     .topbar { border-bottom: 1px solid color-mix(in oklab, var(--border) 72%, transparent); }
   }
+}
+
+@layer utilities {
+  .card.card { border: 1px solid color-mix(in oklab, var(--border) 72%, transparent); border-radius: var(--surface-radius); }
 }
