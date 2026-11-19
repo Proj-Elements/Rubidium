@@ -114,17 +114,17 @@ export default function TasksPage() {
 
   return (
     <div className="grid gap-6 pb-12">
-      <PageHeading title="所有提醒" context={data && <span className="page-context tabular-nums">共 {data.total} 条</span>} />
+      <PageHeading title="所有提醒" context={data && <span className="page-context tabular-nums">{data.total} 条记录</span>} />
       <RecordList label="提醒状态" searchLabel="搜索提醒" filters={filters} filter={filter} query={query} onFilter={setFilter} onSearch={setQuery}>
         {error && <Notice action={<Button variant="ghost" onPress={() => void refresh()}>重试</Button>}>{error}</Notice>}
         {!data ? !error && <Loading>正在读取提醒</Loading> : !data.tasks.length ? <Card>
           <Empty title={filtered ? "没有匹配的提醒" : "暂无提醒"} description={filtered ? "试试其他关键词，或切换提醒状态。" : "创建提醒后，可以在这里管理排期。"}
             icon={filtered ? "search" : "calendar"} action={filtered && <Button variant="outline" className="max-sm:min-h-11" onPress={clearFilters}>清除筛选</Button>} />
         </Card> : <>
-          <Card className="hidden min-w-0 gap-3 p-3 md:flex">
+          <Card className="hidden min-w-0 gap-2 overflow-visible p-2 md:flex sm:p-3">
             <Table variant="secondary">
               <Table.ScrollContainer>
-                <Table.Content aria-label="提醒列表" selectionMode="multiple" selectedKeys={selectedTasks.map(({ id }) => id)}
+                <Table.Content aria-label="提醒列表" className="min-w-[760px]" selectionMode="multiple" selectedKeys={selectedTasks.map(({ id }) => id)}
                   disabledKeys={busy ? data.tasks.map(({ id }) => id) : undefined}
                   onSelectionChange={(keys) => setSelected(keys === "all" ? data.tasks.map(({ id }) => id) : [...keys].map(String))}>
                   <Table.Header>
@@ -167,7 +167,7 @@ export default function TasksPage() {
           <Pagination page={data.page} total={data.total} pageSize={PAGE_SIZE} onChange={setPage} />
         </>}
       </RecordList>
-      <p className="flex items-start gap-2 text-xs leading-relaxed text-muted"><Glyph name="shield" size={16} />暂停和归档只停止后续排期，已排队消息仍会投递。</p>
+      <p className="flex items-start gap-2 text-xs leading-relaxed text-muted"><Glyph name="shield" size={16} className="shrink-0 text-accent" />暂停和归档只停止后续排期，已排队消息仍会投递。</p>
       <BulkActions count={selectedTasks.length} disabled={Boolean(busy)} onClear={() => setSelected([])}>
         <Button variant="ghost" isDisabled={!canPause || Boolean(busy)} onPress={() => void bulk("paused")}>暂停</Button>
         <Button variant="ghost" isDisabled={!canResume || Boolean(busy)} onPress={() => void bulk("active")}>恢复</Button>

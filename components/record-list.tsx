@@ -1,6 +1,6 @@
 "use client";
 
-import { SearchField, Toolbar, Tooltip } from "@heroui/react";
+import { Chip, SearchField, Toolbar, Tooltip } from "@heroui/react";
 import { useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { IconButton, Pick } from "./primitives";
@@ -65,8 +65,9 @@ export function RecordList({ label, searchLabel, filters, filter, query, onFilte
   onSearch: (query: string, immediate?: boolean) => void;
   children: ReactNode;
 }) {
+  const activeFilter = filters.find((item) => item.value === filter && item.value !== "all");
   return <div className="grid min-w-0 gap-5">
-    <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_7rem] items-center gap-2 sm:grid-cols-[minmax(0,22rem)_9rem] sm:gap-3">
+    <div className="record-toolbar">
       <SearchField aria-label={searchLabel} variant="secondary" value={query} onChange={onSearch} onSubmit={(value) => onSearch(value, true)} className="min-w-0">
         <SearchField.Group className="h-11">
           <SearchField.SearchIcon />
@@ -76,6 +77,10 @@ export function RecordList({ label, searchLabel, filters, filter, query, onFilte
       </SearchField>
       <Pick label={label} hideLabel value={filter} options={filters} onChange={onFilter} className="min-w-0 [&_[data-slot=select-trigger]]:h-11" />
     </div>
+    {activeFilter && <div className="flex min-h-7 items-center gap-2" role="status" aria-label="已应用的筛选">
+      <span className="text-xs text-muted">筛选中</span>
+      <Chip variant="soft" color="accent"><Chip.Label>{activeFilter.label}</Chip.Label></Chip>
+    </div>}
     <div className="grid min-w-0 gap-4">{children}</div>
   </div>;
 }
