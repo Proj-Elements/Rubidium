@@ -62,7 +62,7 @@ test("mobile overview prioritizes the next reminder and unsaved settings protect
   await page.getByRole("link", { name: "投递记录" }).click();
   await expect(page).toHaveURL(/\/deliveries$/);
   await page.setViewportSize({ width: 390, height: 844 });
-  await expect(page.getByRole("tab", { name: "全部记录", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: /投递状态/ })).toHaveText("全部记录");
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
   await page.screenshot({ path: test.info().outputPath("mobile-deliveries.png"), fullPage: true, animations: "disabled" });
   await page.goto("/tasks");

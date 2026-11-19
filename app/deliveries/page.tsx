@@ -13,19 +13,23 @@ import { useWorkspace } from "@/components/workspace-context";
 import type { Delivery, DeliveryAttempt } from "@/lib/types";
 import { api, errorMessage } from "@/lib/ui";
 
-const filters = [{ id: "all", label: "全部记录" }, ...Object.entries(deliveryLabels).map(([id, label]) => ({ id, label })), { id: "retrying", label: "重试中" }];
+const filters = [
+  { value: "all", label: "全部记录" },
+  ...Object.entries(deliveryLabels).map(([value, label]) => ({ value, label: value === "sent" ? "已接收" : label })),
+  { value: "retrying", label: "重试中" },
+];
 const PAGE_SIZE = 12;
 
 export default function DeliveriesPage() {
   const { refresh: refreshDashboard, notify } = useWorkspace();
-  const { filter, setFilter, setPage, query, setQuery, params, search } = useRecordQuery(PAGE_SIZE);
+  const { filter, setFilter, setPage, query, setQuery, params, search, selected, setSelected, clearFilters } = useRecordQuery(PAGE_SIZE, filters);
   const [busy, setBusy] = useState("");
   const [cancel, setCancel] = useState<Delivery | null>(null);
   const [details, setDetails] = useState<Delivery | null>(null);
-  const [selected, setSelected] = useState<string[]>([]);
   const [edit, setEdit] = useState<Delivery | null>(null);
   const [bulkConfirm, setBulkConfirm] = useState(false);
   const { data, error, refresh } = useResource<{ deliveries: Delivery[]; total: number; page: number }>(`/api/deliveries?${params}`);
+  const filtered = Boolean(search) || filter !== "all";
   const pending = data?.deliveries.filter((item) => item.status === "pending") ?? [];
   const selectedIds = pending.filter((item) => selected.includes(item.id)).map((item) => item.id);
 
@@ -57,16 +61,15 @@ export default function DeliveriesPage() {
 
   return <div className="grid gap-6 pb-12">
     <PageHeading title="投递记录" description="查看每次发送的结果，必要时修正、重试或取消待投递消息。" />
-    <RecordList label="投递状态" searchLabel="搜索投递记录" filters={filters} filter={filter} query={query}
-      onFilter={(value) => { setFilter(value); setSelected([]); }} onSearch={(value) => { setQuery(value); setSelected([]); }}>
+    <RecordList label="投递状态" searchLabel="搜索记录" filters={filters} filter={filter} query={query} onFilter={setFilter} onSearch={setQuery}>
       {error && <Notice action={<Button variant="ghost" onPress={() => void refresh()}>重试</Button>}>{error}</Notice>}
       {!data ? !error && <Loading>正在读取投递记录</Loading> : !data.deliveries.length ? <Card className="rounded-2xl">
-        <Empty title={search ? "没有匹配的记录" : "暂无投递记录"} description={search ? "试试其他关键词，或切换投递状态。" : "提醒触发后，会在这里显示通知和尝试结果。"} />
+        <Empty title={filtered ? "没有匹配的记录" : "暂无投递记录"} description={filtered ? "试试其他关键词，或切换投递状态。" : "提醒触发后，会在这里显示通知和尝试结果。"}
+          icon={filtered ? "search" : "inbox"} action={filtered && <Button variant="outline" className="max-sm:min-h-11" onPress={clearFilters}>清除筛选</Button>} />
       </Card> : <>
-        {pending.length > 0 && <div className="flex items-center gap-2 px-2 text-sm text-muted">
-          <Selection label="选择本页待投递消息" selected={selectedIds.length === pending.length} partial={selectedIds.length > 0 && selectedIds.length !== pending.length}
+        {pending.length > 0 && <div className="px-2">
+          <Selection text="选择本页待投递消息" selected={selectedIds.length === pending.length} partial={selectedIds.length > 0 && selectedIds.length !== pending.length}
             disabled={Boolean(busy)} onChange={(value) => setSelected(value ? pending.map((item) => item.id) : [])} />
-          <span aria-hidden="true">选择本页待投递消息</span>
         </div>}
         <ul className="grid gap-3">
           {data.deliveries.map((item) => <li key={item.id}>
@@ -103,7 +106,7 @@ export default function DeliveriesPage() {
             </Card>
           </li>)}
         </ul>
-        <Pagination page={data.page} total={data.total} pageSize={PAGE_SIZE} onChange={(value) => { setPage(value); setSelected([]); }} />
+        <Pagination page={data.page} total={data.total} pageSize={PAGE_SIZE} onChange={setPage} />
       </>}
     </RecordList>
 

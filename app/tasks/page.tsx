@@ -14,23 +14,23 @@ import { api, errorMessage, PRESET_LABELS } from "@/lib/ui";
 import { useTime } from "@/components/use-time";
 
 const filters = [
-  { id: "all", label: "全部提醒" },
-  { id: "active", label: "进行中" },
-  { id: "paused", label: "已暂停" },
-  { id: "completed", label: "排期结束" },
-  { id: "archived", label: "已归档" },
+  { value: "all", label: "全部提醒" },
+  { value: "active", label: "进行中" },
+  { value: "paused", label: "已暂停" },
+  { value: "completed", label: "排期结束" },
+  { value: "archived", label: "已归档" },
 ];
 const PAGE_SIZE = 10;
 
 export default function TasksPage() {
   const { openTask, refresh: refreshDashboard, notify } = useWorkspace();
-  const { filter, setFilter, setPage, query, setQuery, search, params } = useRecordQuery(PAGE_SIZE);
+  const { filter, setFilter, setPage, query, setQuery, search, params, selected, setSelected, clearFilters } = useRecordQuery(PAGE_SIZE, filters);
   const [archive, setArchive] = useState<Task | null>(null);
   const [busy, setBusy] = useState("");
-  const [selected, setSelected] = useState<string[]>([]);
   const [destroy, setDestroy] = useState<Task | null>(null);
   const [confirmBulkArchive, setConfirmBulkArchive] = useState(false);
   const { data, error, refresh } = useResource<{ tasks: Task[]; total: number; page: number }>(`/api/tasks?${params}`);
+  const filtered = Boolean(search) || filter !== "all";
   const selectedTasks = data?.tasks.filter((task) => selected.includes(task.id)) ?? [];
   const canPause = selectedTasks.some((task) => task.status === "active");
   const canResume = selectedTasks.some((task) => task.status === "paused" || task.status === "archived");
@@ -104,7 +104,7 @@ export default function TasksPage() {
     finally { setBusy(""); }
   }
 
-  const selectPage = <Selection label="选择本页提醒" selected={Boolean(data?.tasks.length && selectedTasks.length === data.tasks.length)} partial={selectedTasks.length > 0 && selectedTasks.length !== data?.tasks.length} disabled={Boolean(busy)} onChange={(value) => setSelected(value ? data?.tasks.map((task) => task.id) ?? [] : [])} />;
+  const selectPage = <Selection text="选择本页提醒" selected={Boolean(data?.tasks.length && selectedTasks.length === data.tasks.length)} partial={selectedTasks.length > 0 && selectedTasks.length !== data?.tasks.length} disabled={Boolean(busy)} onChange={(value) => setSelected(value ? data?.tasks.map((task) => task.id) ?? [] : [])} />;
   function selectTask(task: Task) {
     return <Selection label={`选择 ${task.name}`} selected={selected.includes(task.id)} disabled={Boolean(busy)} onChange={(value) => setSelected((current) => value ? [...current, task.id] : current.filter((id) => id !== task.id))} />;
   }
@@ -114,12 +114,12 @@ export default function TasksPage() {
 
   return (
     <div className="grid gap-6 pb-12">
-      <PageHeading title="所有提醒" description="管理提醒的排期、重复规则与投递设备。" action={<Button onPress={() => openTask()}><Glyph name="plus" />新建提醒</Button>} />
-      <RecordList label="提醒状态" searchLabel="搜索提醒" filters={filters} filter={filter} query={query}
-        onFilter={(value) => { setFilter(value); setSelected([]); }} onSearch={(value) => { setQuery(value); setSelected([]); }}>
+      <PageHeading title="所有提醒" description="管理提醒的排期、重复规则与投递设备。" action={<Button className="max-sm:min-h-11" onPress={() => openTask()}><Glyph name="plus" />新建提醒</Button>} />
+      <RecordList label="提醒状态" searchLabel="搜索提醒" filters={filters} filter={filter} query={query} onFilter={setFilter} onSearch={setQuery}>
         {error && <Notice action={<Button variant="ghost" onPress={() => void refresh()}>重试</Button>}>{error}</Notice>}
         {!data ? !error && <Loading>正在读取提醒</Loading> : !data.tasks.length ? <Card className="rounded-2xl">
-          <Empty title={search ? "没有匹配的提醒" : "暂无提醒"} description={search ? "试试其他关键词，或切换提醒状态。" : filter === "all" ? "创建提醒后，可以在这里管理排期。" : "当前状态下没有提醒。"} />
+          <Empty title={filtered ? "没有匹配的提醒" : "暂无提醒"} description={filtered ? "试试其他关键词，或切换提醒状态。" : "创建提醒后，可以在这里管理排期。"}
+            icon={filtered ? "search" : "calendar"} action={filtered && <Button variant="outline" className="max-sm:min-h-11" onPress={clearFilters}>清除筛选</Button>} />
         </Card> : <>
           <Card className="hidden min-w-0 gap-4 rounded-2xl p-4 md:flex">
             <Table variant="secondary">
@@ -150,7 +150,7 @@ export default function TasksPage() {
             </Table>
           </Card>
           <div className="grid gap-3 md:hidden">
-            <div className="flex items-center gap-2 px-2 text-sm text-muted">{selectPage}<span aria-hidden="true">选择本页</span></div>
+            <div className="px-2">{selectPage}</div>
             <ul className="grid gap-3">
               {data.tasks.map((task) => <li key={task.id}>
                 <Card className="grid grid-cols-[auto_minmax(0,1fr)] items-start gap-3 rounded-2xl p-4">
@@ -164,7 +164,7 @@ export default function TasksPage() {
               </li>)}
             </ul>
           </div>
-          <Pagination page={data.page} total={data.total} pageSize={PAGE_SIZE} onChange={(value) => { setPage(value); setSelected([]); }} />
+          <Pagination page={data.page} total={data.total} pageSize={PAGE_SIZE} onChange={setPage} />
         </>}
       </RecordList>
       <p className="flex items-start gap-2 text-xs leading-relaxed text-muted"><Glyph name="shield" size={16} />暂停和归档只停止后续排期，已排队消息仍会投递。</p>
