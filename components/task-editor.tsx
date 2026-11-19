@@ -131,17 +131,17 @@ export function TaskEditor({ task, duplicate = false, onClose }: { task?: Task; 
             <IconButton label="关闭编辑器" icon="close" isDisabled={busy} onPress={close} />
           </Modal.Header>
 
-          <Modal.Body className="grid content-start gap-4 px-5 py-4 sm:px-6">
+          <Modal.Body className="grid content-start gap-3 px-5 py-3 sm:gap-4 sm:px-6 sm:py-4">
             <Field label="提醒名称" value={name} onChange={(event) => setName(event.target.value)} required maxLength={80} placeholder="例如：给绿植浇水" />
             <AreaField label="提醒内容" rows={2} value={description} onChange={(event) => setDescription(event.target.value)} maxLength={2000}
               ref={descriptionInput} placeholder={`可选，默认「${DEFAULT_REMINDER_BODY}」`} className="resize-y"
               hint={`标题与正文用量 ${contentSize} / ${REMINDER_CONTENT_MAX_BYTES} 字节`}
               error={contentOverLimit ? `内容超出 ${contentSize - REMINDER_CONTENT_MAX_BYTES} 字节，请缩短标题或正文。` : undefined} />
 
-            <Fieldset className="min-w-0 gap-4">
+            <Fieldset className="min-w-0">
               <Fieldset.Legend className="mb-2 pt-1 font-semibold">排期 <span className="ms-2 text-xs font-normal text-muted [overflow-wrap:anywhere]">{timeZone}</span></Fieldset.Legend>
-              <Fieldset.Group className="grid gap-4 space-y-0">
-                <div className="grid items-start gap-4 sm:grid-cols-[1.3fr_1fr]">
+              <Fieldset.Group className="grid gap-3 space-y-0 sm:gap-4">
+                <div className="grid items-start gap-3 sm:grid-cols-[1.3fr_1fr] sm:gap-4">
                   <CalendarField label="开始时间" value={startsAt} onChange={setStartsAt} timeZone={timeZone} />
                   <Pick label="重复周期" value={preset} onChange={(value) => setPreset(value as RecurrencePreset)} options={Object.entries(PRESET_LABELS).map(([value, label]) => ({ value, label }))} />
                 </div>
@@ -155,9 +155,9 @@ export function TaskEditor({ task, duplicate = false, onClose }: { task?: Task; 
                       <Tabs.Tab id="date">按日期<Tabs.Indicator /></Tabs.Tab>
                       <Tabs.Tab id="never">持续重复<Tabs.Indicator /></Tabs.Tab>
                     </Tabs.List></Tabs.ListContainer>
-                    <Tabs.Panel id="count" className="px-0 pt-2"><NumericField label="重复次数" minValue={1} maxValue={100000} value={count} onChange={setCount} isRequired /></Tabs.Panel>
-                    <Tabs.Panel id="date" className="px-0 pt-2"><CalendarField label="截止日期（含当天）" value={endDate} onChange={setEndDate} timeZone={timeZone} dateOnly /></Tabs.Panel>
-                    <Tabs.Panel id="never" className="px-0 pt-2 text-sm text-muted">持续排期，直到暂停或归档。</Tabs.Panel>
+                    <Tabs.Panel id="count" className="mt-2 p-0"><NumericField label="重复次数" minValue={1} maxValue={100000} value={count} onChange={setCount} isRequired /></Tabs.Panel>
+                    <Tabs.Panel id="date" className="mt-2 p-0"><CalendarField label="截止日期（含当天）" value={endDate} onChange={setEndDate} timeZone={timeZone} dateOnly /></Tabs.Panel>
+                    <Tabs.Panel id="never" className="mt-2 p-0 text-sm text-muted">持续排期，直到暂停或归档。</Tabs.Panel>
                   </Tabs>
                 </section>}
               </Fieldset.Group>
@@ -185,7 +185,7 @@ export function TaskEditor({ task, duplicate = false, onClose }: { task?: Task; 
           </Modal.Body>
 
           <Separator />
-          <Modal.Footer className="shrink-0 flex-col items-stretch gap-3 px-5 pt-3 pb-4 sm:px-6 sm:pb-5">
+          <Modal.Footer className="shrink-0 flex-col items-stretch gap-2 px-5 pt-3 pb-4 sm:gap-3 sm:px-6 sm:pb-5">
             <Popover>
               <Button type="button" variant="tertiary" fullWidth className="h-auto min-h-12 justify-between gap-2 rounded-xl px-3 py-2 text-start">
                 <span className="grid min-w-0 gap-0.5">

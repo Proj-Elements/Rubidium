@@ -58,20 +58,18 @@ export default function OverviewPage() {
 
     <Card className="next-panel min-w-0 gap-4 rounded-2xl p-5 sm:p-6">
       <CardHeading title="下一条提醒" />
-      {next?.nextRunAt ? <Card.Content className="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:gap-8">
-        <time dateTime={next.nextRunAt} className="flex min-w-0 flex-col gap-2 tabular-nums sm:order-last sm:items-end">
+      {next?.nextRunAt ? <Card.Content className="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-x-4 gap-y-3 sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:gap-x-8">
+        <time dateTime={next.nextRunAt} className="row-span-2 flex min-w-0 flex-col gap-2 tabular-nums sm:row-span-1">
           <span className="text-4xl leading-none font-semibold tracking-tight text-accent sm:text-5xl">{clockTime(next.nextRunAt)}</span>
           <span className="text-xs text-muted sm:text-sm">
             {nextDay && `${nextDay} · `}{formatTime(next.nextRunAt, { year: nextDate?.slice(0, 4) === days[0]?.date.slice(0, 4) ? undefined : "numeric", hour: undefined, minute: undefined })}
           </span>
         </time>
-        <div className="next-task flex min-w-0 flex-col items-start gap-3">
-          <div className="min-w-0 space-y-1">
-            <h3 className="line-clamp-2 font-semibold [overflow-wrap:anywhere] sm:text-lg">{next.name}</h3>
-            <p className="line-clamp-2 text-sm leading-relaxed text-muted [overflow-wrap:anywhere]">{next.description || PRESET_LABELS[next.preset]}</p>
-          </div>
-          <Button variant="outline" className="max-sm:min-h-11" onPress={() => openTask(next)}>编辑提醒</Button>
+        <div className="next-task min-w-0 space-y-1">
+          <h3 className="line-clamp-2 font-semibold [overflow-wrap:anywhere] sm:text-lg">{next.name}</h3>
+          <p className="line-clamp-2 text-sm leading-relaxed text-muted [overflow-wrap:anywhere]">{next.description || PRESET_LABELS[next.preset]}</p>
         </div>
+        <Button variant="outline" className="col-start-2 w-fit max-sm:min-h-11 sm:col-start-auto" onPress={() => openTask(next)}>编辑提醒</Button>
       </Card.Content> : dashboard ? <Card.Content className="gap-1 text-sm text-muted"><p>暂无下一次排期</p><p>启用提醒后，开始时间会显示在这里。</p></Card.Content> : error ? null : <Loading>正在同步</Loading>}
     </Card>
 
@@ -93,8 +91,8 @@ export default function OverviewPage() {
             const selected = keys.values().next().value;
             setSelectedDay(typeof selected === "string" && selected !== "all" ? selected : null);
           }}>
-            <ToggleButton id="all" variant="ghost" className="min-h-14 min-w-0 rounded-xl px-1">全部</ToggleButton>
-            {days.map((item, index) => <ToggleButton key={item.date} id={item.date} variant="ghost" className="min-h-14 min-w-0 flex-col gap-0.5 rounded-xl px-1 tabular-nums" aria-label={`${item.date}，${item.total} 条`}>
+            <ToggleButton id="all" variant="ghost" className="min-h-14 w-full min-w-0 rounded-xl px-1">全部</ToggleButton>
+            {days.map((item, index) => <ToggleButton key={item.date} id={item.date} variant="ghost" className="min-h-14 w-full min-w-0 flex-col gap-0.5 rounded-xl px-1 tabular-nums" aria-label={`${item.date}，${item.total} 条`}>
               <small className="text-xs text-muted">{index === 0 ? "今天" : weekday.format(new Date(`${item.date}T12:00:00Z`))}</small>
               <span className="leading-none font-semibold">{Number(item.date.slice(8))}</span>
               <small className="text-xs text-muted">{item.total} 条</small>

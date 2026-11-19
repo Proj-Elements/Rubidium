@@ -10,7 +10,7 @@ export function CalendarField({ label, value, onChange, timeZone, dateOnly = fal
   catch { dateValue = null; }
   const now = localInputValue(new Date(), timeZone);
   const placeholder = dateOnly ? parseDate(now.slice(0, 10)) : parseDateTime(now);
-  return <DatePicker className="min-w-0" value={dateValue} placeholderValue={placeholder} onChange={(date) => onChange(date ? date.toString().slice(0, dateOnly ? 10 : 16) : "")} granularity={dateOnly ? "day" : "minute"} hourCycle={24} shouldCloseOnSelect={dateOnly} isRequired>
+  return <DatePicker className="min-w-0" value={dateValue} placeholderValue={placeholder} onChange={(date) => onChange(date ? date.toString().slice(0, dateOnly ? 10 : 16) : "")} granularity={dateOnly ? "day" : "minute"} hourCycle={24} shouldForceLeadingZeros shouldCloseOnSelect={dateOnly} isRequired>
     {({ state }) => <>
       <Label>{label}</Label>
       <DateField.Group fullWidth variant="secondary" className="tabular-nums">
@@ -36,7 +36,7 @@ export function CalendarField({ label, value, onChange, timeZone, dateOnly = fal
           <Calendar.YearPickerGrid><Calendar.YearPickerGridBody>{({ year }) => <Calendar.YearPickerCell year={year} />}</Calendar.YearPickerGridBody></Calendar.YearPickerGrid>
         </Calendar>
         {!dateOnly && <div className="flex items-end justify-between gap-3 px-1">
-          <TimeField value={state.timeValue} placeholderValue={new Time()} onChange={(time) => { if (time) state.setTimeValue(time); }} hourCycle={24} granularity="minute">
+          <TimeField value={state.timeValue} placeholderValue={new Time()} onChange={(time) => { if (time) state.setTimeValue(time); }} hourCycle={24} shouldForceLeadingZeros granularity="minute">
             <Label>时分</Label>
             <TimeField.Group variant="secondary" className="tabular-nums">
               <TimeField.Input>{(segment) => <TimeField.Segment segment={segment} />}</TimeField.Input>
