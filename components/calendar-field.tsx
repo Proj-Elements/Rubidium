@@ -13,8 +13,8 @@ export function CalendarField({ label, value, onChange, timeZone, dateOnly = fal
   return <DatePicker className="min-w-0" value={dateValue} placeholderValue={placeholder} onChange={(date) => onChange(date ? date.toString().slice(0, dateOnly ? 10 : 16) : "")} granularity={dateOnly ? "day" : "minute"} hourCycle={24} shouldForceLeadingZeros shouldCloseOnSelect={dateOnly} isRequired>
     {({ state }) => <>
       <Label>{label}</Label>
-      <DateField.Group fullWidth variant="secondary" className="tabular-nums">
-        <DateField.Input>{(segment) => <DateField.Segment segment={segment} />}</DateField.Input>
+      <DateField.Group fullWidth variant="secondary" className="schedule-field">
+        <DateField.Input className="schedule-segments">{(segment) => <DateField.Segment segment={segment} />}</DateField.Input>
         <DateField.Suffix>
           <Tooltip delay={350}>
             <DatePicker.Trigger aria-label={`选择${label}`}><DatePicker.TriggerIndicator /></DatePicker.Trigger>
@@ -38,8 +38,8 @@ export function CalendarField({ label, value, onChange, timeZone, dateOnly = fal
         {!dateOnly && <div className="flex items-end justify-between gap-3 px-1">
           <TimeField value={state.timeValue} placeholderValue={new Time()} onChange={(time) => { if (time) state.setTimeValue(time); }} hourCycle={24} shouldForceLeadingZeros granularity="minute">
             <Label>时分</Label>
-            <TimeField.Group variant="secondary" className="tabular-nums">
-              <TimeField.Input>{(segment) => <TimeField.Segment segment={segment} />}</TimeField.Input>
+            <TimeField.Group variant="secondary">
+              <TimeField.Input className="schedule-segments">{(segment) => <TimeField.Segment segment={segment} />}</TimeField.Input>
             </TimeField.Group>
           </TimeField>
           <Button type="button" variant="outline" className="max-sm:min-h-11" onPress={() => state.setOpen(false)}>完成</Button>
