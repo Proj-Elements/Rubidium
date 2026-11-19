@@ -14,7 +14,7 @@ export function IconButton({ label, icon, className, ...props }: { label: string
 
 export function PageHeading({ title, context }: { title: string; context?: ReactNode }) {
   return <header className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-    <h1 className="text-2xl leading-tight font-bold">{title}</h1>
+    <h1 className="text-2xl leading-tight font-semibold">{title}</h1>
     {context}
   </header>;
 }

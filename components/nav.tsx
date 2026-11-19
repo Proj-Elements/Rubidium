@@ -1,6 +1,6 @@
 "use client";
 
-import { Avatar, Breadcrumbs, Button, Dropdown, Drawer, Label, Link, Separator } from "@heroui/react";
+import { Avatar, Breadcrumbs, Button, Dropdown, Drawer, Label, Link } from "@heroui/react";
 import NextLink from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState, type Key, type ReactNode, type Ref } from "react";
@@ -44,7 +44,7 @@ export function Shell({ children }: { children: ReactNode }) {
           <div className="flex min-w-0 items-center gap-2">
             <div className="mobile-toggle">
               <Drawer isOpen={mobileOpen} onOpenChange={setMobileOpen}>
-                <IconButton icon="menu" label="打开导航" />
+                <IconButton className="mobile-menu-button" icon="menu" label="打开导航" />
                 <Drawer.Backdrop isDismissable>
                   <Drawer.Content placement="left">
                     <Drawer.Dialog className="mobile-nav-dialog gap-4 px-4 pt-3 pb-4 text-foreground">
@@ -59,15 +59,15 @@ export function Shell({ children }: { children: ReactNode }) {
                 </Drawer.Backdrop>
               </Drawer>
             </div>
+            <div className="mobile-brand"><WorkspaceBrand /></div>
             <Breadcrumbs className="topbar-location" aria-label="当前位置">
               <Breadcrumbs.Item>{current}</Breadcrumbs.Item>
             </Breadcrumbs>
           </div>
-          <div className="flex shrink-0 items-center gap-1 sm:gap-2">
-            <IconButton icon="refresh" label="刷新工作空间" onPress={() => void refresh()} />
+          <div className="topbar-actions flex shrink-0 items-center gap-1.5 sm:gap-2">
+            <IconButton className="topbar-refresh" icon="refresh" label="刷新工作空间" onPress={() => void refresh()} />
             <ThemeToggle />
-            <Separator orientation="vertical" className="mx-1 hidden h-4 self-center sm:block" />
-            <Button className="max-sm:min-h-11" onPress={() => openTask()}><Glyph name="plus" />新建提醒</Button>
+            <IconButton icon="plus" label="新建提醒" variant="primary" onPress={() => openTask()} />
           </div>
         </div>
       </header>
@@ -77,7 +77,7 @@ export function Shell({ children }: { children: ReactNode }) {
 }
 
 function WorkspaceBrand({ onNavigate }: { onNavigate?: () => void }) {
-  return <Link href="/" className="w-fit rounded-lg no-underline hover:no-underline" aria-label="Barker 工作概览"
+  return <Link href="/" className="w-fit no-underline hover:no-underline" aria-label="Barker 工作概览"
     render={({ ref, ...props }) => <NextLink {...props} ref={ref as Ref<HTMLAnchorElement>} href="/" onNavigate={onNavigate} />}>
     <Brand />
   </Link>;
@@ -96,6 +96,7 @@ function WorkspaceNavigation({ onNavigate }: { onNavigate?: () => void }) {
 
   return <>
     <nav aria-label="主导航" className="grid gap-1">
+      <p className="nav-heading mb-1">工作空间</p>
       {navigation.map((item) => <Link href={item.href} key={item.href} className="nav-item" aria-current={path === item.href ? "page" : undefined}
         render={({ ref, ...props }) => <NextLink {...props} ref={ref as Ref<HTMLAnchorElement>} href={item.href} onNavigate={onNavigate} />}>
         <Glyph name={item.icon} /><span>{item.label}</span>
