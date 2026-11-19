@@ -6,7 +6,7 @@
   --font-mono: "SFMono-Regular", Consolas, monospace;
 }
 
-:root {
+:root, :root[data-theme="light"], :root[data-theme="system"] {
   color-scheme: light;
   --background: oklch(0.957 0.009 154);
   --foreground: oklch(0.235 0.022 164);
