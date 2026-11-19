@@ -121,7 +121,8 @@ export default function OverviewPage() {
       <div className="grid min-w-0 gap-4 lg:gap-6">
         <Card className="min-w-0 gap-3 p-5 sm:p-6">
           <CardHeading title="最近投递" action={<Link href="/deliveries" className="link workspace-link">查看记录<Glyph name="arrow" size={14} /></Link>} />
-          {dashboard?.recent.length ? <ul className="grid" aria-label="最近投递记录">
+          {!dashboard ? error ? null : <Loading>正在读取投递记录</Loading> : dashboard.recent.length === 0 ? <Empty title="暂无投递记录" description="提醒触发后，最近的投递状态会显示在这里。" /> : (
+            <ul className="grid" aria-label="最近投递记录">
             {dashboard.recent.map((item, index) => <li key={item.id} className={`grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 py-3 ${index ? "border-t border-separator" : ""}`}>
               <div className="min-w-0 space-y-1">
                 <p className="truncate text-sm font-medium">{item.taskName}</p>
@@ -129,7 +130,8 @@ export default function OverviewPage() {
               </div>
               <DeliveryBadge item={item} />
             </li>
-          </ul> : dashboard ? <Empty title="暂无投递记录" description="提醒触发后，最近的投递状态会显示在这里。" /> : error ? null : <Loading>正在读取投递记录</Loading>}
+            </ul>
+          )}
         </Card>
 
         <Card className="gap-4 p-5 sm:p-6">
