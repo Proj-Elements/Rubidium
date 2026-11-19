@@ -1,5 +1,12 @@
 import { z } from "zod";
 
+export const DEFAULT_REMINDER_BODY = "计划提醒时间已到。";
+export const REMINDER_CONTENT_MAX_BYTES = 3000;
+
+export function reminderContentBytes(title: string, body: string): number {
+  return new TextEncoder().encode(JSON.stringify({ title: title.trim(), body: body || DEFAULT_REMINDER_BODY })).byteLength;
+}
+
 export const timeZoneSchema = z.string().max(100).refine((value) => {
   try { return !/^[+-]/.test(new Intl.DateTimeFormat("en", { timeZone: value }).resolvedOptions().timeZone); } catch { return false; }
 }, "时区必须是有效的 IANA 时区");

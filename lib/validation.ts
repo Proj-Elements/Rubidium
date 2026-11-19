@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { presetCron, validateCron } from "./cron";
-import { settingsFields, taskFields, timeZoneSchema } from "./contracts";
+import { REMINDER_CONTENT_MAX_BYTES, reminderContentBytes, settingsFields, taskFields, timeZoneSchema } from "./contracts";
 
 export const taskInputSchema = taskFields.superRefine((value, context) => {
   const start = new Date(value.startsAt);
@@ -15,8 +15,8 @@ export const taskInputSchema = taskFields.superRefine((value, context) => {
   if (value.preset === "once" && (value.repeatCount !== 1 || value.endDate)) context.addIssue({ code: "custom", path: ["repeatCount"], message: "一次性提醒必须只执行一次" });
   if (value.skipDates.some((date) => value.includeDates.includes(date))) context.addIssue({ code: "custom", path: ["includeDates"], message: "同一日期不能同时跳过和补班" });
   if (value.includeDates.length && value.preset !== "weekdays") context.addIssue({ code: "custom", path: ["includeDates"], message: "补班日期仅适用于周一至周五预设" });
-  if (new TextEncoder().encode(JSON.stringify({ title: value.name, body: value.description || "计划提醒时间已到。" })).byteLength > 3000) {
-    context.addIssue({ code: "custom", path: ["description"], message: "标题和正文合计不能超过 3000 个 UTF-8 字节，请缩短内容" });
+  if (reminderContentBytes(value.name, value.description) > REMINDER_CONTENT_MAX_BYTES) {
+    context.addIssue({ code: "custom", path: ["description"], message: `标题和正文合计不能超过 ${REMINDER_CONTENT_MAX_BYTES} 个 UTF-8 字节，请缩短内容` });
   }
 });
 

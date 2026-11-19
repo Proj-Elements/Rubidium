@@ -152,7 +152,9 @@ test("copying and editing a weekly task preserves its weekday and wall clock", a
   await page.getByRole("button", { name: "更多操作 Monday review", exact: true }).click();
   await page.getByRole("menuitem", { name: "复制为新提醒" }).click();
   await expect(page.getByRole("heading", { name: "复制为新提醒" })).toBeVisible();
-  await expect(page.locator(".preview-title code")).toHaveText("30 9 * * 1");
+  await page.getByRole("button", { name: /排期预览/ }).click();
+  await expect(page.getByRole("dialog", { name: "接下来的提醒" }).locator("code")).toHaveText("30 9 * * 1");
+  await page.keyboard.press("Escape");
   await page.getByRole("button", { name: "创建提醒", exact: true }).click();
   await expect(page.getByRole("heading", { name: "复制为新提醒" })).toBeHidden();
   await page.getByRole("button", { name: "编辑 Monday review（副本）", exact: true }).click();
@@ -301,5 +303,5 @@ test("closing a changed mobile task editor requires discarding its contents", as
   await page.screenshot({ path: test.info().outputPath("mobile-editor.png"), fullPage: true, animations: "disabled" });
   await page.getByRole("button", { name: "关闭编辑器", exact: true }).click();
   await page.getByRole("alertdialog").getByRole("button", { name: "放弃修改" }).click();
-  await expect(page.getByRole("heading", { name: "留一个提醒给未来", exact: true })).toBeHidden();
+  await expect(page.getByRole("heading", { name: "新建提醒", exact: true })).toBeHidden();
 });

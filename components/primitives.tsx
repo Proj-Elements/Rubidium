@@ -1,6 +1,6 @@
 "use client";
 
-import { Alert, AlertDialog, Button, Card, Chip, Description, Disclosure, EmptyState, Input, Label, ListBox, NumberField, Select, Spinner, TextArea, TextField, Tooltip } from "@heroui/react";
+import { Alert, AlertDialog, Button, Card, Chip, Description, Disclosure, EmptyState, FieldError, Input, Label, ListBox, NumberField, Select, Spinner, TextArea, TextField, Tooltip } from "@heroui/react";
 import type { ComponentProps, ReactNode } from "react";
 import type { Delivery, Task } from "@/lib/types";
 import { Glyph, type IconName } from "./icons";
@@ -40,11 +40,12 @@ export function Field({ label, hint, required, disabled, type, name, ...props }:
   </TextField>;
 }
 
-export function AreaField({ label, hint, ...props }: { label: string; hint?: string } & ComponentProps<typeof TextArea>) {
-  return <TextField fullWidth>
+export function AreaField({ label, hint, error, ...props }: { label: string; hint?: string; error?: string } & ComponentProps<typeof TextArea>) {
+  return <TextField fullWidth isInvalid={Boolean(error)}>
     <Label>{label}</Label>
     <TextArea variant="secondary" fullWidth {...props} />
     {hint && <Description className="leading-relaxed">{hint}</Description>}
+    {error && <FieldError>{error}</FieldError>}
   </TextField>;
 }
 
