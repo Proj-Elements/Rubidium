@@ -63,7 +63,7 @@ export default function DeliveriesPage() {
     <PageHeading title="投递记录" />
     <RecordList label="投递状态" searchLabel="搜索记录" filters={filters} filter={filter} query={query} onFilter={setFilter} onSearch={setQuery}>
       {error && <Notice action={<Button variant="ghost" onPress={() => void refresh()}>重试</Button>}>{error}</Notice>}
-      {!data ? !error && <Loading>正在读取投递记录</Loading> : !data.deliveries.length ? <Card className="rounded-2xl">
+      {!data ? !error && <Loading>正在读取投递记录</Loading> : !data.deliveries.length ? <Card className="rounded-lg">
         <Empty title={filtered ? "没有匹配的记录" : "暂无投递记录"} description={filtered ? "试试其他关键词，或切换投递状态。" : "提醒触发后，会在这里显示通知和尝试结果。"}
           icon={filtered ? "search" : "inbox"} action={filtered && <Button variant="outline" className="max-sm:min-h-11" onPress={clearFilters}>清除筛选</Button>} />
       </Card> : <>
@@ -73,7 +73,7 @@ export default function DeliveriesPage() {
         </div>}
         <ul className="grid gap-3">
           {data.deliveries.map((item) => <li key={item.id}>
-            <Card render={(props) => <article {...props} />} className="grid grid-cols-[1.5rem_minmax(0,1fr)] items-start gap-3 rounded-2xl p-4 sm:p-5">
+            <Card render={(props) => <article {...props} />} className="grid grid-cols-[1.5rem_minmax(0,1fr)] items-start gap-3 rounded-lg p-4 sm:p-5">
               {item.status === "pending" ? <Selection label={`选择投递 ${item.taskName}`} selected={selectedIds.includes(item.id)} disabled={Boolean(busy)}
                 onChange={(value) => setSelected((current) => value ? [...current, item.id] : current.filter((id) => id !== item.id))} /> : <Glyph name="send" size={17} className="mt-1 justify-self-center text-muted" />}
               <div className="grid min-w-0 gap-3">

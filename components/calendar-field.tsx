@@ -14,7 +14,7 @@ export function CalendarField({ label, value, onChange, timeZone, dateOnly = fal
     {({ state }) => <>
       <Label>{label}</Label>
       <DateField.Group fullWidth variant="secondary" className="schedule-field">
-        <DateField.Input className="schedule-segments">{(segment) => <DateField.Segment segment={segment} />}</DateField.Input>
+        <DateField.Input className="schedule-segments">{(segment) => <DateField.Segment segment={segment} className={segment.type === "literal" && /[/:]/.test(segment.text) ? "schedule-punctuation" : undefined} />}</DateField.Input>
         <DateField.Suffix>
           <Tooltip delay={350}>
             <DatePicker.Trigger aria-label={`选择${label}`}><DatePicker.TriggerIndicator /></DatePicker.Trigger>
@@ -39,7 +39,7 @@ export function CalendarField({ label, value, onChange, timeZone, dateOnly = fal
           <TimeField value={state.timeValue} placeholderValue={new Time()} onChange={(time) => { if (time) state.setTimeValue(time); }} hourCycle={24} shouldForceLeadingZeros granularity="minute">
             <Label>时分</Label>
             <TimeField.Group variant="secondary">
-              <TimeField.Input className="schedule-segments">{(segment) => <TimeField.Segment segment={segment} />}</TimeField.Input>
+              <TimeField.Input className="schedule-segments">{(segment) => <TimeField.Segment segment={segment} className={segment.type === "literal" && /[/:]/.test(segment.text) ? "schedule-punctuation" : undefined} />}</TimeField.Input>
             </TimeField.Group>
           </TimeField>
           <Button type="button" variant="outline" className="max-sm:min-h-11" onPress={() => state.setOpen(false)}>完成</Button>

@@ -99,7 +99,7 @@ export function DeliveryBadge({ item }: { item: Delivery }) {
 
 export function Notice({ children, kind = "error", action }: { children: ReactNode; kind?: "error" | "success" | "info" | "warning"; action?: ReactNode }) {
   const status = kind === "error" ? "danger" : kind === "info" ? "accent" : kind;
-  return <Alert className={`notice-${kind} items-start rounded-2xl break-words`} status={status} role={kind === "error" ? "alert" : "status"}>
+  return <Alert className={`notice-${kind} items-start rounded-lg break-words`} status={status} role={kind === "error" ? "alert" : "status"}>
     <Alert.Indicator />
     <Alert.Content className="min-w-0 flex-1 gap-2 text-sm leading-relaxed [overflow-wrap:anywhere]">{children}{action && <div>{action}</div>}</Alert.Content>
   </Alert>;

@@ -117,11 +117,11 @@ export default function TasksPage() {
       <PageHeading title="所有提醒" />
       <RecordList label="提醒状态" searchLabel="搜索提醒" filters={filters} filter={filter} query={query} onFilter={setFilter} onSearch={setQuery}>
         {error && <Notice action={<Button variant="ghost" onPress={() => void refresh()}>重试</Button>}>{error}</Notice>}
-        {!data ? !error && <Loading>正在读取提醒</Loading> : !data.tasks.length ? <Card className="rounded-2xl">
+        {!data ? !error && <Loading>正在读取提醒</Loading> : !data.tasks.length ? <Card className="rounded-lg">
           <Empty title={filtered ? "没有匹配的提醒" : "暂无提醒"} description={filtered ? "试试其他关键词，或切换提醒状态。" : "创建提醒后，可以在这里管理排期。"}
             icon={filtered ? "search" : "calendar"} action={filtered && <Button variant="outline" className="max-sm:min-h-11" onPress={clearFilters}>清除筛选</Button>} />
         </Card> : <>
-          <Card className="hidden min-w-0 gap-4 rounded-2xl p-4 md:flex">
+          <Card className="hidden min-w-0 gap-4 rounded-lg p-4 md:flex">
             <Table variant="secondary">
               <Table.ScrollContainer>
                 <Table.Content aria-label="提醒列表" selectionMode="multiple" selectedKeys={selectedTasks.map(({ id }) => id)}
@@ -153,7 +153,7 @@ export default function TasksPage() {
             <div className="px-2">{selectPage}</div>
             <ul className="grid gap-3">
               {data.tasks.map((task) => <li key={task.id}>
-                <Card className="grid grid-cols-[auto_minmax(0,1fr)] items-start gap-3 rounded-2xl p-4">
+                <Card className="grid grid-cols-[auto_minmax(0,1fr)] items-start gap-3 rounded-lg p-4">
                   {selectTask(task)}
                   <div className="min-w-0 space-y-3">
                     <TaskName task={task} />

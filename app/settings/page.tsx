@@ -93,7 +93,7 @@ function SettingsForm({ initial, onSaved }: { initial: SettingsPayload; onSaved:
 
   return <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1.6fr)_minmax(15rem,1fr)]">
     <div className="grid min-w-0 gap-4">
-      <Card className="gap-5 rounded-2xl p-5 sm:p-6">
+      <Card className="gap-5 rounded-lg p-5 sm:p-6">
         <CardHeading title="连接 Bark" description="为提醒配置默认设备。" action={<Chip variant="soft" color={configured ? "success" : "default"}>
           <Chip.Label>{configured ? "设备已配置" : "等待连接"}</Chip.Label>
         </Chip>} />
@@ -129,10 +129,10 @@ function SettingsForm({ initial, onSaved }: { initial: SettingsPayload; onSaved:
     </div>
 
     <aside className="grid min-w-0 gap-5">
-      <Card className="gap-4 rounded-2xl p-5 sm:p-6">
+      <Card className="gap-4 rounded-lg p-5 sm:p-6">
         <CardHeading title="通知预览" />
         <Card.Content className="gap-3">
-          <div className="grid gap-2 rounded-xl bg-surface-secondary p-4 text-sm">
+          <div className="grid gap-2 rounded-lg bg-surface-secondary p-4 text-sm">
             <p className="text-xs font-medium text-muted">Bark · 测试通知</p>
             <p className="line-clamp-2 font-semibold break-words">{settings.title || "Barker 提醒"}</p>
             <p className="line-clamp-2 leading-relaxed text-muted">这是一条来自 Barker 的测试通知。</p>
@@ -173,7 +173,7 @@ function HistorySettings({ dataDir }: { dataDir?: string }) {
     finally { setPruning(false); }
   }
 
-  return <Card className="gap-4 rounded-2xl p-5 sm:p-6">
+  return <Card className="gap-4 rounded-lg p-5 sm:p-6">
     <CardHeading title="历史记录维护" description="清理 30 天前已结束的投递记录并回收空间。累计排期与接收次数不变。" />
     <Card.Content className="gap-3">
       <Details title="存储与备份">

@@ -62,7 +62,7 @@ export function SecurityManager() {
   }
 
   return <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.25fr)]">
-    <Card className="min-w-0 gap-5 rounded-2xl p-5 sm:p-6">
+    <Card className="min-w-0 gap-5 rounded-lg p-5 sm:p-6">
       <CardHeading title="访问密码" description="修改密码会撤销其他会话和全部 API 凭据。服务端环境密码变更后，以环境配置为准。" />
       <Form onSubmit={password}>
         <Fieldset className="min-w-0 gap-4" disabled={busy !== null}>
@@ -75,7 +75,7 @@ export function SecurityManager() {
       </Form>
     </Card>
 
-    <Card className="min-w-0 gap-5 rounded-2xl p-5 sm:p-6">
+    <Card className="min-w-0 gap-5 rounded-lg p-5 sm:p-6">
       <CardHeading title="会话与凭据" description="管理已登录的会话，以及客户端访问 API 使用的凭据。" />
       {error && <Notice action={<Button variant="ghost" onPress={() => void refresh()}>重试</Button>}>{error}</Notice>}
       <section className="grid min-w-0 gap-2">
@@ -148,7 +148,7 @@ export function AuditLog() {
   const displayedPage = Math.min(page, Math.max(1, Math.ceil(total / auditPageSize)));
   const events = data?.events.slice((displayedPage - 1) * auditPageSize, displayedPage * auditPageSize) ?? [];
 
-  return <Card className="min-w-0 gap-4 rounded-2xl p-5 sm:p-6">
+  return <Card className="min-w-0 gap-4 rounded-lg p-5 sm:p-6">
     <CardHeading title="操作审计" description="显示最近 100 次操作。审计不记录密码或消息正文。" />
     {error && <Notice action={<Button variant="ghost" onPress={() => void refresh()}>重试</Button>}>{error}</Notice>}
     {events.length ? <>

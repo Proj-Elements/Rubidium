@@ -51,7 +51,7 @@
 }
 
 @layer components {
-  .button, .toggle-button { border-radius: var(--field-radius); }
+  .button, .toggle-button, .card { border-radius: var(--radius); }
 
   :is(.select__popover, .dropdown__popover) {
     --choice-inset: 0.375rem;
@@ -76,6 +76,8 @@
     gap: 0;
     font-variant-numeric: tabular-nums;
   }
+
+  .schedule-segments .schedule-punctuation { padding-inline: 0.15rem; }
 
   .schedule-segments [data-slot="date-input-group-segment"] {
     border-radius: var(--radius-sm);

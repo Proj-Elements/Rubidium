@@ -45,7 +45,7 @@ export default function OverviewPage() {
   return <div className="grid gap-6">
     <PageHeading title="提醒概览" />
 
-    {dashboard && !dashboard.deviceKeyConfigured && <Alert status="accent" className="items-start rounded-2xl" role="status">
+    {dashboard && !dashboard.deviceKeyConfigured && <Alert status="accent" className="items-start rounded-lg" role="status">
       <Alert.Indicator />
       <Alert.Content className="gap-2">
         <Alert.Title>连接 Bark 后即可接收提醒</Alert.Title>
@@ -54,7 +54,7 @@ export default function OverviewPage() {
       </Alert.Content>
     </Alert>}
 
-    <Card className="next-panel min-w-0 gap-4 rounded-2xl p-5 sm:p-6">
+    <Card className="next-panel min-w-0 gap-4 rounded-lg p-5 sm:p-6">
       <CardHeading title="下一条提醒" />
       {next?.nextRunAt ? <Card.Content className="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-x-4 gap-y-3 sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:gap-x-8">
         <time dateTime={next.nextRunAt} className="row-span-2 flex min-w-0 flex-col gap-2 tabular-nums sm:row-span-1">
@@ -72,7 +72,7 @@ export default function OverviewPage() {
     </Card>
 
     <section aria-label="提醒指标" className="grid grid-cols-2 items-stretch gap-3 md:grid-cols-4 md:gap-4">
-      {metrics.map(({ label, value, icon }) => <Card key={label} className="flex-row items-start justify-between gap-2 rounded-2xl p-4 sm:p-5">
+      {metrics.map(({ label, value, icon }) => <Card key={label} className="flex-row items-start justify-between gap-2 rounded-lg p-4 sm:p-5">
         <div className="min-w-0 space-y-2">
           <p className="text-xs leading-snug text-muted sm:text-sm">{label}</p>
           <p className="text-2xl leading-none font-semibold tracking-tight tabular-nums sm:text-3xl">{value ?? "—"}</p>
@@ -82,15 +82,15 @@ export default function OverviewPage() {
     </section>
 
     <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)] lg:gap-6">
-      <Card className="min-w-0 gap-4 rounded-2xl p-5 sm:p-6">
+      <Card className="min-w-0 gap-4 rounded-lg p-5 sm:p-6">
         <CardHeading title="未来七天" description={`按 ${timeZone} 显示`} action={<Link href="/tasks" className="link workspace-link">全部提醒<Glyph name="arrow" size={14} /></Link>} />
         {dashboard ? <Card.Content className="@container gap-4">
           <ToggleButtonGroup className="grid w-full grid-cols-4 gap-1 @min-[24rem]:grid-cols-8" aria-label="按日期筛选提醒" selectionMode="single" disallowEmptySelection isDetached selectedKeys={[date ?? "all"]} onSelectionChange={(keys) => {
             const selected = keys.values().next().value;
             setSelectedDay(typeof selected === "string" && selected !== "all" ? selected : null);
           }}>
-            <ToggleButton id="all" variant="ghost" className="min-h-14 w-full min-w-0 rounded-xl px-1">全部</ToggleButton>
-            {days.map((item, index) => <ToggleButton key={item.date} id={item.date} variant="ghost" className="min-h-14 w-full min-w-0 flex-col gap-0.5 rounded-xl px-1 tabular-nums" aria-label={`${item.date}，${item.total} 条`}>
+            <ToggleButton id="all" variant="ghost" className="min-h-14 w-full min-w-0 rounded-lg px-1">全部</ToggleButton>
+            {days.map((item, index) => <ToggleButton key={item.date} id={item.date} variant="ghost" className="min-h-14 w-full min-w-0 flex-col gap-0.5 rounded-lg px-1 tabular-nums" aria-label={`${item.date}，${item.total} 条`}>
               <small className="text-xs text-muted">{index === 0 ? "今天" : weekday.format(new Date(`${item.date}T12:00:00Z`))}</small>
               <span className="leading-none font-semibold">{Number(item.date.slice(8))}</span>
               <small className="text-xs text-muted">{item.total} 条</small>
@@ -99,7 +99,7 @@ export default function OverviewPage() {
 
           {upcoming.length ? <ul className="grid gap-1" aria-label="近期排期">
             {upcoming.slice(0, 4).map(({ task, occurrenceAt }) => <li key={`${task.id}:${occurrenceAt}`}>
-              <Button variant="ghost" fullWidth className="upcoming-row h-auto min-h-12 justify-start gap-3 rounded-xl px-2 py-2 text-start" onPress={() => openTask(task)}>
+              <Button variant="ghost" fullWidth className="upcoming-row h-auto min-h-12 justify-start gap-3 rounded-lg px-2 py-2 text-start" onPress={() => openTask(task)}>
                 <span className="flex min-w-13 flex-col items-start gap-0.5 tabular-nums">
                   <time dateTime={occurrenceAt} className="font-semibold">{clockTime(occurrenceAt)}</time>
                   <small className="text-xs text-muted">{localDateValue(new Date(occurrenceAt), timeZone).slice(5).replace("-", "/")}</small>
@@ -119,7 +119,7 @@ export default function OverviewPage() {
       </Card>
 
       <div className="grid min-w-0 gap-4 lg:gap-6">
-        <Card className="min-w-0 gap-3 rounded-2xl p-5 sm:p-6">
+        <Card className="min-w-0 gap-3 rounded-lg p-5 sm:p-6">
           <CardHeading title="最近投递" action={<Link href="/deliveries" className="link workspace-link">查看记录<Glyph name="arrow" size={14} /></Link>} />
           {dashboard?.recent.length ? <ul className="grid gap-1" aria-label="最近投递记录">
             {dashboard.recent.map((item) => <li key={item.id} className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 py-2">
@@ -132,7 +132,7 @@ export default function OverviewPage() {
           </ul> : dashboard ? <Empty title="暂无投递记录" description="提醒触发后，最近的投递状态会显示在这里。" /> : error ? null : <Loading>正在读取投递记录</Loading>}
         </Card>
 
-        <Card className="gap-4 rounded-2xl p-5 sm:p-6">
+        <Card className="gap-4 rounded-lg p-5 sm:p-6">
           <CardHeading title="投递节奏" description="最近七天 Bark 接收数量" />
           {activity.length ? <Card.Content className="gap-2.5">
             {activity.map((item, index) => {

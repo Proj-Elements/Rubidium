@@ -70,7 +70,7 @@ export function DeviceManager() {
   }
 
   return <div className="grid items-start gap-5 lg:grid-cols-2">
-    <Card className="min-w-0 gap-5 rounded-2xl p-5 sm:p-6">
+    <Card className="min-w-0 gap-5 rounded-lg p-5 sm:p-6">
       <CardHeading title={form.id ? "编辑设备" : "添加设备"} description="设备可独立配置 Bark 服务地址和密钥。" />
       <Form onSubmit={save}>
         <Fieldset className="min-w-0 gap-4" disabled={busy !== null}>
@@ -87,7 +87,7 @@ export function DeviceManager() {
         </Fieldset>
       </Form>
     </Card>
-    <Card className="min-w-0 gap-4 rounded-2xl p-5 sm:p-6">
+    <Card className="min-w-0 gap-4 rounded-lg p-5 sm:p-6">
       <CardHeading title="其他 Bark 设备" description="为提醒选择设备时，默认设备和这里的设备均可使用。" />
       {error && <Notice action={<Button variant="ghost" onPress={() => void refresh()}>重试</Button>}>{error}</Notice>}
       {devices.length ? <ul className="grid gap-2" aria-label="其他 Bark 设备">

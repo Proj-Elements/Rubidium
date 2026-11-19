@@ -175,7 +175,7 @@ export function TaskEditor({ task, duplicate = false, onClose }: { task?: Task; 
                 <Field label="任务通知分组" value={group} onChange={(event) => setGroup(event.target.value)} maxLength={100} placeholder="使用全局设置" />
                 <Field label="任务提示音" value={sound} onChange={(event) => setSound(event.target.value)} maxLength={80} placeholder="使用全局设置" />
               </div>
-              <section className="space-y-2 rounded-xl bg-surface-secondary p-4 text-sm">
+              <section className="space-y-2 rounded-lg bg-surface-secondary p-4 text-sm">
                 <h3 className="text-xs font-medium text-muted">通知预览</h3>
                 <p className="line-clamp-1 font-semibold break-words">{name || "提醒名称"}</p>
                 <p className="line-clamp-3 break-words whitespace-pre-line text-muted">{description.trim() || DEFAULT_REMINDER_BODY}</p>
@@ -187,7 +187,7 @@ export function TaskEditor({ task, duplicate = false, onClose }: { task?: Task; 
           <Separator />
           <Modal.Footer className="shrink-0 flex-col items-stretch gap-2 px-5 pt-3 pb-4 sm:gap-3 sm:px-6 sm:pb-5">
             <Popover>
-              <Button type="button" variant="tertiary" fullWidth className="h-auto min-h-12 justify-between gap-2 rounded-xl px-3 py-2 text-start">
+              <Button type="button" variant="tertiary" fullWidth className="h-auto min-h-12 justify-between gap-2 rounded-lg px-3 py-2 text-start">
                 <span className="grid min-w-0 gap-0.5">
                   <span className="text-xs font-medium text-muted">排期预览</span>
                   <span className={currentPreview?.error ? "text-danger-soft-foreground" : "tabular-nums"} aria-live="polite">
@@ -196,7 +196,7 @@ export function TaskEditor({ task, duplicate = false, onClose }: { task?: Task; 
                 </span>
                 <Glyph name="chevronDown" size={14} className="shrink-0 rotate-180 text-muted" />
               </Button>
-              <Popover.Content placement="top start" className="w-72 max-w-[calc(100vw-2rem)] rounded-2xl">
+              <Popover.Content placement="top start" className="w-72 max-w-[calc(100vw-2rem)] rounded-lg">
                 <Popover.Dialog className="grid gap-2 p-3">
                   <Popover.Heading className="font-semibold">接下来的提醒</Popover.Heading>
                   <p className="text-xs text-muted">显示时区：{displayTimeZone}</p>
