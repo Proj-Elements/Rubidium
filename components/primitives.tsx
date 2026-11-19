@@ -13,14 +13,14 @@ export function IconButton({ label, icon, className, ...props }: { label: string
 }
 
 export function PageHeading({ title, context }: { title: string; context?: ReactNode }) {
-  return <header className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+  return <header className="page-heading">
     <h1 className="text-2xl leading-tight font-semibold">{title}</h1>
     {context}
   </header>;
 }
 
 export function CardHeading({ title, description, action }: { title: string; description?: string; action?: ReactNode }) {
-  return <Card.Header className="flex-row flex-wrap items-start justify-between gap-x-4 gap-y-2">
+  return <Card.Header className="card-header flex-row flex-wrap items-start justify-between gap-x-4 gap-y-2">
     <div className="min-w-0 space-y-1">
       <Card.Title render={(props) => <h2 {...props} />} className="text-base font-semibold">{title}</Card.Title>
       {description && <Card.Description className="leading-relaxed">{description}</Card.Description>}
