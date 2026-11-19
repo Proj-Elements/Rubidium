@@ -126,7 +126,6 @@ export function TaskEditor({ task, duplicate = false, onClose }: { task?: Task; 
           <Modal.Header className="shrink-0 flex-row items-start justify-between gap-3 px-5 pt-5 sm:px-6">
             <div className="space-y-1">
               <Modal.Heading className="text-xl font-semibold">{editing ? "编辑提醒" : duplicate ? "复制为新提醒" : "新建提醒"}</Modal.Heading>
-              <p className="text-sm text-muted">设置通知内容和发送时间。</p>
             </div>
             <IconButton label="关闭编辑器" icon="close" isDisabled={busy} onPress={close} />
           </Modal.Header>

@@ -171,6 +171,7 @@
 
   .activity-meter.meter { grid-template-areas: "date track output"; grid-template-columns: 3.25rem minmax(0, 1fr) 2.25rem; }
   .activity-meter .meter__output { text-align: end; font-variant-numeric: tabular-nums; }
+  .page-context { color: var(--muted); font-size: 0.75rem; }
 
   @media (width < 23rem) {
     .topbar-location { display: none; }
@@ -188,13 +189,18 @@
 
 @layer utilities {
   .button.button, .toggle-button.toggle-button { border-radius: var(--control-radius); }
-  .card.card, .alert.alert { border-radius: var(--surface-radius); }
+  .card.card { border: 1px solid color-mix(in oklab, var(--border) 58%, transparent); border-radius: var(--surface-radius); }
+  .alert.alert { border: 1px solid color-mix(in oklab, var(--accent) 18%, var(--border)); border-radius: var(--surface-radius); }
   .modal__dialog.modal__dialog, .drawer__dialog.drawer__dialog { border-radius: var(--overlay-radius); }
   .popover.popover, .dropdown__popover.dropdown__popover, .date-picker__popover.date-picker__popover { border-radius: var(--overlay-radius); }
   .select__trigger.select__trigger { border-radius: var(--control-radius); }
   .disclosure__trigger.disclosure__trigger { border-radius: var(--control-radius); }
-  .tabs__list-container.tabs__list-container { border-radius: var(--control-radius); }
+  .tabs__list-container.tabs__list-container { border-radius: var(--surface-radius); }
   .tabs__tab.tabs__tab { border-radius: 0.5rem; }
+  .toolbar.toolbar { border-radius: var(--overlay-radius); }
+  .next-panel.next-panel { border-color: color-mix(in oklab, var(--accent) 25%, var(--border)); background: color-mix(in oklab, var(--surface-secondary) 76%, var(--surface)); }
+  .metric-card.metric-card { border-color: color-mix(in oklab, var(--border) 72%, transparent); }
+  .toggle-button[data-selected="true"] { background: var(--surface); color: var(--accent); box-shadow: var(--surface-shadow); }
 
   .input.input, .textarea.textarea, .select__value.select__value, .number-field__input.number-field__input,
   .date-input-group__input.date-input-group__input, .time-field__input.time-field__input, .search-field__input.search-field__input {
@@ -202,6 +208,9 @@
     line-height: 1.45;
     font-variant-numeric: tabular-nums;
   }
+  .input.input { min-height: 2.625rem; }
+  .select__trigger.select__trigger { min-height: 2.625rem; }
+  .number-field__group.number-field__group, .date-input-group.date-input-group { height: 2.625rem; }
   .textarea.textarea { min-height: 5.25rem; }
   .label.label { color: var(--foreground); font-size: 0.8125rem; font-weight: 650; line-height: 1.35; }
   .description.description { font-size: 0.75rem; line-height: 1.5; }
@@ -210,6 +219,9 @@
   .select__popover :is([data-slot="list-box"], [data-slot="dropdown-menu"]) { padding: var(--choice-inset); }
   .select__popover :is([data-slot="list-box-item"], [data-slot="menu-item"]) { min-height: 2.5rem; border-radius: var(--choice-radius); }
   .select__popover [data-slot="list-box-item"][data-selected="true"] { background: var(--accent-soft); color: var(--accent-soft-foreground); }
+  .dropdown__popover [data-slot="dropdown-menu"] { padding: var(--choice-inset); }
+  .dropdown__popover [data-slot="menu-item"] { min-height: 2.5rem; border-radius: var(--choice-radius); }
+  .dropdown__popover [data-slot="menu-item"][data-focused="true"] { background: var(--accent-soft); color: var(--accent-soft-foreground); }
 
   .schedule-segments.date-input-group__input { gap: 0; font-variant-numeric: tabular-nums; }
   .schedule-segments .schedule-punctuation { padding-inline: 0.12rem; color: var(--muted); }

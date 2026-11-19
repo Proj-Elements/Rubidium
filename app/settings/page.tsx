@@ -1,6 +1,6 @@
 "use client";
 
-import { Button, Card, Chip, Form, Link, Tabs } from "@heroui/react";
+import { Button, Card, Chip, Form, Tabs } from "@heroui/react";
 import { useEffect, useState, type FormEvent } from "react";
 import { CardHeading, Confirm, Details, Field, Loading, Notice, PageHeading } from "@/components/primitives";
 import { useUnsaved } from "@/components/use-unsaved";
@@ -128,7 +128,7 @@ function SettingsForm({ initial, onSaved }: { initial: SettingsPayload; onSaved:
       {configured && !clearDeviceKey && <Button variant="danger-soft" className="justify-self-start" isDisabled={busy !== null} onPress={() => setConfirmClearDeviceKey(true)}>断开设备</Button>}
     </div>
 
-    <aside className="grid min-w-0 gap-5">
+    <div className="grid min-w-0 gap-5">
       <Card className="gap-4 rounded-lg p-5 sm:p-6">
         <CardHeading title="通知预览" />
         <Card.Content className="gap-3">
@@ -144,12 +144,7 @@ function SettingsForm({ initial, onSaved }: { initial: SettingsPayload; onSaved:
           <Button variant="outline" onPress={() => void test()} isPending={busy === "test"} isDisabled={!configured || dirty || busy === "save" || conflict}>发送测试</Button>
         </Card.Footer>
       </Card>
-      <section className="grid gap-2 px-1">
-        <h2 className="text-sm font-semibold">第一次连接？</h2>
-        <p className="max-w-sm text-sm leading-relaxed text-muted">在 Bark 中复制设备链接，将服务地址和密钥分别填入。保存后发送一条测试通知。</p>
-        <Link href="https://bark.day.app" target="_blank" rel="noreferrer" className="workspace-link">Bark 使用指南<Link.Icon /></Link>
-      </section>
-    </aside>
+    </div>
     {confirmClearDeviceKey && <Confirm title="断开当前 Bark 设备？" confirmLabel="断开设备" onClose={() => setConfirmClearDeviceKey(false)} onConfirm={() => {
       setSettings((current) => ({ ...current, endpoint: saved.endpoint, deviceKey: "" }));
       setClearDeviceKey(true);
