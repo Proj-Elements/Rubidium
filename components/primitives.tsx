@@ -1,7 +1,8 @@
 "use client";
 
-import { Alert, AlertDialog, Button, Card, Chip, Description, Disclosure, EmptyState, FieldError, Input, Label, ListBox, NumberField, Select, Spinner, TextArea, TextField, Tooltip } from "@heroui/react";
-import type { ComponentProps, ReactNode } from "react";
+import { Alert, AlertDialog, Button, Card, Chip, Description, Disclosure, EmptyState, FieldError, Input, Label, Link, ListBox, NumberField, Select, Spinner, TextArea, TextField, Tooltip } from "@heroui/react";
+import NextLink from "next/link";
+import type { ComponentProps, ReactNode, Ref } from "react";
 import type { Delivery, Task } from "@/lib/types";
 import { Glyph, type IconName } from "./icons";
 
@@ -10,6 +11,10 @@ export function IconButton({ label, icon, className, ...props }: { label: string
     <Button isIconOnly type="button" variant="ghost" aria-label={label} className={className ?? "max-sm:min-h-11 max-sm:min-w-11"} {...props}><Glyph name={icon} /></Button>
     <Tooltip.Content>{label}</Tooltip.Content>
   </Tooltip>;
+}
+
+export function WorkspaceLink({ href, onNavigate, ...props }: Omit<ComponentProps<typeof Link>, "href" | "render"> & { href: string; onNavigate?: () => void }) {
+  return <Link {...props} href={href} render={({ ref, ...domProps }) => <NextLink {...domProps} ref={ref as Ref<HTMLAnchorElement>} href={href} onNavigate={onNavigate} />} />;
 }
 
 export function PageHeading({ title, context }: { title: string; context?: ReactNode }) {

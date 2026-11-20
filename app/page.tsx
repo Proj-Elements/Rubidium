@@ -1,11 +1,10 @@
 "use client";
 
 import { Alert, Button, Card, Meter, ToggleButton, ToggleButtonGroup } from "@heroui/react";
-import Link from "next/link";
 import { useState } from "react";
 import { AgendaDetails } from "@/components/agenda-details";
 import { Glyph } from "@/components/icons";
-import { CardHeading, DeliveryBadge, Empty, Loading, PageHeading } from "@/components/primitives";
+import { CardHeading, DeliveryBadge, Empty, Loading, PageHeading, WorkspaceLink } from "@/components/primitives";
 import { useTime } from "@/components/use-time";
 import { useWorkspace } from "@/components/workspace-context";
 import { localDateValue, PRESET_LABELS } from "@/lib/ui";
@@ -50,7 +49,7 @@ export default function OverviewPage() {
       <Alert.Content className="gap-2">
         <Alert.Title>默认设备尚未连接</Alert.Title>
         <Alert.Description>提醒会留在队列中，连接 Bark 后继续投递。</Alert.Description>
-        <Link className="link workspace-link" href="/settings">连接设备<Glyph name="arrow" size={14} /></Link>
+        <WorkspaceLink className="workspace-link" href="/settings">连接设备<Glyph name="arrow" size={14} /></WorkspaceLink>
       </Alert.Content>
     </Alert>}
 
@@ -83,7 +82,7 @@ export default function OverviewPage() {
 
     <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1.35fr)_minmax(19rem,0.75fr)] lg:gap-6">
       <Card className="min-w-0 gap-4 p-5 sm:p-6">
-        <CardHeading title="未来七天" description={`按 ${timeZone} 显示`} action={<Link href="/tasks" className="link workspace-link">全部提醒<Glyph name="arrow" size={14} /></Link>} />
+        <CardHeading title="未来七天" description={`按 ${timeZone} 显示`} action={<WorkspaceLink href="/tasks" className="workspace-link">全部提醒<Glyph name="arrow" size={14} /></WorkspaceLink>} />
         {dashboard ? <Card.Content className="@container gap-4">
           <ToggleButtonGroup className="grid w-full grid-cols-4 gap-1 @min-[24rem]:grid-cols-8" aria-label="按日期筛选提醒" selectionMode="single" disallowEmptySelection isDetached selectedKeys={[date ?? "all"]} onSelectionChange={(keys) => {
             const selected = keys.values().next().value;
@@ -120,7 +119,7 @@ export default function OverviewPage() {
 
       <div className="grid min-w-0 gap-4 lg:gap-6">
         <Card className="min-w-0 gap-3 p-5 sm:p-6">
-          <CardHeading title="最近投递" action={<Link href="/deliveries" className="link workspace-link">查看记录<Glyph name="arrow" size={14} /></Link>} />
+          <CardHeading title="最近投递" action={<WorkspaceLink href="/deliveries" className="workspace-link">查看记录<Glyph name="arrow" size={14} /></WorkspaceLink>} />
           {!dashboard ? error ? null : <Loading>正在读取投递记录</Loading> : dashboard.recent.length === 0 ? <Empty title="暂无投递记录" description="提醒触发后，最近的投递状态会显示在这里。" /> : (
             <ul className="grid" aria-label="最近投递记录">
             {dashboard.recent.map((item, index) => <li key={item.id} className={`grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 py-3 ${index ? "border-t border-separator" : ""}`}>

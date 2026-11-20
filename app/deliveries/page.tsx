@@ -1,6 +1,6 @@
 "use client";
 
-import { Button, Card, Chip, Drawer, Dropdown, Form, Label, Modal, ScrollShadow, Table } from "@heroui/react";
+import { Button, Card, Chip, Drawer, Dropdown, Form, Label, Modal, ScrollShadow, Table, Tooltip } from "@heroui/react";
 import { useState, type FormEvent } from "react";
 import { Glyph } from "@/components/icons";
 import { AreaField, Confirm, DeliveryBadge, deliveryLabels, Details, Empty, Field, IconButton, Loading, Notice, PageHeading } from "@/components/primitives";
@@ -226,7 +226,13 @@ function DeliveryDetails({ item, onClose }: { item: Delivery; onClose: () => voi
 
   return <Drawer.Backdrop isOpen onOpenChange={(open) => { if (!open) onClose(); }} isDismissable>
     <Drawer.Content placement="right"><Drawer.Dialog className="detail-drawer">
-      <Drawer.Header className="flex-row items-start justify-between gap-2"><Drawer.Heading>投递详情</Drawer.Heading><IconButton icon="close" label="关闭投递详情" onPress={onClose} /></Drawer.Header>
+      <Drawer.Header className="flex-row items-center justify-between gap-2">
+        <Drawer.Heading>投递详情</Drawer.Heading>
+        <Tooltip delay={350}>
+          <Drawer.CloseTrigger aria-label="关闭投递详情" className="static shrink-0 max-sm:size-11" />
+          <Tooltip.Content>关闭投递详情</Tooltip.Content>
+        </Tooltip>
+      </Drawer.Header>
       <Drawer.Body className="grid content-start gap-5">
         <div className="grid gap-3 text-sm">
           <div className="flex flex-wrap items-center gap-2"><h3 className="font-semibold break-words">{item.taskName}</h3><DeliveryBadge item={item} /></div>

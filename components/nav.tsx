@@ -1,12 +1,11 @@
 "use client";
 
-import { Avatar, Breadcrumbs, Button, Dropdown, Drawer, Label, Link } from "@heroui/react";
-import NextLink from "next/link";
+import { Avatar, Breadcrumbs, Button, Dropdown, Drawer, Label, Link, Tooltip } from "@heroui/react";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useState, type Key, type ReactNode, type Ref } from "react";
+import { useEffect, useState, type Key, type ReactNode } from "react";
 import { Brand } from "./brand";
 import { Glyph, type IconName } from "./icons";
-import { IconButton } from "./primitives";
+import { IconButton, WorkspaceLink } from "./primitives";
 import { ThemeToggle } from "./theme-toggle";
 import { confirmUnsavedNavigation } from "./use-unsaved";
 import { useWorkspace } from "./workspace-context";
@@ -51,7 +50,10 @@ export function Shell({ children }: { children: ReactNode }) {
                       <Drawer.Header className="flex-row items-center justify-between gap-2 ps-2">
                         <Drawer.Heading className="sr-only">工作空间导航</Drawer.Heading>
                         <WorkspaceBrand onNavigate={() => setMobileOpen(false)} />
-                        <IconButton icon="close" label="关闭导航" autoFocus onPress={() => setMobileOpen(false)} />
+                        <Tooltip delay={350}>
+                          <Drawer.CloseTrigger aria-label="关闭导航" className="static size-11 shrink-0" autoFocus />
+                          <Tooltip.Content>关闭导航</Tooltip.Content>
+                        </Tooltip>
                       </Drawer.Header>
                       <Drawer.Body className="flex flex-col text-foreground"><WorkspaceNavigation onNavigate={() => setMobileOpen(false)} /></Drawer.Body>
                     </Drawer.Dialog>
@@ -77,10 +79,9 @@ export function Shell({ children }: { children: ReactNode }) {
 }
 
 function WorkspaceBrand({ onNavigate }: { onNavigate?: () => void }) {
-  return <Link href="/" className="w-fit no-underline hover:no-underline" aria-label="Barker 工作概览"
-    render={({ ref, ...props }) => <NextLink {...props} ref={ref as Ref<HTMLAnchorElement>} href="/" onNavigate={onNavigate} />}>
+  return <WorkspaceLink href="/" className="w-fit no-underline hover:no-underline" aria-label="Barker 工作概览" onNavigate={onNavigate}>
     <Brand />
-  </Link>;
+  </WorkspaceLink>;
 }
 
 function WorkspaceNavigation({ onNavigate }: { onNavigate?: () => void }) {
@@ -97,10 +98,9 @@ function WorkspaceNavigation({ onNavigate }: { onNavigate?: () => void }) {
   return <>
     <nav aria-label="主导航" className="grid gap-1">
       <p className="nav-heading mb-1">工作空间</p>
-      {navigation.map((item) => <Link href={item.href} key={item.href} className="nav-item" aria-current={path === item.href ? "page" : undefined}
-        render={({ ref, ...props }) => <NextLink {...props} ref={ref as Ref<HTMLAnchorElement>} href={item.href} onNavigate={onNavigate} />}>
+      {navigation.map((item) => <WorkspaceLink href={item.href} key={item.href} className="nav-item" aria-current={path === item.href ? "page" : undefined} onNavigate={onNavigate}>
         <Glyph name={item.icon} /><span>{item.label}</span>
-      </Link>)}
+      </WorkspaceLink>)}
     </nav>
     <div className="mt-auto grid gap-2 pt-8">
       {dashboard?.displayTimeZone && <p className="flex items-center gap-2 px-3 text-xs text-muted" aria-label={`显示时区：${dashboard.displayTimeZone}`}>

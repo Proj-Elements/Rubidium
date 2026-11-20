@@ -1,8 +1,7 @@
 "use client";
 
-import { Button, Fieldset, Form, Modal, Popover, Separator, Tabs } from "@heroui/react";
+import { Button, Fieldset, Form, Modal, Popover, Separator, Tabs, Tooltip } from "@heroui/react";
 import { parseDate } from "@internationalized/date";
-import Link from "next/link";
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { DEFAULT_REMINDER_BODY, REMINDER_CONTENT_MAX_BYTES, reminderContentBytes } from "@/lib/contracts";
 import type { Device, RecurrencePreset, Task, TaskInput } from "@/lib/types";
@@ -10,7 +9,7 @@ import { api, clientPresetCron, createIdempotencyKey, duplicateStart, errorMessa
 import { useTime } from "./use-time";
 import { CalendarField } from "./calendar-field";
 import { Glyph } from "./icons";
-import { AreaField, Confirm, Details, Field, IconButton, Notice, NumericField, Pick } from "./primitives";
+import { AreaField, Confirm, Details, Field, Notice, NumericField, Pick, WorkspaceLink } from "./primitives";
 import { useWorkspace } from "./workspace-context";
 import { useUnsaved } from "./use-unsaved";
 import { useResource } from "./use-resource";
@@ -127,7 +126,10 @@ export function TaskEditor({ task, duplicate = false, onClose }: { task?: Task; 
             <div className="space-y-1">
               <Modal.Heading className="text-xl font-semibold">{editing ? "编辑提醒" : duplicate ? "复制为新提醒" : "新建提醒"}</Modal.Heading>
             </div>
-            <IconButton label="关闭编辑器" icon="close" isDisabled={busy} onPress={close} />
+            <Tooltip delay={350}>
+              <Modal.CloseTrigger aria-label="关闭编辑器" className="static shrink-0 max-sm:size-11" isDisabled={busy} />
+              <Tooltip.Content>关闭编辑器</Tooltip.Content>
+            </Tooltip>
           </Modal.Header>
 
           <Modal.Body className="grid content-start gap-5 px-5 py-4 sm:px-6 sm:py-5">
@@ -166,7 +168,7 @@ export function TaskEditor({ task, duplicate = false, onClose }: { task?: Task; 
 
             <section className="grid gap-3" aria-label="投递设备">
               <Pick label="投递设备" value={deviceId} onChange={setDeviceId} options={(devices?.devices ?? [{ id: "default", name: "默认设备" }]).map((device) => ({ value: device.id, label: device.name }))} />
-              {dashboard && !dashboard.deviceKeyConfigured && deviceId === "default" && <Notice kind="info" action={<Link href="/settings" className="link workspace-link">前往设置</Link>}>默认设备未连接。</Notice>}
+              {dashboard && !dashboard.deviceKeyConfigured && deviceId === "default" && <Notice kind="info" action={<WorkspaceLink href="/settings" className="workspace-link">前往设置</WorkspaceLink>}>默认设备未连接。</Notice>}
             </section>
 
             <Details title="时区、节假日与通知策略">
