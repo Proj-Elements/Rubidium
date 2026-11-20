@@ -192,7 +192,7 @@
   .schedule-segments [data-slot="date-input-group-segment"] { box-sizing: border-box; min-width: 0; padding-inline: 0; border-radius: 0.25rem; text-align: center; }
   .schedule-segments :is([data-type="month"], [data-type="day"], [data-type="hour"], [data-type="minute"]) { min-inline-size: 2ch; }
   .schedule-segments [data-type="year"] { min-inline-size: 4ch; }
-  .schedule-segments [data-type="literal"] { min-inline-size: 0; }
+  .schedule-segments [data-type="literal"] { min-inline-size: 0; white-space: pre; }
   .schedule-field .date-input-group__suffix { margin-inline-end: 0.125rem; }
   .schedule-field .date-picker__trigger { inline-size: 2.35rem; block-size: 2.35rem; justify-content: center; border-radius: var(--control-radius); }
   .icon-well { @apply inline-grid size-10 shrink-0 place-items-center rounded-xl bg-accent-soft text-accent; }
