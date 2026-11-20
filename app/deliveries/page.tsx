@@ -74,7 +74,7 @@ export default function DeliveriesPage() {
         <Card className="hidden min-w-0 gap-0 overflow-visible p-2 md:flex sm:p-3">
           <Table variant="secondary">
             <Table.ScrollContainer>
-              <Table.Content aria-label="投递记录列表" className="min-w-[760px]" selectionMode="multiple" selectedKeys={selectedIds}
+              <Table.Content aria-label="投递记录列表" className="min-w-[760px]" selectionMode="multiple" selectedKeys={selectedIds} disabledBehavior="selection"
                 disabledKeys={data.deliveries.filter((item) => item.status !== "pending").map((item) => item.id)}
                 onSelectionChange={(keys) => setSelected(keys === "all" ? pending.map((item) => item.id) : [...keys].map(String))}>
                 <Table.Header>
