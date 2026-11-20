@@ -45,9 +45,8 @@ test("mobile overview prioritizes the next reminder and unsaved settings protect
     name: "喝杯水，休息一下", description: "起身活动，让眼睛离开屏幕。", startsAt: `${date}T09:00:00+08:00`, preset: "daily", cron: "0 9 * * *", repeatCount: 2, endDate: null,
   } })).status()).toBe(201);
   await page.goto("/");
-  await expect(page.locator(".welcome-panel")).toBeHidden();
-  await expect(page.locator(".next-panel")).toBeVisible();
-  await expect(page.locator(".next-task h3")).toHaveText("喝杯水，休息一下");
+  await expect(page.getByRole("heading", { name: "下一条提醒", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "喝杯水，休息一下", exact: true })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
   await page.screenshot({ path: test.info().outputPath("mobile-overview.png"), fullPage: true, animations: "disabled" });
 
