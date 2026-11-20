@@ -61,7 +61,6 @@ export function Shell({ children }: { children: ReactNode }) {
                 </Drawer.Backdrop>
               </Drawer>
             </div>
-            <div className="mobile-brand"><WorkspaceBrand /></div>
             <Breadcrumbs className="topbar-location" aria-label="当前位置">
               <Breadcrumbs.Item>{current}</Breadcrumbs.Item>
             </Breadcrumbs>

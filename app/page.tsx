@@ -41,8 +41,20 @@ export default function OverviewPage() {
     { label: "自动重试中", value: dashboard?.deliveries.retrying, icon: "refresh" },
   ] as const;
 
-  return <div className="grid gap-6">
+  return <div className="grid gap-6 sm:gap-8">
     <PageHeading title="提醒概览" context={<span className="page-context">显示时区 · {timeZone}</span>} />
+
+    <section aria-label="提醒指标" className="grid grid-cols-2 items-stretch gap-3 sm:grid-cols-4">
+      {metrics.map(({ label, value, icon }) => <Card key={label} variant="secondary" className="flex-row items-start justify-between gap-2 p-4 shadow-none sm:p-5">
+        <div className="min-w-0 space-y-2">
+          <p className="text-xs leading-snug text-muted sm:text-sm">{label}</p>
+          <p className="text-2xl leading-none font-semibold tabular-nums">{value ?? "—"}</p>
+        </div>
+        <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-background text-muted sm:size-9">
+          <Glyph name={icon} size={16} className={icon === "refresh" && value ? "text-warning-soft-foreground" : undefined} />
+        </span>
+      </Card>)}
+    </section>
 
     {dashboard && !dashboard.deviceKeyConfigured && <Alert status="warning" className="items-start" role="status">
       <Alert.Indicator />
@@ -53,37 +65,28 @@ export default function OverviewPage() {
       </Alert.Content>
     </Alert>}
 
-    <div className="grid items-stretch gap-4 lg:grid-cols-[minmax(0,1.25fr)_minmax(0,0.75fr)]">
-      <Card className="next-panel min-w-0 gap-4 p-5 sm:p-6">
-        <CardHeading title="下一条提醒" description={nextDay ? `排期在${nextDay}` : "当前启用任务的最近排期"} />
-        {next?.nextRunAt ? <Card.Content className="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-x-4 gap-y-4 sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:gap-x-7">
-          <time dateTime={next.nextRunAt} className="row-span-2 flex min-w-0 flex-col gap-2 tabular-nums sm:row-span-1">
-            <span className="text-4xl leading-none font-semibold tabular-nums text-accent sm:text-5xl">{clockTime(next.nextRunAt)}</span>
-            <span className="text-xs text-muted">{formatTime(next.nextRunAt, { year: nextDate?.slice(0, 4) === days[0]?.date.slice(0, 4) ? undefined : "numeric", hour: undefined, minute: undefined })}</span>
-          </time>
-          <div className="min-w-0 space-y-1">
-            <h2 className="line-clamp-2 font-semibold [overflow-wrap:anywhere] sm:text-lg">{next.name}</h2>
-            <p className="line-clamp-2 text-sm leading-relaxed text-muted [overflow-wrap:anywhere]">{next.description || PRESET_LABELS[next.preset]}</p>
-          </div>
-          <Button variant="outline" className="col-start-2 w-fit max-sm:min-h-11 sm:col-start-auto" onPress={() => openTask(next)}>编辑提醒</Button>
-        </Card.Content> : dashboard ? <Card.Content className="gap-1 text-sm text-muted"><p>暂无下一次排期</p><p>启用提醒后，最近的开始时间会显示在这里。</p></Card.Content> : error ? null : <Loading>正在同步</Loading>}
-      </Card>
+    <Card className="min-w-0 gap-4 p-5 sm:p-6">
+      <CardHeading title="下一条提醒" />
+      {next?.nextRunAt ? <Card.Content className="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-x-4 gap-y-3 sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:gap-x-6">
+        <time dateTime={next.nextRunAt} className="flex min-w-0 flex-col gap-1.5 tabular-nums">
+          <span className="text-3xl leading-none font-semibold text-accent">{clockTime(next.nextRunAt)}</span>
+          <span className="text-xs text-muted">{nextDay ?? formatTime(next.nextRunAt, { year: nextDate?.slice(0, 4) === days[0]?.date.slice(0, 4) ? undefined : "numeric", hour: undefined, minute: undefined })}</span>
+        </time>
+        <div className="min-w-0 space-y-1">
+          <h3 className="line-clamp-2 font-semibold [overflow-wrap:anywhere]">{next.name}</h3>
+          <p className="line-clamp-2 text-sm leading-relaxed text-muted [overflow-wrap:anywhere]">{next.description || PRESET_LABELS[next.preset]}</p>
+        </div>
+        <Button variant="outline" className="col-start-2 w-fit max-sm:min-h-11 sm:col-start-auto" onPress={() => openTask(next)}>编辑提醒</Button>
+      </Card.Content> : dashboard ? <Card.Content className="text-sm text-muted">暂无下一次排期</Card.Content> : error ? null : <Loading>正在同步</Loading>}
+    </Card>
 
-      <section aria-label="提醒指标" className="grid grid-cols-2 items-stretch gap-3">
-        {metrics.map(({ label, value, icon }) => <Card key={label} className="metric-card flex-row items-start justify-between gap-2 p-4 sm:p-5">
-          <div className="min-w-0 space-y-2">
-            <p className="text-xs leading-snug text-muted sm:text-sm">{label}</p>
-            <p className="text-2xl leading-none font-semibold tabular-nums sm:text-3xl">{value ?? "—"}</p>
-          </div>
-          <span className="icon-well"><Glyph name={icon} size={17} className={icon === "refresh" && value ? "text-warning-soft-foreground" : undefined} /></span>
-        </Card>)}
-      </section>
-    </div>
-
-    <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1.35fr)_minmax(19rem,0.75fr)] lg:gap-6">
-      <Card className="min-w-0 gap-4 p-5 sm:p-6">
-        <CardHeading title="未来七天" description={`按 ${timeZone} 显示`} action={<WorkspaceLink href="/tasks" className="workspace-link">全部提醒<Glyph name="arrow" size={14} /></WorkspaceLink>} />
-        {dashboard ? <Card.Content className="@container gap-4">
+    <div className="grid items-start gap-8 lg:grid-cols-[minmax(0,1.35fr)_minmax(17rem,0.75fr)] xl:gap-12">
+      <section aria-labelledby="upcoming-heading" className="grid min-w-0 gap-4">
+        <header className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+          <h2 id="upcoming-heading" className="font-semibold">未来七天</h2>
+          <WorkspaceLink href="/tasks" className="workspace-link">全部提醒<Glyph name="arrow" size={14} /></WorkspaceLink>
+        </header>
+        {dashboard ? <div className="@container grid gap-4">
           <ToggleButtonGroup className="grid w-full grid-cols-4 gap-1 @min-[24rem]:grid-cols-8" aria-label="按日期筛选提醒" selectionMode="single" disallowEmptySelection isDetached selectedKeys={[date ?? "all"]} onSelectionChange={(keys) => {
             const selected = keys.values().next().value;
             setSelectedDay(typeof selected === "string" && selected !== "all" ? selected : null);
@@ -114,36 +117,42 @@ export default function OverviewPage() {
             {hidden > 0 && <p>{date ? "当天" : "七天内"}共 {total} 条，另有 {hidden} 条未展开。</p>}
             <Button variant="outline" className="max-sm:min-h-11" onPress={() => setDetails(true)}>查看完整排期</Button>
           </div>}
-        </Card.Content> : error ? null : <Loading>正在读取排期</Loading>}
-      </Card>
+        </div> : error ? null : <Loading>正在读取排期</Loading>}
+      </section>
 
-      <div className="grid min-w-0 gap-4 lg:gap-6">
-        <Card className="min-w-0 gap-3 p-5 sm:p-6">
-          <CardHeading title="最近投递" action={<WorkspaceLink href="/deliveries" className="workspace-link">查看记录<Glyph name="arrow" size={14} /></WorkspaceLink>} />
+      <div className="grid min-w-0 gap-8">
+        <section aria-labelledby="recent-heading" className="grid min-w-0 gap-3">
+          <header className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+            <h2 id="recent-heading" className="font-semibold">最近投递</h2>
+            <WorkspaceLink href="/deliveries" className="workspace-link">查看记录<Glyph name="arrow" size={14} /></WorkspaceLink>
+          </header>
           {!dashboard ? error ? null : <Loading>正在读取投递记录</Loading> : dashboard.recent.length === 0 ? <Empty title="暂无投递记录" description="提醒触发后，最近的投递状态会显示在这里。" /> : (
             <ul className="grid" aria-label="最近投递记录">
-            {dashboard.recent.map((item, index) => <li key={item.id} className={`grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 py-3 ${index ? "border-t border-separator" : ""}`}>
-              <div className="min-w-0 space-y-1">
-                <p className="truncate text-sm font-medium">{item.taskName}</p>
-                <time dateTime={item.updatedAt} className="block text-xs text-muted tabular-nums">{formatTime(item.updatedAt)}</time>
-              </div>
-              <DeliveryBadge item={item} />
-            </li>)}
+              {dashboard.recent.map((item, index) => <li key={item.id} className={`grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 py-3 ${index ? "border-t border-separator" : ""}`}>
+                <div className="min-w-0 space-y-1">
+                  <p className="truncate text-sm font-medium">{item.taskName}</p>
+                  <time dateTime={item.updatedAt} className="block text-xs text-muted tabular-nums">{formatTime(item.updatedAt)}</time>
+                </div>
+                <DeliveryBadge item={item} />
+              </li>)}
             </ul>
           )}
-        </Card>
+        </section>
 
-        <Card className="gap-4 p-5 sm:p-6">
-          <CardHeading title="投递节奏" description="最近七天 Bark 接收数量" />
-          {activity.length ? <Card.Content className="gap-3">
+        <section aria-labelledby="activity-heading" className="grid min-w-0 gap-4">
+          <header className="space-y-1">
+            <h2 id="activity-heading" className="font-semibold">投递节奏</h2>
+            <p className="text-xs text-muted">最近七天 Bark 接收数量</p>
+          </header>
+          {activity.length ? <div className="grid gap-3">
             {activity.map((item, index) => {
               const label = index === activity.length - 1 ? "今天" : item.date.slice(5).replace("-", "/");
               return <Meter key={item.date} aria-label={`${item.date} Bark 接收数量`} value={item.sent} maxValue={dailyMaximum} valueLabel={`${item.sent} 条`} className="activity-meter items-center gap-3 text-xs tabular-nums" size="sm">
                 <span className="text-muted">{label}</span><Meter.Track><Meter.Fill /></Meter.Track><Meter.Output>{item.sent}</Meter.Output>
               </Meter>;
             })}
-          </Card.Content> : error ? null : <Loading>正在读取统计</Loading>}
-        </Card>
+          </div> : error ? null : <Loading>正在读取统计</Loading>}
+        </section>
       </div>
     </div>
     {details && <AgendaDetails date={date} onClose={() => setDetails(false)} />}
