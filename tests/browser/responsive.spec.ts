@@ -162,7 +162,13 @@ test("touch layouts keep bulk actions reachable and hide selection on completed 
       name: taskName, startsAt: "2035-01-01T09:00:00+08:00", preset: "daily", cron: "0 9 * * *", repeatCount: 5,
     } })).status()).toBe(201);
 
-    for (const viewport of [{ width: 844, height: 390 }, { width: 568, height: 320 }, { width: 390, height: 844 }]) {
+    for (const viewport of [
+      { width: 844, height: 390 },
+      { width: 667, height: 450 },
+      { width: 568, height: 320 },
+      { width: 390, height: 844 },
+      { width: 320, height: 568 },
+    ]) {
       await page.setViewportSize(viewport);
       await page.goto("/tasks");
       const selectTasks = page.getByRole("checkbox", { name: "选择本页提醒" });
@@ -175,12 +181,35 @@ test("touch layouts keep bulk actions reachable and hide selection on completed 
       const bounds = await bar.boundingBox();
       expect(bounds!.x).toBeGreaterThanOrEqual(12);
       expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(viewport.width - 12);
-      if (viewport.height <= 320 && viewport.width >= 416) expect(bounds!.height).toBeLessThanOrEqual(64);
+      if (viewport.height <= 512 && viewport.width >= 416) {
+        expect(bounds!.height).toBeLessThanOrEqual(64);
+        expect(bounds!.width).toBeLessThanOrEqual(360);
+      }
       const targets = await bar.locator("button").evaluateAll((buttons) => buttons.map((button) => {
         const { width, height } = button.getBoundingClientRect();
         return { width, height };
       }));
       expect.soft(targets.every(({ width, height }) => width >= 44 && height >= 44), JSON.stringify({ viewport, targets })).toBe(true);
+      const paddings = await bar.locator(".action-bar__content button").evaluateAll((buttons) => buttons.map((button) => Number.parseFloat(getComputedStyle(button).paddingInlineStart)));
+      expect.soft(paddings.every((padding) => padding <= 12), JSON.stringify({ viewport, paddings })).toBe(true);
+      if (viewport.height <= 512 && viewport.width >= 416) {
+        const prefixGap = await bar.evaluate((element) => {
+          const prefix = element.querySelector(".action-bar__prefix span");
+          const firstButton = element.querySelector(".action-bar__content button");
+          if (!prefix || !firstButton) return Number.POSITIVE_INFINITY;
+          const text = document.createRange();
+          text.selectNodeContents(firstButton);
+          return text.getBoundingClientRect().left - prefix.getBoundingClientRect().right;
+        });
+        expect.soft(prefixGap).toBeLessThanOrEqual(20);
+        const suffixGap = await bar.evaluate((element) => {
+          const actions = element.querySelectorAll(".action-bar__content button");
+          const suffix = element.querySelector(".action-bar__suffix button");
+          if (!actions.length || !suffix) return Number.POSITIVE_INFINITY;
+          return suffix.getBoundingClientRect().left - actions[actions.length - 1]!.getBoundingClientRect().right;
+        });
+        expect.soft(suffixGap).toBeLessThanOrEqual(8);
+      }
       const gaps = await bar.locator(".action-bar__content button").evaluateAll((buttons) => {
         const boxes = buttons.map((button) => button.getBoundingClientRect());
         return boxes.slice(1).map((box, index) => box.left - boxes[index]!.right);

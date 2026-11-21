@@ -132,8 +132,8 @@ export default function DeliveriesPage() {
       </div>
     </Details>
     <BulkActions count={selectedIds.length} disabled={Boolean(busy)} onClear={() => setSelected([])}>
-      <Button variant="ghost" isDisabled={Boolean(busy)} onPress={() => void bulk("retry")}>批量重试</Button>
-      <Button variant="danger-soft" isDisabled={Boolean(busy)} onPress={() => setBulkConfirm(true)}>批量取消</Button>
+      <Button size="sm" variant="ghost" isDisabled={Boolean(busy)} onPress={() => void bulk("retry")}>批量重试</Button>
+      <Button size="sm" variant="danger-soft" isDisabled={Boolean(busy)} onPress={() => setBulkConfirm(true)}>批量取消</Button>
     </BulkActions>
 
     {cancel && <Confirm title={`取消「${cancel.taskName}」这次投递？`} confirmLabel="取消投递" cancelLabel="保留投递" onClose={() => setCancel(null)} onConfirm={() => void mutate(cancel, "cancel")} busy={busy === cancel.id}>

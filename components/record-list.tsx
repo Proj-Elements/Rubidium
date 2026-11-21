@@ -95,6 +95,6 @@ export function BulkActions({ count, disabled, onClear, children }: { count: num
   return <ActionBar isOpen={count > 0} aria-label="批量操作" className="workspace-actions">
     <ActionBar.Prefix><span role="status" className="whitespace-nowrap text-sm font-medium tabular-nums">已选 {count} 项</span></ActionBar.Prefix>
     <ActionBar.Content>{children}</ActionBar.Content>
-    <ActionBar.Suffix><IconButton icon="close" label="取消选择" isDisabled={disabled} onPress={onClear} /></ActionBar.Suffix>
+    <ActionBar.Suffix><IconButton icon="close" label="取消选择" size="sm" isDisabled={disabled} onPress={onClear} /></ActionBar.Suffix>
   </ActionBar>;
 }

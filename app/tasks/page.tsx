@@ -151,9 +151,9 @@ export default function TasksPage() {
       </RecordList>
       <p className="flex items-start gap-2 text-xs leading-relaxed text-muted"><Glyph name="shield" size={16} className="shrink-0 text-accent" />暂停和归档只停止后续排期，已排队消息仍会投递。</p>
       <BulkActions count={selectedTasks.length} disabled={Boolean(busy)} onClear={() => setSelected([])}>
-        <Button variant="ghost" isDisabled={!canPause || Boolean(busy)} onPress={() => void bulk("paused")}>暂停</Button>
-        <Button variant="ghost" isDisabled={!canResume || Boolean(busy)} onPress={() => void bulk("active")}>恢复</Button>
-        <Button variant="danger-soft" isDisabled={!canArchive || Boolean(busy)} onPress={() => setConfirmBulkArchive(true)}>归档</Button>
+        <Button size="sm" variant="ghost" isDisabled={!canPause || Boolean(busy)} onPress={() => void bulk("paused")}>暂停</Button>
+        <Button size="sm" variant="ghost" isDisabled={!canResume || Boolean(busy)} onPress={() => void bulk("active")}>恢复</Button>
+        <Button size="sm" variant="danger-soft" isDisabled={!canArchive || Boolean(busy)} onPress={() => setConfirmBulkArchive(true)}>归档</Button>
       </BulkActions>
       {archive && (
         <Confirm title={`归档「${archive.name}」？`} confirmLabel="确认归档" onClose={() => setArchive(null)} onConfirm={() => void archiveTask()} busy={busy === archive.id}>
