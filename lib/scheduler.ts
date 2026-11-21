@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { claimDelivery, deliverySettings, dueTaskRows, extendEndpointCooldown, isolateInvalidTask, listDevices, markDeliveryFailed, markDeliverySent, queueTaskBatch, readRuntimeState, writeRuntimeState } from "./db";
 import { BarkDeliveryError, sendBark } from "./bark";
 import { redactSecrets } from "./errors";
-import type { BarkSettings } from "./types";
+import type { BarkSettings, ChannelDeliverySettings } from "./types";
 import { logError } from "./logging";
 
 let cycle: Promise<void> | null = null;
@@ -52,7 +52,7 @@ function endpointStateKey(settings: BarkSettings): string {
 
 export async function processOneDelivery(
   now = new Date(),
-  deliver: (settings: BarkSettings, title: string, body: string) => Promise<void> = sendBark,
+  deliver: (settings: ChannelDeliverySettings, title: string, body: string) => Promise<void> = sendBark,
 ): Promise<boolean> {
   if (stopping) return false;
   const claimAt = new Date(Math.max(now.getTime(), Date.now()));

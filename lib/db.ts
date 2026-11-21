@@ -1,8 +1,9 @@
 import { randomUUID, createHash } from "node:crypto";
 import type { DatabaseSync } from "node:sqlite";
 import { Cron } from "croner";
-import { DEFAULT_SETTINGS, SCHEDULE_TIME_ZONE, type BarkSettings, type Delivery, type DeliveryAttempt, type DeliveryFilter, type Device, type ScheduledTask, type Task, type TaskInput } from "./types";
+import { DEFAULT_SETTINGS, SCHEDULE_TIME_ZONE, type BarkSettings, type Channel, type ChannelDeliverySettings, type ChannelInput, type ChannelType, type Delivery, type DeliveryAttempt, type DeliveryFilter, type Device, type ScheduledTask, type Task, type TaskInput } from "./types";
 import { calendarDays, localDateString, nextTaskDate, previewSchedule } from "./cron";
+import { channelFields } from "./contracts";
 import { settingsSchema } from "./validation";
 import { DomainError, redactSecrets } from "./errors";
 import { registerLogSecret } from "./logging";
@@ -505,75 +506,118 @@ export function compactDatabase(): void {
 
 export function listDevices(): Device[] {
   const settings = readSettingsState();
-  const rows = statement("SELECT id, name, endpoint, device_key, revision FROM devices ORDER BY name, id").all() as Array<{ id: string; name: string; endpoint: string; device_key: string; revision: number }>;
+  const rows = statement("SELECT id, name, endpoint, device_key, revision FROM devices WHERE type = 'bark' ORDER BY name, id").all() as Array<{ id: string; name: string; endpoint: string; device_key: string; revision: number }>;
   return [{ id: "default", name: "默认设备", endpoint: settings.settings.endpoint, deviceKeyConfigured: Boolean(settings.settings.deviceKey), revision: settings.revision },
     ...rows.map(({ device_key, ...row }) => ({ ...row, deviceKeyConfigured: Boolean(device_key) }))];
 }
 
-function requireDevice(id: string): void {
-  if (id !== "default" && !statement("SELECT 1 FROM devices WHERE id = ?").get(id)) throw new DomainError("设备不存在", 404);
+export function listChannels(): Channel[] {
+  const settings = readSettingsState();
+  const rows = statement("SELECT id, name, type, endpoint, topic, device_key, revision FROM devices ORDER BY name, id").all() as Array<{
+    id: string; name: string; type: ChannelType; endpoint: string; topic: string; device_key: string; revision: number;
+  }>;
+  return [
+    { id: "default", name: "默认 Bark", type: "bark", endpoint: settings.settings.endpoint, topic: "", credentialConfigured: Boolean(settings.settings.deviceKey), revision: settings.revision, isDefault: true },
+    ...rows.map(({ device_key, ...row }) => ({ ...row, credentialConfigured: Boolean(device_key), isDefault: false })),
+  ];
 }
 
-export function deliverySettings(deviceId: string, notification = "{}"): BarkSettings {
+function requireDevice(id: string): void {
+  if (id !== "default" && !statement("SELECT 1 FROM devices WHERE id = ?").get(id)) throw new DomainError("渠道不存在", 404);
+}
+
+export function deliverySettings(deviceId: string, notification = "{}"): ChannelDeliverySettings {
   const defaults = readSettings();
   let target = defaults;
+  let channelType: ChannelType = "bark";
+  let topic = "";
   if (deviceId !== "default") {
-    const device = statement("SELECT endpoint, device_key deviceKey FROM devices WHERE id = ?").get(deviceId) as { endpoint: string; deviceKey: string } | undefined;
-    if (!device) throw new DomainError("目标设备已删除", 409);
+    const device = statement("SELECT endpoint, device_key deviceKey, type, topic FROM devices WHERE id = ?").get(deviceId) as { endpoint: string; deviceKey: string; type: ChannelType; topic: string } | undefined;
+    if (!device) throw new DomainError("目标渠道已删除", 409);
     target = { ...defaults, ...device };
+    channelType = device.type;
+    topic = device.topic;
   }
   registerLogSecret(target.deviceKey);
-  return { ...target, ...JSON.parse(notification) };
+  return { ...target, ...JSON.parse(notification), channelType, topic };
 }
 
 function deviceSecrets(): string[] {
   return [readSettings().deviceKey, ...(statement("SELECT device_key FROM devices").all() as Array<{ device_key: string }>).map((row) => row.device_key)];
 }
 
-export function saveDevice(input: { id?: string; name: string; endpoint: string; deviceKey: string; revision?: number }): Device {
-  if (input.id !== undefined && !input.id.trim()) throw new DomainError("设备 ID 不能为空");
+export function saveChannel(input: ChannelInput & { id?: string; revision?: number }): Channel {
+  const parsed = channelFields.safeParse(input);
+  if (!parsed.success) throw new DomainError(parsed.error.issues[0]?.message ?? "渠道配置无效");
+  const value = parsed.data;
   return transaction(() => {
     const id = input.id ?? randomUUID();
-    if (id === "default") throw new DomainError("默认设备请通过推送设置修改");
-    const existing = statement("SELECT endpoint, device_key, revision FROM devices WHERE id = ?").get(id) as { endpoint: string; device_key: string; revision: number } | undefined;
-    if (!existing && (statement("SELECT COUNT(*) total FROM devices").get() as { total: number }).total >= 100) throw new DomainError("最多配置 100 个额外设备", 409);
+    if (id === "default") {
+      if (value.type !== "bark") throw new DomainError("默认渠道只能使用 Bark");
+      const current = readSettingsState();
+      checkRevision(current.revision, input.revision);
+      const credential = value.credential || current.settings.deviceKey;
+      const result = settingsSchema.safeParse({ ...current.settings, endpoint: value.endpoint, deviceKey: credential });
+      if (!result.success) throw new DomainError("Bark 地址或 Device Key 格式无效");
+      writeSettings({ ...current.settings, endpoint: result.data.endpoint, deviceKey: result.data.deviceKey }, current.revision);
+      return listChannels()[0];
+    }
+    const existing = statement("SELECT endpoint, device_key, type, topic, revision FROM devices WHERE id = ?").get(id) as {
+      endpoint: string; device_key: string; type: ChannelType; topic: string; revision: number;
+    } | undefined;
+    if (!existing && (statement("SELECT COUNT(*) total FROM devices").get() as { total: number }).total >= 100) throw new DomainError("最多配置 100 个额外渠道", 409);
     if (input.id && !existing) throw new DomainError("设备不存在", 404);
     if (existing) checkRevision(existing.revision, input.revision);
-    if (existing && existing.endpoint !== input.endpoint && !input.deviceKey) throw new DomainError("更换地址需要填写新的密钥");
-    const key = input.deviceKey || existing?.device_key || "";
-    if (!key) throw new DomainError("请输入 Device Key");
-    const valid = settingsSchema.safeParse({ ...readSettings(), endpoint: input.endpoint, deviceKey: key });
-    if (!valid.success) throw new DomainError("设备地址或密钥格式无效");
+    if (existing && existing.type === "bark" && value.type === "bark" && existing.endpoint !== value.endpoint && !value.credential) throw new DomainError("更换 Bark 地址需要填写新的 Device Key");
+    const credential = value.credential || (existing?.type === value.type ? existing.device_key : "");
+    if (value.type === "bark") {
+      if (!credential) throw new DomainError("请输入 Bark Device Key");
+      if (!settingsSchema.safeParse({ ...readSettings(), endpoint: value.endpoint, deviceKey: credential }).success) throw new DomainError("Bark 地址或 Device Key 格式无效");
+    }
     const revision = (existing?.revision ?? 0) + 1;
-    statement(`INSERT INTO devices (id, name, endpoint, device_key, revision) VALUES (?, ?, ?, ?, ?)
-      ON CONFLICT(id) DO UPDATE SET name=excluded.name, endpoint=excluded.endpoint, device_key=excluded.device_key, revision=excluded.revision`)
-      .run(id, input.name, input.endpoint, key, revision);
-    registerLogSecret(key);
-    if (existing?.device_key && existing.device_key !== key) {
+    statement(`INSERT INTO devices (id, name, type, endpoint, topic, device_key, revision) VALUES (?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(id) DO UPDATE SET name=excluded.name, type=excluded.type, endpoint=excluded.endpoint, topic=excluded.topic,
+      device_key=excluded.device_key, revision=excluded.revision`)
+      .run(id, value.name, value.type, value.endpoint, value.topic, credential, revision);
+    registerLogSecret(credential);
+    if (existing?.device_key && existing.device_key !== credential) {
       for (const [table, column] of [["tasks", "last_error"], ["deliveries", "last_error"], ["delivery_attempts", "error"]]) {
         for (const variant of new Set([existing.device_key, encodeURIComponent(existing.device_key), JSON.stringify(existing.device_key).slice(1, -1)])) {
           statement(`UPDATE ${table} SET ${column} = REPLACE(${column}, ?, '[redacted]') WHERE INSTR(${column}, ?) > 0`).run(variant, variant);
         }
       }
     }
-    if (existing && (existing.endpoint !== input.endpoint || existing.device_key !== key)) {
+    if (existing && (existing.endpoint !== value.endpoint || existing.device_key !== credential || existing.type !== value.type || existing.topic !== value.topic)) {
       statement("UPDATE deliveries SET next_attempt_at = ?, manual_only = 0 WHERE device_id = ? AND status = 'pending'").run(new Date().toISOString(), id);
     }
-    auditEvent(existing ? "device.update" : "device.create", id);
-    return { id, name: input.name, endpoint: input.endpoint, revision, deviceKeyConfigured: true };
+    auditEvent(existing ? "channel.update" : "channel.create", id);
+    return { id, name: value.name, type: value.type, endpoint: value.endpoint, topic: value.topic, credentialConfigured: Boolean(credential), revision, isDefault: false };
+  });
+}
+
+export function saveDevice(input: { id?: string; name: string; endpoint: string; deviceKey: string; revision?: number }): Device {
+  if (input.id !== undefined && !input.id.trim()) throw new DomainError("设备 ID 不能为空");
+  if (input.id && statement("SELECT type FROM devices WHERE id = ?").get(input.id)?.type !== "bark") throw new DomainError("设备不存在", 404);
+  const channel = saveChannel({ ...input, type: "bark", topic: "", credential: input.deviceKey });
+  return { id: channel.id, name: channel.name, endpoint: channel.endpoint, revision: channel.revision, deviceKeyConfigured: channel.credentialConfigured };
+}
+
+export function removeChannel(id: string, revision: number): void {
+  transaction(() => {
+    if (id === "default") throw new DomainError("默认渠道不能删除");
+    const existing = statement("SELECT revision FROM devices WHERE id = ?").get(id) as { revision: number } | undefined;
+    if (!existing) throw new DomainError("渠道不存在", 404);
+    checkRevision(existing.revision, revision);
+    if (statement("SELECT 1 FROM tasks WHERE device_id = ? LIMIT 1").get(id) || statement("SELECT 1 FROM deliveries WHERE device_id = ? AND status IN ('pending','sending') LIMIT 1").get(id)) throw new DomainError("渠道仍被任务或队列使用，请先重新分配或删除相关任务", 409);
+    statement("DELETE FROM devices WHERE id = ?").run(id);
+    auditEvent("channel.delete", id);
   });
 }
 
 export function removeDevice(id: string, revision: number): void {
-  transaction(() => {
-    if (id === "default") throw new DomainError("默认设备不能删除");
-    const existing = statement("SELECT revision FROM devices WHERE id = ?").get(id) as { revision: number } | undefined;
-    if (!existing) throw new DomainError("设备不存在", 404);
-    checkRevision(existing.revision, revision);
-    if (statement("SELECT 1 FROM tasks WHERE device_id = ? LIMIT 1").get(id) || statement("SELECT 1 FROM deliveries WHERE device_id = ? AND status IN ('pending','sending') LIMIT 1").get(id)) throw new DomainError("设备仍被任务或队列使用，请先重新分配或删除相关任务", 409);
-    statement("DELETE FROM devices WHERE id = ?").run(id);
-    auditEvent("device.delete", id);
-  });
+  const existing = statement("SELECT type FROM devices WHERE id = ?").get(id) as { type: ChannelType } | undefined;
+  if (existing?.type !== "bark") throw new DomainError("设备不存在", 404);
+  removeChannel(id, revision);
 }
 
 export function permanentlyDeleteTask(id: string, revision: number): void {

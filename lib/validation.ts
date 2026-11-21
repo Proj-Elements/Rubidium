@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { presetCron, validateCron } from "./cron";
-import { REMINDER_CONTENT_MAX_BYTES, reminderContentBytes, settingsFields, taskFields, timeZoneSchema } from "./contracts";
+import { REMINDER_CONTENT_MAX_BYTES, channelFields, reminderContentBytes, settingsFields, taskFields, timeZoneSchema } from "./contracts";
 
 export const taskInputSchema = taskFields.superRefine((value, context) => {
   const start = new Date(value.startsAt);
@@ -25,5 +25,8 @@ export const settingsSchema = settingsFields.superRefine((value, context) => {
   if (new TextEncoder().encode(options).byteLength > 1096) context.addIssue({ code: "custom", path: ["deviceKey"], message: "密钥与通知选项合计过长，请缩短分组、提示音或图标地址，为通知正文保留空间" });
 });
 
+export const channelInputSchema = channelFields;
+
 export type ValidatedTaskInput = z.infer<typeof taskInputSchema>;
 export type ValidatedSettings = z.infer<typeof settingsSchema>;
+export type ValidatedChannelInput = z.infer<typeof channelInputSchema>;

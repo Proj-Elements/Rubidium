@@ -6,7 +6,7 @@ const globalDb = globalThis as typeof globalThis & { barkerDb?: DatabaseSync };
 const databaseFile = Buffer.from(`${runtimeDataDir}/barker.sqlite`);
 const statements = new Map<string, ReturnType<DatabaseSync["prepare"]>>();
 const retryWait = new Int32Array(new SharedArrayBuffer(4));
-export const CURRENT_SCHEMA_VERSION = 4;
+export const CURRENT_SCHEMA_VERSION = 5;
 const INITIALIZATION_ATTEMPTS = 3;
 let db: DatabaseSync;
 let initialized = false;
@@ -99,6 +99,8 @@ function migrate(existingVersion: number): void {
   addColumn("tasks", "include_dates", "TEXT NOT NULL DEFAULT '[]'");
   addColumn("deliveries", "device_id", "TEXT NOT NULL DEFAULT 'default'");
   addColumn("deliveries", "notification", "TEXT NOT NULL DEFAULT '{}'");
+  addColumn("devices", "type", "TEXT NOT NULL DEFAULT 'bark'");
+  addColumn("devices", "topic", "TEXT NOT NULL DEFAULT ''");
   if (addColumn("deliveries", "activity_at", "TEXT")) db.exec("UPDATE deliveries SET activity_at = COALESCE(delivered_at, created_at)");
   db.exec(`
     CREATE INDEX IF NOT EXISTS tasks_due_idx ON tasks(status, next_run_at);

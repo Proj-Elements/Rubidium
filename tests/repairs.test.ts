@@ -109,6 +109,28 @@ test("task-specific devices and options stay attached to queued messages", async
   assert.equal(JSON.stringify(db.listDevices()).includes("work-device-key"), false);
 });
 
+test("Ntfy channels retain protected configuration and task bindings", async () => {
+  const channel = db.saveChannel({ name: "Private Ntfy", type: "ntfy", endpoint: "https://ntfy.example", topic: "rubidium_test", credential: "ntfy-test-token" });
+  assert.equal(channel.type, "ntfy");
+  assert.equal(channel.topic, "rubidium_test");
+  assert.equal(channel.credentialConfigured, true);
+  assert.equal(JSON.stringify(db.listChannels()).includes("ntfy-test-token"), false);
+  assert.throws(() => db.saveChannel({ name: "Invalid Ntfy", type: "ntfy", endpoint: "https://ntfy.example", topic: "invalid/topic", credential: "" }), /主题/);
+
+  const updated = db.saveChannel({ id: channel.id, name: channel.name, type: channel.type, endpoint: channel.endpoint, topic: channel.topic, credential: "", revision: channel.revision });
+  assert.equal(updated.revision, channel.revision + 1);
+  const task = db.createTask({ ...input, deviceId: updated.id }, created);
+  await scheduler.enqueueDueOccurrences(due);
+  await scheduler.processOneDelivery(due, async (settings) => {
+    assert.equal(settings.channelType, "ntfy");
+    assert.equal(settings.topic, "rubidium_test");
+    assert.equal(settings.endpoint, "https://ntfy.example");
+    assert.equal(settings.deviceKey, "ntfy-test-token");
+  });
+  assert.equal(db.getTask(task.id)?.sentCount, 1);
+  assert.throws(() => db.removeChannel(updated.id, updated.revision), /仍被/);
+});
+
 test("once, endless, holiday exceptions and weekend make-up dates share worker rules", () => {
   const once = db.createTask({ ...input, preset: "once", repeatCount: 1 }, created);
   db.queueTaskBatch(once.id, due);

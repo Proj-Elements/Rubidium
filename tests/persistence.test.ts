@@ -131,12 +131,12 @@ test("branding migration updates only legacy defaults and runs once", () => {
     assert.equal((migratedDefaults.settings as { group: string }).group, "Rubidium");
     assert.equal((migratedDefaults.settings as { endpoint: string }).endpoint, "https://custom.example");
     assert.equal((migratedDefaults.settings as { deviceKey: string }).deviceKey, "private-key");
-    assert.equal(migratedDefaults.version, 4);
+    assert.equal(migratedDefaults.version, 5);
 
     const migratedCustom = run(customDirectory, inspect);
     assert.equal((migratedCustom.settings as { title: string }).title, "Personal title");
     assert.equal((migratedCustom.settings as { group: string }).group, "Personal group");
-    assert.equal(migratedCustom.version, 4);
+    assert.equal(migratedCustom.version, 5);
 
     run(defaultsDirectory, `
       const db = await import('./lib/db.ts');
@@ -151,6 +151,48 @@ test("branding migration updates only legacy defaults and runs once", () => {
     rmSync(defaultsDirectory, { recursive: true, force: true });
     rmSync(customDirectory, { recursive: true, force: true });
   }
+});
+
+test("v4 Bark devices and queued deliveries migrate to channels without losing references", () => {
+  const directory = mkdtempSync(join(tmpdir(), "rubidium-channel-migration-"));
+  try {
+    const seeded = run(directory, `
+      const db = await import('./lib/db.ts');
+      const device = db.saveDevice({ name: 'Legacy work', endpoint: 'https://work.example', deviceKey: 'legacy-channel-secret' });
+      const task = db.createTask({ name: 'Legacy channel reminder', startsAt: '2030-01-01T01:00:00Z', preset: 'once', cron: '0 1 * * *', repeatCount: 1 }, new Date('2030-01-01T00:00:00Z'));
+      db.__rawDatabaseForTests().prepare('UPDATE tasks SET device_id = ? WHERE id = ?').run(device.id, task.id);
+      db.queueTaskBatch(task.id, new Date('2030-01-01T01:00:00Z'));
+      db.__rawDatabaseForTests().exec("DROP TABLE devices; CREATE TABLE devices (id TEXT PRIMARY KEY, name TEXT NOT NULL, endpoint TEXT NOT NULL, device_key TEXT NOT NULL, revision INTEGER NOT NULL DEFAULT 1);");
+      db.__rawDatabaseForTests().prepare('INSERT INTO devices (id, name, endpoint, device_key, revision) VALUES (?, ?, ?, ?, ?)').run(device.id, device.name, device.endpoint, 'legacy-channel-secret', device.revision);
+      db.__rawDatabaseForTests().exec('PRAGMA user_version=4');
+      console.log(JSON.stringify({ taskId: task.id, deviceId: device.id }));
+    `);
+    const migrated = run(directory, `
+      const db = await import('./lib/db.ts');
+      const scheduler = await import('./lib/scheduler.ts');
+      const channels = db.listChannels();
+      const task = db.getTask(${JSON.stringify(seeded.taskId)});
+      let delivered = false;
+      await scheduler.processOneDelivery(new Date('2030-01-01T01:00:00Z'), async (settings) => {
+        delivered = settings.channelType === 'bark' && settings.endpoint === 'https://work.example' && settings.deviceKey === 'legacy-channel-secret';
+      });
+      console.log(JSON.stringify({
+        version: db.__rawDatabaseForTests().prepare('PRAGMA user_version').get().user_version,
+        channel: channels.find(({ id }) => id === ${JSON.stringify(seeded.deviceId)}),
+        taskDeviceId: task.deviceId,
+        delivered,
+        deliveryStatus: db.listDeliveries({ page: 1, pageSize: 10 }).deliveries[0].status,
+      }));
+    `);
+    assert.equal(migrated.version, 5);
+    assert.equal((migrated.channel as { type: string }).type, "bark");
+    assert.equal((migrated.channel as { topic: string }).topic, "");
+    assert.equal((migrated.channel as { credentialConfigured: boolean }).credentialConfigured, true);
+    assert.equal(JSON.stringify(migrated.channel).includes("legacy-channel-secret"), false);
+    assert.equal(migrated.taskDeviceId, seeded.deviceId);
+    assert.equal(migrated.delivered, true);
+    assert.equal(migrated.deliveryStatus, "sent");
+  } finally { rmSync(directory, { recursive: true, force: true }); }
 });
 
 test("failed legacy migration rolls back schema changes and row updates", () => {

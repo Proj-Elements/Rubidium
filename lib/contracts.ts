@@ -60,3 +60,21 @@ export const settingsFields = z.object({
   deviceKey: z.string().trim().max(300).optional().default(""),
   title: z.string().trim().min(1).max(100), sound: z.string().trim().max(80), group: z.string().trim().max(100), icon: httpUrl,
 });
+
+export const channelFields = z.object({
+  name: z.string().trim().min(1, "渠道名称不能为空").max(80, "渠道名称最多 80 个字符").refine((value) => !/[\u0000-\u001f\u007f]/.test(value), "渠道名称不能包含控制字符"),
+  type: z.enum(["bark", "ntfy"]),
+  endpoint: z.string().trim().min(1, "请输入服务地址").max(300, "服务地址过长").refine((value) => {
+    try {
+      const url = new URL(value);
+      return ["http:", "https:"].includes(url.protocol) && Boolean(url.hostname) && !url.username && !url.password && !url.search && !url.hash;
+    } catch { return false; }
+  }, "服务地址必须是不含用户名、密码、查询串与锚点的 HTTP(S) 地址"),
+  topic: z.string().trim().max(64, "Ntfy 主题最多 64 个字符").optional().default(""),
+  credential: z.string().trim().max(512, "渠道凭据过长").refine((value) => !/[\u0000-\u001f\u007f]/.test(value), "渠道凭据不能包含控制字符").optional().default(""),
+}).superRefine((value, context) => {
+  if (value.type === "bark" && value.topic) context.addIssue({ code: "custom", path: ["topic"], message: "Bark 渠道不使用主题" });
+  if (value.type === "ntfy" && !/^[A-Za-z0-9_-]{1,64}$/.test(value.topic)) {
+    context.addIssue({ code: "custom", path: ["topic"], message: "Ntfy 主题须为 1–64 位字母、数字、下划线或连字符" });
+  }
+});

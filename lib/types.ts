@@ -1,5 +1,5 @@
 import type { z } from "zod";
-import type { deliverySchema, settingsFields, taskFields, taskSchema } from "./contracts";
+import type { channelFields, deliverySchema, settingsFields, taskFields, taskSchema } from "./contracts";
 
 export type RecurrencePreset = TaskInput["preset"];
 
@@ -29,6 +29,20 @@ export type ScheduledTask = Pick<Task, "id" | "name" | "status" | "preset" | "cr
   | "endDate" | "repeatCount" | "queuedCount" | "skipDates" | "includeDates">;
 
 export type BarkSettings = Omit<z.output<typeof settingsFields>, "displayTimeZone"> & { displayTimeZone?: string };
+export type ChannelInput = z.input<typeof channelFields>;
+export type ChannelType = z.output<typeof channelFields>["type"];
+export type ChannelDeliverySettings = BarkSettings & { channelType: ChannelType; topic: string };
+
+export interface Channel {
+  id: string;
+  name: string;
+  type: ChannelType;
+  endpoint: string;
+  topic: string;
+  credentialConfigured: boolean;
+  revision: number;
+  isDefault: boolean;
+}
 
 export type TaskInput = z.input<typeof taskFields>;
 
