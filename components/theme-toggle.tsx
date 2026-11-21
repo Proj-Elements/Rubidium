@@ -4,34 +4,40 @@ import { useEffect, useState } from "react";
 import { IconButton } from "./primitives";
 
 const preferenceKey = "barker:appearance";
+type Appearance = "system" | "light" | "dark";
+const labels: Record<Appearance, string> = { system: "跟随系统", light: "浅色", dark: "深色" };
 
 export function ThemeToggle() {
-  const [dark, setDark] = useState(false);
+  const [appearance, setAppearance] = useState<Appearance>("system");
+  const [systemDark, setSystemDark] = useState(false);
 
   useEffect(() => {
     const media = window.matchMedia("(prefers-color-scheme: dark)");
-    function sync() {
+    function syncPreference() {
       const saved = localStorage.getItem(preferenceKey);
-      const theme = saved === "light" || saved === "dark" ? saved : "system";
-      document.documentElement.dataset.theme = theme;
-      setDark(theme === "dark" || (theme === "system" && media.matches));
+      const next = saved === "light" || saved === "dark" ? saved : "system";
+      document.documentElement.dataset.theme = next;
+      setAppearance(next);
     }
-    sync();
-    media.addEventListener("change", sync);
-    window.addEventListener("storage", sync);
+    const syncSystem = () => setSystemDark(media.matches);
+    syncPreference();
+    syncSystem();
+    media.addEventListener("change", syncSystem);
+    window.addEventListener("storage", syncPreference);
     return () => {
-      media.removeEventListener("change", sync);
-      window.removeEventListener("storage", sync);
+      media.removeEventListener("change", syncSystem);
+      window.removeEventListener("storage", syncPreference);
     };
   }, []);
 
   function toggle() {
-    const next = !dark;
-    const theme = next ? "dark" : "light";
-    document.documentElement.dataset.theme = theme;
-    localStorage.setItem(preferenceKey, theme);
-    setDark(next);
+    const next: Appearance = appearance === "system" ? "light" : appearance === "light" ? "dark" : "system";
+    document.documentElement.dataset.theme = next;
+    localStorage.setItem(preferenceKey, next);
+    setAppearance(next);
   }
 
-  return <IconButton icon={dark ? "sun" : "moon"} label={dark ? "切换到浅色外观" : "切换到深色外观"} onPress={toggle} />;
+  const dark = appearance === "dark" || (appearance === "system" && systemDark);
+  const nextAppearance = appearance === "system" ? "浅色" : appearance === "light" ? "深色" : "跟随系统";
+  return <IconButton icon={appearance === "system" ? "display" : dark ? "moon" : "sun"} label={`外观：${labels[appearance]}，切换为${nextAppearance}`} onPress={toggle} />;
 }
