@@ -10,6 +10,8 @@ export function FloatingScrollbar() {
   const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [metrics, setMetrics] = useState<ScrollMetrics>({ top: 0, thumb: 0, scrollable: false, value: 0 });
   const [visible, setVisible] = useState(false);
+  const [hovered, setHovered] = useState(false);
+  const [focused, setFocused] = useState(false);
 
   const update = useCallback(() => {
     const viewport = window.innerHeight;
@@ -71,6 +73,7 @@ export function FloatingScrollbar() {
     ref={track}
     className="floating-scrollbar"
     data-visible={visible || undefined}
+    data-scrollable={metrics.scrollable || undefined}
     role="scrollbar"
     aria-label="页面滚动位置"
     aria-controls="main"
@@ -79,15 +82,15 @@ export function FloatingScrollbar() {
     aria-valuemax={1000}
     aria-valuenow={metrics.value}
     tabIndex={metrics.scrollable ? 0 : -1}
-    onPointerEnter={() => setVisible(true)}
-    onPointerLeave={() => { if (dragPointer.current === null) setVisible(false); }}
+    onPointerEnter={() => { setHovered(true); setVisible(true); }}
+    onPointerLeave={() => { setHovered(false); if (dragPointer.current === null) setVisible(false); }}
     onPointerDown={(event) => { dragPointer.current = event.pointerId; event.currentTarget.setPointerCapture(event.pointerId); scrollToPointer(event); }}
     onPointerMove={(event) => { if (dragPointer.current === event.pointerId && event.buttons) scrollToPointer(event); }}
     onPointerUp={(event) => { dragPointer.current = null; event.currentTarget.releasePointerCapture(event.pointerId); reveal(); }}
     onPointerCancel={() => { dragPointer.current = null; }}
-    onFocus={() => setVisible(true)}
-    onBlur={() => setVisible(false)}
+    onFocus={() => { setFocused(true); setVisible(true); }}
+    onBlur={() => { setFocused(false); setVisible(false); }}
     onKeyDown={handleKeyDown}
-    style={{ top: "18vh", height: "64vh", pointerEvents: metrics.scrollable ? "auto" : "none" }}
+    style={{ top: "18vh", height: "64vh", pointerEvents: metrics.scrollable && (visible || hovered || focused) ? "auto" : "none" }}
   ><span className="floating-scrollbar-thumb" style={{ top: metrics.top, height: metrics.thumb }} /></div>;
 }
