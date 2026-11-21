@@ -14,6 +14,8 @@ import { POST as retryDeliveryApi } from "../deliveries/[id]/retry/route";
 import { POST as cancelDeliveryApi } from "../deliveries/[id]/cancel/route";
 import { GET as overviewApi } from "../overview/route";
 import { GET as upcomingApi } from "../upcoming/route";
+import { DELETE as deleteChannelApi, GET as listChannelsApi, POST as createChannelApi, PUT as updateChannelApi } from "../channels/route";
+import { POST as testChannelApi } from "../channels/[id]/test/route";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -39,6 +41,20 @@ const taskUpdateSchema = taskFields.extend({ revision: z.number().int().positive
 const taskStatusUpdateSchema = z.object({ id: z.string().min(1).max(100), status: z.enum(["active", "paused"]), revision: z.number().int().positive() });
 const archiveSchema = z.object({ id: z.string().min(1).max(100), revision: z.number().int().positive() });
 const idSchema = z.object({ id: z.string().min(1).max(100) });
+const channelFieldsSchema = z.object({
+  name: z.string().trim().min(1).max(80),
+  type: z.enum(["bark", "ntfy"]),
+  endpoint: z.string().trim().min(1).max(300),
+  topic: z.string().max(64).optional(),
+  credential: z.string().max(512).optional(),
+});
+const channelCreateSchema = channelFieldsSchema;
+const channelUpdateSchema = channelFieldsSchema.extend({
+  id: z.string().min(1).max(100),
+  revision: z.number().int().positive(),
+  clearCredential: z.boolean().optional(),
+});
+const channelDeleteSchema = z.object({ id: z.string().min(1).max(100), revision: z.number().int().positive() });
 const upcomingSchema = z.object({ date: z.string().date().optional(), after: z.string().datetime({ offset: true }).optional(), task: z.string().min(1).max(100).optional() });
 
 function toolError(message: string, status = 400): ToolResult {
@@ -194,6 +210,47 @@ function createServer(authorization: string): McpServer {
     if (task) query.set("task", task);
     return callApi(authorization, "GET", `/api/upcoming${query.size ? `?${query}` : ""}`, upcomingApi);
   });
+
+  server.registerTool("list_channels", {
+    title: "列出通知渠道",
+    description: "列出 Bark 与 Ntfy 渠道及凭据配置状态，不返回凭据原文。",
+    annotations: { readOnlyHint: true },
+  }, async () => callApi(authorization, "GET", "/api/channels", listChannelsApi));
+
+  server.registerTool("create_channel", {
+    title: "创建通知渠道",
+    description: "创建 Bark 或 Ntfy 渠道。Bark 需要 Device Key；Ntfy topic 必须符合服务端校验。",
+    inputSchema: channelCreateSchema,
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false },
+  }, async (channel) => callApi(authorization, "POST", "/api/channels", createChannelApi, channel));
+
+  server.registerTool("update_channel", {
+    title: "更新通知渠道",
+    description: "按当前 revision 更新渠道；留空 credential 可保留现有凭据，clearCredential 可清除。",
+    inputSchema: channelUpdateSchema,
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
+  }, async ({ id, revision, ...channel }) => callApi(
+    authorization, "PUT", "/api/channels", updateChannelApi, { id, revision, ...channel },
+  ));
+
+  server.registerTool("delete_channel", {
+    title: "删除通知渠道",
+    description: "按 revision 删除未被任务或待投递记录引用的渠道。默认 Bark 渠道不可删除。",
+    inputSchema: channelDeleteSchema,
+    annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true },
+  }, async ({ id, revision }) => callApi(
+    authorization, "DELETE", `/api/channels?id=${encodeURIComponent(id)}`, deleteChannelApi, undefined, undefined,
+    { "if-match": String(revision) },
+  ));
+
+  server.registerTool("test_channel", {
+    title: "测试通知渠道",
+    description: "向指定渠道真实发送一条测试通知；不会创建投递历史记录。",
+    inputSchema: idSchema,
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false },
+  }, async ({ id }) => callApi(
+    authorization, "POST", `/api/channels/${encodeURIComponent(id)}/test`, testChannelApi, {}, { params: Promise.resolve({ id }) },
+  ));
 
   return server;
 }

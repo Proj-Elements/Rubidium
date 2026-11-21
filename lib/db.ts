@@ -546,7 +546,8 @@ function deviceSecrets(): string[] {
   return [readSettings().deviceKey, ...(statement("SELECT device_key FROM devices").all() as Array<{ device_key: string }>).map((row) => row.device_key)];
 }
 
-export function saveChannel(input: ChannelInput & { id?: string; revision?: number }): Channel {
+export function saveChannel(input: ChannelInput & { id?: string; revision?: number; clearCredential?: boolean }): Channel {
+  if (input.clearCredential && input.credential?.trim()) throw new DomainError("不能同时清除并填写渠道凭据");
   const parsed = channelFields.safeParse(input);
   if (!parsed.success) throw new DomainError(parsed.error.issues[0]?.message ?? "渠道配置无效");
   const value = parsed.data;
@@ -556,7 +557,9 @@ export function saveChannel(input: ChannelInput & { id?: string; revision?: numb
       if (value.type !== "bark") throw new DomainError("默认渠道只能使用 Bark");
       const current = readSettingsState();
       checkRevision(current.revision, input.revision);
-      const credential = value.credential || current.settings.deviceKey;
+      if (value.endpoint !== current.settings.endpoint && !value.credential) throw new DomainError("更换 Bark 地址需要填写新的 Device Key");
+      if (input.clearCredential && value.endpoint !== current.settings.endpoint) throw new DomainError("更换 Bark 地址时不能同时清除 Device Key");
+      const credential = input.clearCredential ? "" : value.credential || current.settings.deviceKey;
       const result = settingsSchema.safeParse({ ...current.settings, endpoint: value.endpoint, deviceKey: credential });
       if (!result.success) throw new DomainError("Bark 地址或 Device Key 格式无效");
       writeSettings({ ...current.settings, endpoint: result.data.endpoint, deviceKey: result.data.deviceKey }, current.revision);
@@ -569,7 +572,7 @@ export function saveChannel(input: ChannelInput & { id?: string; revision?: numb
     if (input.id && !existing) throw new DomainError("设备不存在", 404);
     if (existing) checkRevision(existing.revision, input.revision);
     if (existing && existing.type === "bark" && value.type === "bark" && existing.endpoint !== value.endpoint && !value.credential) throw new DomainError("更换 Bark 地址需要填写新的 Device Key");
-    const credential = value.credential || (existing?.type === value.type ? existing.device_key : "");
+    const credential = input.clearCredential ? "" : value.credential || (existing?.type === value.type ? existing.device_key : "");
     if (value.type === "bark") {
       if (!credential) throw new DomainError("请输入 Bark Device Key");
       if (!settingsSchema.safeParse({ ...readSettings(), endpoint: value.endpoint, deviceKey: credential }).success) throw new DomainError("Bark 地址或 Device Key 格式无效");

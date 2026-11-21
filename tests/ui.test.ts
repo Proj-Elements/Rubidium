@@ -22,6 +22,11 @@ test("API clients reject HTML or structurally invalid success payloads", () => {
   assert.equal(validApiPayload("/api/settings", { tasks: [] }), false);
   assert.equal(validApiPayload("/api/tasks", { tasks: [{ id: "incomplete" }] }), false);
   assert.equal(validApiPayload("/api/deliveries", { deliveries: [], total: 0, page: Infinity, pageSize: 12 }), false);
+  const channel = { id: "channel", name: "Ntfy", type: "ntfy", endpoint: "https://ntfy.example", topic: "alerts", credentialConfigured: true, revision: 1, isDefault: false };
+  assert.equal(validApiPayload("/api/channels", { channels: [channel] }), true);
+  assert.equal(validApiPayload("/api/channels", { channel: { ...channel, credential: "secret" } }), false);
+  assert.equal(validApiPayload("/api/channels", { channels: [{ ...channel, revision: 0 }] }), false);
+  assert.equal(validApiPayload("/api/channels/id/test", { delivered: true }), true);
 });
 
 test("the actual API client rejects HTML and malformed JSON success responses", async (context) => {

@@ -15,6 +15,7 @@ const rules = [
   [/^lib\/types\.ts$/, ["bark", "ntfy", "cron", "validation", "scheduler", "workflow", "api", "ui", "data-tools", "repairs", "db-init", "persistence"]],
   [/^lib\/(contracts|logging)\.ts$/, ["http", "api", "ui", "auth", "repairs"]],
   [/^lib\/validation\.ts$/, ["validation", "api", "workflow"]],
+  [/^app\/api\/mcp\//, ["mcp"]],
   [/^lib\/http\.ts$|^app\/api\//, ["http", "api"]],
   [/^lib\/scheduler\.ts$|^instrumentation\.ts$/, ["scheduler", "workflow", "persistence", "shutdown", "repairs", "ntfy"]],
   [/^scripts\/ci-scope\.mjs$|^\.github\/workflows\/ci\.yml$/, ["ci-scope", "release"]],

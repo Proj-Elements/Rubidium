@@ -24,6 +24,8 @@ let attempts: typeof import("../app/api/deliveries/[id]/attempts/route");
 let deliveryRetry: typeof import("../app/api/deliveries/[id]/retry/route");
 let audit: typeof import("../app/api/audit/route");
 let devices: typeof import("../app/api/devices/route");
+let channels: typeof import("../app/api/channels/route");
+let channelTest: typeof import("../app/api/channels/[id]/test/route");
 let security: typeof import("../app/api/security/route");
 let upcoming: typeof import("../app/api/upcoming/route");
 before(async () => {
@@ -36,6 +38,7 @@ before(async () => {
   attempts = await import("../app/api/deliveries/[id]/attempts/route");
   deliveryRetry = await import("../app/api/deliveries/[id]/retry/route");
   audit = await import("../app/api/audit/route"); devices = await import("../app/api/devices/route");
+  channels = await import("../app/api/channels/route"); channelTest = await import("../app/api/channels/[id]/test/route");
   security = await import("../app/api/security/route"); upcoming = await import("../app/api/upcoming/route");
 });
 after(() => rmSync(directory, { recursive: true, force: true }));
@@ -190,6 +193,71 @@ test("security audit requires a session and device updates require a non-empty I
   const device = { name: "Test device", endpoint: "https://example.test", deviceKey: "test-device-key" };
   assert.equal((await devices.POST(request("/api/devices", "POST", { ...device, id: "" }))).status, 400);
   assert.equal((await devices.POST(request("/api/devices", "POST", device))).status, 200);
+});
+
+test("channel API protects credentials, checks revisions, and tests without queue records", async (context) => {
+  const payload = {
+    name: "API Ntfy", type: "ntfy", endpoint: "https://ntfy.example/base", topic: "api_alerts", credential: "private-channel-token",
+  };
+  assert.equal((await channels.GET(request("/api/channels", "GET", undefined, false))).status, 401);
+  const readToken = auth.createApiToken("Channel reader", "read", 0);
+  assert.equal((await channels.GET(request("/api/channels", "GET", undefined, false, { authorization: `Bearer ${readToken}` }))).status, 200);
+  assert.equal((await channels.POST(request("/api/channels", "POST", payload, false, { authorization: `Bearer ${readToken}` }))).status, 401);
+  assert.equal((await channels.POST(request("/api/channels", "POST", { ...payload, topic: "not valid" }))).status, 400);
+
+  const createdResponse = await channels.POST(request("/api/channels", "POST", payload));
+  assert.equal(createdResponse.status, 201);
+  const created = (await createdResponse.json()).channel;
+  assert.equal(created.credentialConfigured, true);
+  assert.equal(JSON.stringify(created).includes(payload.credential), false);
+  const listing = await (await channels.GET(request("/api/channels"))).json();
+  assert.equal(JSON.stringify(listing).includes(payload.credential), false);
+  assert.ok(listing.channels.some((channel: { id: string }) => channel.id === created.id));
+
+  const update = { ...payload, id: created.id, credential: "", revision: created.revision };
+  assert.equal((await channels.PUT(request("/api/channels", "PUT", { ...update, revision: 999 }))).status, 409);
+  const updatedResponse = await channels.PUT(request("/api/channels", "PUT", { ...update, name: "API Ntfy Updated" }));
+  assert.equal(updatedResponse.status, 200);
+  const updated = (await updatedResponse.json()).channel;
+  assert.equal(updated.name, "API Ntfy Updated");
+  assert.equal(updated.credentialConfigured, true);
+
+  const raw = database.__rawDatabaseForTests();
+  const before = Number(raw.prepare("SELECT COUNT(*) AS count FROM deliveries").get()?.count);
+  const fetchMock = context.mock.method(globalThis, "fetch", async (url: string | URL | Request, init?: RequestInit) => {
+    assert.equal(String(url), "https://ntfy.example/base/api_alerts");
+    assert.equal(new Headers(init?.headers).get("authorization"), `Bearer ${payload.credential}`);
+    return new Response(null, { status: 200 });
+  });
+  const tested = await channelTest.POST(request(`/api/channels/${created.id}/test`, "POST", {}), { params: Promise.resolve({ id: created.id }) });
+  assert.equal(tested.status, 200);
+  assert.equal((await tested.json()).delivered, true);
+  assert.equal(fetchMock.mock.callCount(), 1);
+  assert.equal(Number(raw.prepare("SELECT COUNT(*) AS count FROM deliveries").get()?.count), before);
+
+  const clearedResponse = await channels.PUT(request("/api/channels", "PUT", {
+    ...update, revision: updated.revision, clearCredential: true,
+  }));
+  assert.equal(clearedResponse.status, 200);
+  const cleared = (await clearedResponse.json()).channel;
+  assert.equal(cleared.credentialConfigured, false);
+  assert.equal(JSON.stringify(cleared).includes(payload.credential), false);
+
+  assert.equal((await channels.DELETE(request(`/api/channels?id=${created.id}`, "DELETE", undefined, true, { "if-match": String(updated.revision) }))).status, 409);
+  assert.equal((await channels.DELETE(request(`/api/channels?id=${created.id}`, "DELETE", undefined, true, { "if-match": String(cleared.revision) }))).status, 200);
+
+  const defaultChannel = listing.channels.find((channel: { isDefault: boolean }) => channel.isDefault);
+  const defaultUpdate = await channels.PUT(request("/api/channels", "PUT", {
+    id: "default", name: defaultChannel.name, type: "bark", endpoint: defaultChannel.endpoint, topic: "", credential: "default-channel-secret", revision: defaultChannel.revision,
+  }));
+  assert.equal(defaultUpdate.status, 200);
+  const configuredDefault = (await defaultUpdate.json()).channel;
+  assert.equal(JSON.stringify(configuredDefault).includes("default-channel-secret"), false);
+  const clearedDefault = await channels.PUT(request("/api/channels", "PUT", {
+    id: "default", name: configuredDefault.name, type: "bark", endpoint: configuredDefault.endpoint, topic: "", credential: "", clearCredential: true, revision: configuredDefault.revision,
+  }));
+  assert.equal(clearedDefault.status, 200);
+  assert.equal((await clearedDefault.json()).channel.credentialConfigured, false);
 });
 
 test("API credentials support permanent validity without changing finite expiry", async () => {

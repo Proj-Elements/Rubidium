@@ -39,6 +39,10 @@ test("API changes select contract tests and container smoke", () => {
   assert.equal(checks.container, true);
 });
 
+test("MCP route changes select MCP protocol and permission tests", () => {
+  assert.ok(selectChecks(["app/api/mcp/route.ts"]).tests.includes("tests/mcp.test.ts"));
+});
+
 test("shared types select every importing test owner", () => {
   assert.deepEqual(selectChecks(["lib/types.ts"]), {
     tests: ["tests/api.test.ts", "tests/bark.test.ts", "tests/cron.test.ts", "tests/data-tools.test.mjs", "tests/db-init.test.ts", "tests/ntfy.test.ts", "tests/persistence.test.ts", "tests/repairs.test.ts", "tests/scheduler.test.ts", "tests/ui.test.ts", "tests/validation.test.ts", "tests/workflow.test.ts"],

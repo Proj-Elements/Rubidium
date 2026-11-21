@@ -74,9 +74,14 @@ curl -sS https://rubidium.example/api/tasks \
 | `GET /api/settings` | 普通数据 API | 无 | `{ settings, revision, deviceKeyConfigured, dataDir }`。返回绝对数据目录但不返回 Device Key。 |
 | `PUT /api/settings` | 写权限 | `displayTimeZone`、`endpoint`、`deviceKey`、`title`、`sound`、`group`、`icon`、必填 `revision`；另有 `clearDeviceKey?: boolean`。Endpoint 支持不含用户信息、查询串或锚点的 HTTP(S) URL。 | `{ saved: true, revision }`。空白 `deviceKey` 保留已有密钥；显式清除用 `clearDeviceKey: true`。错误：`400` 输入无效，`409` 修订冲突，`428` 缺少修订号。 |
 | `POST /api/settings/test` | 写权限 | `{}` | `{ delivered: true }`。会真实发送一条测试 Bark 通知；错误：`400` 尚未配置 Device Key，`502` 上游失败（错误内容会脱敏）。 |
-| `GET /api/devices` | 普通数据 API | 无 | `{ devices }`；只返回密钥配置状态，不返回密钥。 |
+| `GET /api/devices` | 普通数据 API | 无 | `{ devices }`；兼容旧版 Bark 设备契约，只返回密钥配置状态，不返回密钥。 |
 | `POST /api/devices` | 写权限 | `{ name, endpoint, deviceKey, id?, revision? }`。创建不传 `id`；更新必须传 `id` 和 `revision`，可留空 `deviceKey` 以保留现有密钥。 | `{ device }`。错误：`400` 输入/密钥无效，`404` ID 不存在，`409` 数量上限或设备冲突，`428` 更新缺少修订号。 |
 | `DELETE /api/devices?id={id}` | 写权限 | 查询 `id`，请求头 `If-Match: <revision>`。 | `{ deleted: true }`。不能删除默认设备；错误：`404` 不存在，`409` 仍被任务/队列引用，`428` 缺少修订号。 |
+| `GET /api/channels` | 普通数据 API | 无 | `{ channels }`；包含默认 Bark 与所有 Bark/Ntfy 渠道，仅返回 `credentialConfigured`，不返回凭据原文。 |
+| `POST /api/channels` | 写权限 | `{ name, type, endpoint, topic?, credential? }`；`type` 为 `bark` 或 `ntfy`，Bark 需 Device Key；Ntfy 需符合规则的 `topic`，token 可选。 | `201 { channel }`，仅返回凭据是否已配置。创建额外渠道。错误：`400` 字段无效，`409` 达到额外渠道上限。 |
+| `PUT /api/channels` | 写权限 | 完整渠道字段及 `id`、必填 `revision`；空 `credential` 保留同类型的现有凭据，`clearCredential: true` 显式清除凭据且不能同时填写新凭据。用 `id: "default"` 更新默认 Bark 的地址/凭据。 | `{ channel }`；凭据永不回显。错误：`400` 输入无效，`404` ID 不存在，`409` 修订冲突，`428` 缺少修订号。 |
+| `DELETE /api/channels?id={id}` | 写权限 | 查询 `id`，请求头 `If-Match: <revision>`。 | `{ deleted: true }`。默认渠道不可删除；被任务或待投递队列引用时返回 `409`，修订冲突 `409`，缺少修订号 `428`。 |
+| `POST /api/channels/{id}/test` | 写权限 | `{}` | `{ delivered: true }`；向存储的渠道配置真实发送测试通知，不创建投递历史。Bark 未配置 Device Key 时 `400`，上游失败 `502`，渠道不存在 `404`。 |
 
 ### 安全与审计
 
@@ -117,6 +122,11 @@ curl -sS https://rubidium.example/api/mcp \
 | `cancel_delivery` | write | `{ id }` | `{ cancelled: true }`；仅取消仍等待的投递。 |
 | `get_overview` | read | 无 | 概览统计；不包含 Device Key。 |
 | `list_upcoming` | read | `{ date?, after?, task? }` | 未来七天排期；游标参数必须成对提供。 |
+| `list_channels` | read | 无 | 列出通知渠道及凭据配置状态，不返回凭据。 |
+| `create_channel` | write | `{ name, type, endpoint, topic?, credential? }` | 新增 Bark/Ntfy 渠道；沿用 HTTP API 校验，响应仅含凭据配置状态。 |
+| `update_channel` | write | `{ id, name, type, endpoint, topic?, credential?, clearCredential?, revision }` | 完整更新渠道并检查 revision；空凭据保留旧值，显式标记可清除凭据。 |
+| `delete_channel` | write | `{ id, revision }` | 删除未被引用的渠道；默认 Bark 不可删除。 |
+| `test_channel` | write | `{ id }` | 真实发送测试通知，不创建投递历史。 |
 
 MCP 的写工具直接调用现有 API handler，不绕过 API token scope、schema 校验、同源保护、修订号和业务冲突检查。读取单条任务因 HTTP API 当前没有单条 GET 路由，由 MCP 检查相同 Bearer 读权限后调用脱敏数据库查询。设备密钥、访问密码、Cookie、API token 原文、加密备份口令和安全审计记录都不通过 MCP 暴露。
 
@@ -131,7 +141,7 @@ MCP 的写工具直接调用现有 API handler，不绕过 API token scope、sch
 }
 ```
 
-加密导入/导出目前仅通过网页工作流提供，没有对应 HTTP API 或 MCP 工具。
+加密导入/导出目前仅通过网页工作流提供，没有对应 HTTP API 或 MCP 工具。渠道工具复用对应 HTTP handler 的权限、输入校验和修订保护；MCP 不回传任何渠道凭据。
 
 ## 版本兼容
 

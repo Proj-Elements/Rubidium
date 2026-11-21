@@ -161,6 +161,15 @@ export function validApiPayload(url: string, data: unknown): boolean {
   if (/^\/api\/deliveries\/[^/]+\/cancel$/.test(path)) return object.cancelled === true;
   if (/^\/api\/deliveries\/[^/]+$/.test(path)) return object.saved === true;
   if (path === "/api/devices") return (Array.isArray(object.devices) && object.devices.every((device) => objectValue(device) && typeof device.id === "string" && typeof device.endpoint === "string" && typeof device.deviceKeyConfigured === "boolean")) || objectValue(object.device) || object.deleted === true;
+  if (path === "/api/channels") {
+    const channelValue = (value: unknown) => objectValue(value) && typeof value.id === "string" && typeof value.name === "string"
+      && (value.type === "bark" || value.type === "ntfy") && typeof value.endpoint === "string" && typeof value.topic === "string"
+      && typeof value.credentialConfigured === "boolean" && Number.isSafeInteger(value.revision) && Number(value.revision) > 0 && typeof value.isDefault === "boolean"
+      && !("credential" in value) && !("deviceKey" in value);
+    if (Array.isArray(object.channels)) return object.channels.every(channelValue);
+    return channelValue(object.channel) || object.deleted === true;
+  }
+  if (/^\/api\/channels\/[^/]+\/test$/.test(path)) return object.delivered === true;
   if (path === "/api/security") return object.saved === true || object.revoked === true || typeof object.token === "string" || (Array.isArray(object.sessions) && Array.isArray(object.tokens));
   if (path === "/api/data/export") return object.format === "rubidium-encrypted-export" && object.version === 1 && typeof object.payload === "string";
   if (path === "/api/data/import") return object.imported === true;
