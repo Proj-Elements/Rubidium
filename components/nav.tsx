@@ -44,7 +44,7 @@ function WorkspaceToolbar() {
       <div className="ms-auto flex shrink-0 items-center gap-2">
         <IconButton className="topbar-refresh" icon="refresh" label="刷新工作空间" onPress={() => void refresh()} />
         <ThemeToggle />
-        <Button onPress={() => openTask()}>新建提醒</Button>
+        <Button className="min-h-11 gap-2" onPress={() => openTask()}><Glyph name="plus" />新建提醒</Button>
       </div>
     </div>
   </header>;
