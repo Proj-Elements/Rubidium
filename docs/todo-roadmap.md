@@ -42,7 +42,7 @@
 
 - [x] 提供数据导出和导入流程；scrypt 派生密钥并使用 AES-256-GCM 加密，压缩与请求大小均受限；导出不含密码、会话、API 凭据和运行态。导入验证格式、schema、SQLite 完整性、外键及业务数据后在单一事务内替换；错误密码、篡改、版本不兼容或恢复失败均不改动现有数据，并保留当前认证状态。通过 3 项传输单测、备份与 CI 选择测试、类型检查、Lint、生产构建，以及 Chromium/WebKit 844×390 导出、错误密码保护、成功恢复和文件触控区截图回归。
 - [x] 凭据有效天数支持无限期；统一约定 `0` 为永久有效，正整数仍为 1–365 天，提供 HeroUI Tooltip，并在鉴权、过期清理、有效凭据列表、README 与 API 输入校验中保持同一语义。通过 API 专项 17 项、类型检查、定向 ESLint、生产构建和 Chromium/WebKit 横屏浏览器测试（2 项），验证永久 Bearer 凭据有效、到期标记显示及触屏 Tooltip。
-- [ ] 除 HTTP API 外提供可互操作的 MCP 接口，清晰界定工具、输入输出、鉴权和错误语义；避免 MCP 旁路现有权限检查。
+- [x] 除 HTTP API 外提供基于官方 TypeScript SDK 的无状态 Streamable HTTP MCP（`POST /api/mcp`）；采用 Bearer API 凭据，读凭据只能调用只读工具，写凭据可调用经现有 HTTP API handler 校验的写工具；统一暴露结构化成功与错误状态，限流请求体至 64 KiB，不返回 Device Key 或凭据。通过 MCP 协议与权限专项 3 项、HTTP API 回归 17 项、类型检查和定向 ESLint。
 - [ ] 新增 API/MCP 文档，逐项列出端点或工具、方法、参数、响应、权限、错误、示例及版本兼容约束。
 - [ ] 将项目许可证改为 AGPL-3.0，核对许可证文件、package 元数据、README 和依赖声明。
 - [ ] 补全 README：初始化、访问密码设置与重置、时区、数据与加密导入导出、API/MCP、Docker Compose、备份恢复、升级和故障排查；不在 README 或示例中放真实凭据。

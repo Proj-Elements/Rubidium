@@ -32,6 +32,7 @@
     "@iconify-icons/gravity-ui": "2.0.2",
     "@iconify/react": "6.0.4",
     "@internationalized/date": "3.12.4",
+    "@modelcontextprotocol/sdk": "1.32.2",
     "@number-flow/react": "^0.6.2",
     "@react-aria/ssr": "3.10.1",
     "@react-aria/utils": "3.34.1",
