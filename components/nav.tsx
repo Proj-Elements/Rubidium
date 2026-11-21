@@ -6,7 +6,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useState, type ReactNode } from "react";
 import { Brand } from "./brand";
 import { Glyph, type IconName } from "./icons";
-import { Confirm, IconButton, WorkspaceLink } from "./primitives";
+import { Confirm, IconButton, SourceLink, WorkspaceLink } from "./primitives";
 import { ThemeToggle } from "./theme-toggle";
 import { confirmUnsavedNavigation } from "./use-unsaved";
 import { useWorkspace } from "./workspace-context";
@@ -78,6 +78,7 @@ function SidebarSections({ mobile = false }: { mobile?: boolean }) {
       {dashboard?.displayTimeZone && <p className="flex items-center gap-2 px-3 text-xs text-muted" aria-label={`显示时区：${dashboard.displayTimeZone}`}>
         <Glyph name="globe" size={15} />{dashboard.displayTimeZone}
       </p>}
+      <SourceLink className="px-3" />
       <Button variant="danger-soft" fullWidth className="min-h-11 justify-start gap-2" onPress={() => setConfirmLogout(true)}>
         <Glyph name="logout" />退出登录
       </Button>
