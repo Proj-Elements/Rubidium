@@ -43,7 +43,11 @@ jobs:
             if (version !== JSON.parse(readFileSync('package.json', 'utf8')).version) throw new Error('Tag and package.json versions differ');
           }
           NODE
-      - run: pnpm install --frozen-lockfile
+      - run: |
+          pnpm install --frozen-lockfile
+          pnpm ui:setup
+        env:
+          HEROUI_KEY: ${{ secrets.HEROUI_KEY }}
       - run: pnpm exec next typegen
       - run: pnpm typecheck
       - run: pnpm lint
@@ -88,10 +92,12 @@ jobs:
       - name: Build and smoke each candidate platform
         env:
           VERSION: ${{ steps.initial.outputs.version }}
+          HEROUI_KEY: ${{ secrets.HEROUI_KEY }}
         run: |
           set -euo pipefail
           for architecture in amd64 arm64; do
             docker buildx build --load --platform "linux/$architecture" --tag "barker:candidate-$architecture" \
+              --secret id=HEROUI_KEY,env=HEROUI_KEY \
               --label "org.opencontainers.image.source=https://github.com/$GITHUB_REPOSITORY" \
               --label "org.opencontainers.image.revision=$GITHUB_SHA" \
               --label "org.opencontainers.image.version=$VERSION" \

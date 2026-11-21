@@ -1,6 +1,7 @@
 "use client";
 
 import { Button, Card, Fieldset, Form } from "@heroui/react";
+import { ItemCard, ItemCardGroup } from "@heroui-pro/react";
 import { useRef, useState, type FormEvent } from "react";
 import { api, errorMessage } from "@/lib/ui";
 import type { Device } from "@/lib/types";
@@ -69,8 +70,8 @@ export function DeviceManager() {
     finally { setConfirmation(null); setBusy(null); }
   }
 
-  return <div className="grid items-start gap-5 lg:grid-cols-2">
-    <Card className="min-w-0 gap-5 rounded-lg p-5 sm:p-6">
+  return <div className="grid items-start gap-5 @min-[52rem]/settings:grid-cols-2">
+    <Card className="min-w-0 gap-5 p-5 sm:p-6">
       <CardHeading title={form.id ? "编辑设备" : "添加设备"} description="设备可独立配置 Bark 服务地址和密钥。" />
       <Form onSubmit={save}>
         <Fieldset className="min-w-0 gap-4" disabled={busy !== null}>
@@ -87,19 +88,21 @@ export function DeviceManager() {
         </Fieldset>
       </Form>
     </Card>
-    <Card className="min-w-0 gap-4 rounded-lg p-5 sm:p-6">
+    <Card className="min-w-0 gap-4 p-5 sm:p-6">
       <CardHeading title="其他 Bark 设备" description="为提醒选择设备时，默认设备和这里的设备均可使用。" />
       {error && <Notice action={<Button variant="ghost" onPress={() => void refresh()}>重试</Button>}>{error}</Notice>}
-      {devices.length ? <ul className="grid gap-2" aria-label="其他 Bark 设备">
-        {devices.map((device) => <li key={device.id} className="flex items-center gap-2 border-b border-separator py-3 last:border-0">
-          <div className="min-w-0 flex-1 space-y-1">
-            <p className="text-sm font-medium [overflow-wrap:anywhere]">{device.name}</p>
-            <p className="text-xs text-muted [overflow-wrap:anywhere]">{device.endpoint}</p>
-          </div>
+      {devices.length ? <ItemCardGroup variant="transparent" role="list" aria-label="其他 Bark 设备">
+        {devices.map((device) => <ItemCard key={device.id} role="listitem" variant="transparent" className="flex-wrap px-0">
+          <ItemCard.Content className="min-w-32">
+            <ItemCard.Title>{device.name}</ItemCard.Title>
+            <ItemCard.Description>{device.endpoint}</ItemCard.Description>
+          </ItemCard.Content>
+          <ItemCard.Action className="flex gap-2">
           <IconButton icon="edit" label={`编辑 ${device.name}`} variant="outline" isDisabled={busy !== null} onPress={() => dirty ? setConfirmation({ kind: "edit", device }) : edit(device)} />
           <IconButton icon="trash" label={`删除 ${device.name}`} variant="danger-soft" isDisabled={busy !== null} onPress={() => setConfirmation({ kind: "delete", device })} />
-        </li>)}
-      </ul> : data ? <Empty title="还没有其他设备" description="添加后，可在编辑提醒时选择推送到哪台设备。" /> : !error && <Loading>正在读取设备</Loading>}
+          </ItemCard.Action>
+        </ItemCard>)}
+      </ItemCardGroup> : data ? <Empty title="还没有其他设备" description="添加后，可在编辑提醒时选择推送到哪台设备。" /> : !error && <Loading>正在读取设备</Loading>}
     </Card>
     {confirmation?.kind === "edit" && <Confirm title="放弃当前设备的修改？" confirmLabel="放弃并编辑" onClose={() => setConfirmation(null)} onConfirm={() => edit(confirmation.device)}>
       <p>当前草稿不会保存，将改为编辑「{confirmation.device.name}」。</p>

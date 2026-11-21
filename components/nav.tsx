@@ -1,8 +1,9 @@
 "use client";
 
-import { Avatar, Breadcrumbs, Button, Dropdown, Drawer, Label, Link, Tooltip } from "@heroui/react";
+import { Avatar, Button, Dropdown, Label, Link, Sheet, Tooltip } from "@heroui/react";
+import { Sidebar, useSidebar } from "@heroui-pro/react";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useState, type Key, type ReactNode } from "react";
+import type { Key, ReactNode } from "react";
 import { Brand } from "./brand";
 import { Glyph, type IconName } from "./icons";
 import { IconButton, WorkspaceLink } from "./primitives";
@@ -19,94 +20,72 @@ const navigation: Array<{ href: string; label: string; icon: IconName }> = [
 ];
 
 export function Shell({ children }: { children: ReactNode }) {
-  const path = usePathname();
-  const current = navigation.find((item) => item.href === path)?.label ?? "工作空间";
-  const { openTask, refresh } = useWorkspace();
-  const [mobileOpen, setMobileOpen] = useState(false);
-
-  useEffect(() => {
-    const desktop = window.matchMedia("(min-width: 64rem)");
-    function closeOnDesktop() { if (desktop.matches) setMobileOpen(false); }
-    desktop.addEventListener("change", closeOnDesktop);
-    return () => desktop.removeEventListener("change", closeOnDesktop);
-  }, []);
-
-  return <div className="app-layout">
+  const router = useRouter();
+  return <Sidebar.Provider className="app-layout" open toggleShortcut={false} reduceMotion
+    navigate={(href) => confirmUnsavedNavigation(() => router.push(href))}>
     <Link href="#main" className="skip-link">跳转到主要内容</Link>
-    <aside className="sidebar">
-      <WorkspaceBrand />
-      <WorkspaceNavigation />
-    </aside>
-    <div className="main-layout">
-      <header className="topbar">
-        <div className="topbar-inner">
-          <div className="flex min-w-0 items-center gap-2">
-            <div className="mobile-toggle">
-              <Drawer isOpen={mobileOpen} onOpenChange={setMobileOpen}>
-                <IconButton className="mobile-menu-button" icon="menu" label="打开导航" />
-                <Drawer.Backdrop isDismissable>
-                  <Drawer.Content placement="left">
-                    <Drawer.Dialog className="mobile-nav-dialog gap-4 px-4 pt-3 pb-4 text-foreground">
-                      <Drawer.Header className="flex-row items-center justify-between gap-2 ps-2">
-                        <Drawer.Heading className="sr-only">工作空间导航</Drawer.Heading>
-                        <WorkspaceBrand onNavigate={() => setMobileOpen(false)} />
-                        <Tooltip delay={350}>
-                          <Drawer.CloseTrigger aria-label="关闭导航" className="static size-11 shrink-0" autoFocus />
-                          <Tooltip.Content>关闭导航</Tooltip.Content>
-                        </Tooltip>
-                      </Drawer.Header>
-                      <Drawer.Body className="flex flex-col text-foreground"><WorkspaceNavigation onNavigate={() => setMobileOpen(false)} /></Drawer.Body>
-                    </Drawer.Dialog>
-                  </Drawer.Content>
-                </Drawer.Backdrop>
-              </Drawer>
-            </div>
-            <Breadcrumbs className="topbar-location" aria-label="当前位置">
-              <Breadcrumbs.Item>{current}</Breadcrumbs.Item>
-            </Breadcrumbs>
-          </div>
-          <div className="topbar-actions flex shrink-0 items-center gap-1.5 sm:gap-2">
-            <IconButton className="topbar-refresh" icon="refresh" label="刷新工作空间" onPress={() => void refresh()} />
-            <ThemeToggle />
-            <IconButton icon="plus" label="新建提醒" variant="primary" onPress={() => openTask()} />
-          </div>
-        </div>
-      </header>
-      <main id="main" className="workspace-main" tabIndex={-1}>{children}</main>
+    <Sidebar><SidebarSections /></Sidebar>
+    <Sidebar.Mobile><SidebarSections mobile /></Sidebar.Mobile>
+    <Sidebar.Main className="min-w-0">
+      <WorkspaceToolbar />
+      <div id="main" className="workspace-main" tabIndex={-1}>{children}</div>
+    </Sidebar.Main>
+  </Sidebar.Provider>;
+}
+
+function WorkspaceToolbar() {
+  const { openTask, refresh } = useWorkspace();
+  return <header className="topbar">
+    <div className="topbar-inner">
+      <Tooltip delay={350}>
+        <Sidebar.Trigger aria-label="打开导航" className="mobile-toggle size-11"><Glyph name="menu" /></Sidebar.Trigger>
+        <Tooltip.Content>打开导航</Tooltip.Content>
+      </Tooltip>
+      <div className="ms-auto flex shrink-0 items-center gap-2">
+        <IconButton className="topbar-refresh" icon="refresh" label="刷新工作空间" onPress={() => void refresh()} />
+        <ThemeToggle />
+        <Button onPress={() => openTask()}>新建提醒</Button>
+      </div>
     </div>
-  </div>;
+  </header>;
 }
 
-function WorkspaceBrand({ onNavigate }: { onNavigate?: () => void }) {
-  return <WorkspaceLink href="/" className="w-fit no-underline hover:no-underline" aria-label="Barker 工作概览" onNavigate={onNavigate}>
-    <Brand />
-  </WorkspaceLink>;
-}
-
-function WorkspaceNavigation({ onNavigate }: { onNavigate?: () => void }) {
+function SidebarSections({ mobile = false }: { mobile?: boolean }) {
   const path = usePathname();
   const router = useRouter();
+  const { setMobileOpen } = useSidebar();
   const { dashboard, logout, notify } = useWorkspace();
+  const close = () => setMobileOpen(false);
 
   function handleAccountAction(key: Key) {
-    onNavigate?.();
+    close();
     if (key === "settings") confirmUnsavedNavigation(() => router.push("/settings"));
     if (key === "logout") confirmUnsavedNavigation(() => void logout().catch((error) => notify(errorMessage(error), "error")));
   }
 
   return <>
-    <nav aria-label="主导航" className="grid gap-1">
-      <p className="nav-heading mb-1">工作空间</p>
-      {navigation.map((item) => <WorkspaceLink href={item.href} key={item.href} className="nav-item" aria-current={path === item.href ? "page" : undefined} onNavigate={onNavigate}>
-        <Glyph name={item.icon} /><span>{item.label}</span>
-      </WorkspaceLink>)}
-    </nav>
-    <div className="mt-auto grid gap-2 pt-8">
+    {mobile && <Sheet.Heading className="sr-only">工作空间导航</Sheet.Heading>}
+    <Sidebar.Header className="flex-row items-center justify-between px-5 pt-6 pb-8">
+      <WorkspaceLink href="/" className="w-fit no-underline hover:no-underline" aria-label="Barker 工作概览" onNavigate={close}><Brand /></WorkspaceLink>
+      {mobile && <IconButton icon="close" label="关闭导航" onPress={close} />}
+    </Sidebar.Header>
+    <Sidebar.Content>
+      <Sidebar.Group>
+        <Sidebar.GroupLabel>工作空间</Sidebar.GroupLabel>
+        <Sidebar.Menu aria-label="主导航">
+          {navigation.map((item) => <Sidebar.MenuItem key={item.href} id={item.href} href={item.href} isCurrent={path === item.href} textValue={item.label}>
+            <Sidebar.MenuIcon><Glyph name={item.icon} /></Sidebar.MenuIcon>
+            <Sidebar.MenuLabel>{item.label}</Sidebar.MenuLabel>
+          </Sidebar.MenuItem>)}
+        </Sidebar.Menu>
+      </Sidebar.Group>
+    </Sidebar.Content>
+    <Sidebar.Footer className="gap-3">
       {dashboard?.displayTimeZone && <p className="flex items-center gap-2 px-3 text-xs text-muted" aria-label={`显示时区：${dashboard.displayTimeZone}`}>
         <Glyph name="globe" size={15} />{dashboard.displayTimeZone}
       </p>}
       <Dropdown>
-        <Button variant="ghost" fullWidth className="h-auto justify-start gap-2.5 p-2 text-start">
+        <Button variant="ghost" fullWidth className="h-auto justify-start gap-3 p-2 text-start">
           <Avatar size="sm" color="accent" aria-hidden="true"><Avatar.Fallback>B</Avatar.Fallback></Avatar>
           <span className="flex-1">个人工作空间</span>
           <Glyph name="chevronDown" size={14} className="text-muted" />
@@ -118,6 +97,6 @@ function WorkspaceNavigation({ onNavigate }: { onNavigate?: () => void }) {
           </Dropdown.Menu>
         </Dropdown.Popover>
       </Dropdown>
-    </div>
+    </Sidebar.Footer>
   </>;
 }

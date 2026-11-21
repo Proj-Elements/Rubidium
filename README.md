@@ -56,21 +56,29 @@ pending -> sending（2 分钟租约）-> sent
 
 ## Docker 运行
 
+首次构建或更新镜像前，需要提供 `HEROUI_KEY`（见下方「HeroUI Pro 开发依赖」）。下面用无回显的交互输入避免把访问码写入 shell 历史；Compose 仅将它作为 BuildKit secret 提供，不会传入运行容器或镜像层。
+
 ```bash
 cp .env.example .env
 # 可选：在 .env 设置 16–300 字符的 BARKER_PASSWORD
 
+read -r -s -p "HeroUI Pro access key: " HEROUI_KEY
+printf '\n'
+export HEROUI_KEY
 docker compose up -d --build
+unset HEROUI_KEY
+docker compose ps
+curl -fsS http://127.0.0.1:3000/api/health
 docker compose logs -f barker
 # 访问 http://localhost:3000
 ```
 
-Compose 从当前代码构建 `barker:local`。默认只绑定 `127.0.0.1`；跨设备访问时设置 `BARKER_BIND_ADDR`，并建议放在 HTTPS 反向代理后。`.env` 在运行时传入容器，不进入镜像。
+Compose 从当前代码构建 `barker:local`。默认只绑定 `127.0.0.1`；跨设备访问时设置 `BARKER_BIND_ADDR`，并建议放在 HTTPS 反向代理后。`.env` 在运行时传入容器，不进入镜像。Compose 使用独立命名卷 `barker-data`，与仓库中的 `data/` 不同；迁移已有本地实例时，先按「备份与恢复」创建快照，并在首次启动容器前恢复到该卷。不要先用空数据卷启动新实例。
 
 也可以使用命名卷直接运行：
 
 ```bash
-docker build -t barker:local .
+docker build --secret id=HEROUI_KEY,env=HEROUI_KEY -t barker:local .
 docker run -d --init --name barker \
   --stop-timeout 30 \
   -p 127.0.0.1:3000:3000 \
@@ -117,6 +125,8 @@ docker compose up -d --build
 ```bash
 corepack enable
 pnpm install --frozen-lockfile
+# 当前终端已设置 HEROUI_KEY
+pnpm ui:setup
 pnpm dev
 
 pnpm test
@@ -139,7 +149,7 @@ pnpm test:browser
 ### 容器端到端冒烟
 
 ```bash
-docker build -t barker:local .
+docker build --secret id=HEROUI_KEY,env=HEROUI_KEY -t barker:local .
 pnpm test:container
 ```
 
@@ -200,7 +210,24 @@ scripts/container-smoke.mjs  隔离容器端到端检查
 tests/                       业务、安全、迁移、重启、UI、CI 与发布回归
 ```
 
-前端使用 `@heroui/react` V3 公共组件、自托管 Manrope 字体和本地 Gravity 图标。界面不依赖外部图片或运行时 CDN。
+前端使用 `@heroui/react` V3 与 `@heroui-pro/react`，自托管 Manrope 字体和本地 Gravity 图标。Pro 用于 Sidebar 导航、DataGrid 表格、ListView 列表、ActionBar 批量操作、KPI / KPIGroup 指标、EmptyState 空状态、ItemCard / ItemCardGroup 条目、InlineSelect 筛选和 Segment 结束条件。界面不依赖运行时 CDN。
+
+### HeroUI Pro 开发依赖
+
+项目通过 `heroui-setup` 下载 Pro 组件，安装器固定为 1.0.4，组件固定为 1.0.0-beta.11。先将访问码设置为当前终端的 `HEROUI_KEY` 环境变量，再执行：
+
+```bash
+pnpm install --frozen-lockfile
+pnpm ui:setup
+```
+
+`ui:setup` 使用安装器的 CI 模式，避免自动生成包含访问码的 Vercel 配置。CI 需要在仓库 Secrets 中配置 `HEROUI_KEY`；凭据只用于依赖安装。Fork PR 默认拿不到该 secret，需要在有授权的本地环境完成构建验证。Docker 使用 BuildKit secret：
+
+```bash
+docker build --secret id=HEROUI_KEY,env=HEROUI_KEY -t barker:local .
+```
+
+不要将访问码写入 Dockerfile、构建参数或版本库。生产运行镜像无需此访问码。HeroUI Pro 依赖按其商业许可使用；下方 MIT 许可适用于 Barker 自身代码。
 
 ## License
 

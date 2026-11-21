@@ -5,5 +5,7 @@
 # allowed to run them during install. Keep this list in sync with the Docker
 # build, which copies this file before `pnpm install --frozen-lockfile`.
 allowBuilds:
+  "@heroui-pro/react": true
+  "@zowe/secrets-for-zowe-sdk": true
   esbuild: true
   unrs-resolver: true

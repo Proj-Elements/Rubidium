@@ -1,6 +1,8 @@
 "use client";
 
-import { Button, Fieldset, Form, Modal, Popover, Separator, Tabs, Tooltip } from "@heroui/react";
+import { Segment } from "@heroui-pro/react";
+
+import { Button, Fieldset, Form, Modal, Popover, Separator, Tooltip } from "@heroui/react";
 import { parseDate } from "@internationalized/date";
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { DEFAULT_REMINDER_BODY, REMINDER_CONTENT_MAX_BYTES, reminderContentBytes } from "@/lib/contracts";
@@ -132,14 +134,14 @@ export function TaskEditor({ task, duplicate = false, onClose }: { task?: Task; 
             </Tooltip>
           </Modal.Header>
 
-          <Modal.Body className="grid content-start gap-5 px-5 py-4 sm:px-6 sm:py-5">
-            <section className="grid gap-3" aria-label="提醒内容">
+          <Modal.Body className="@container/editor grid content-start gap-5 px-5 py-4 sm:px-6 sm:py-5">
+            <div className="grid gap-3">
               <Field label="提醒名称" value={name} onChange={(event) => setName(event.target.value)} required maxLength={80} placeholder="例如：给绿植浇水" />
               <AreaField label="提醒内容" rows={2} value={description} onChange={(event) => setDescription(event.target.value)} maxLength={2000}
                 ref={descriptionInput} placeholder={`可选，默认「${DEFAULT_REMINDER_BODY}」`} className="resize-y"
                 hint={`标题与正文用量 ${contentSize} / ${REMINDER_CONTENT_MAX_BYTES} 字节`}
                 error={contentOverLimit ? `内容超出 ${contentSize - REMINDER_CONTENT_MAX_BYTES} 字节，请缩短标题或正文。` : undefined} />
-            </section>
+            </div>
 
             <Fieldset className="min-w-0">
               <Fieldset.Legend className="mb-1 pt-1 font-semibold">排期 <span className="ms-2 text-xs font-normal text-muted [overflow-wrap:anywhere]">{timeZone}</span></Fieldset.Legend>
@@ -151,25 +153,27 @@ export function TaskEditor({ task, duplicate = false, onClose }: { task?: Task; 
                 {preset === "custom" && <Field label="Cron 表达式" value={cron} onChange={(event) => setCron(event.target.value)} required maxLength={80} hint="标准五段格式：分 时 日 月 周。" />}
                 {preset === "monthly" && Number(startsAt.slice(8, 10)) > 28 && <Notice kind="info">短月不存在的日期会跳过。</Notice>}
                 {preset !== "once" && <section className="grid gap-2" aria-label="结束条件">
-                  <div className="flex flex-wrap items-center justify-between gap-2 text-sm"><h3 className="font-medium text-foreground">何时结束</h3>{persisted && <span className="text-muted tabular-nums">已排期 {persisted.queuedCount} 次</span>}</div>
-                  <Tabs className="min-w-0" selectedKey={limit} onSelectionChange={(key) => setLimit(String(key))}>
-                    <Tabs.ListContainer className="w-fit max-w-full self-start"><Tabs.List aria-label="提醒结束方式" className="whitespace-nowrap">
-                      <Tabs.Tab id="count">按次数<Tabs.Indicator /></Tabs.Tab>
-                      <Tabs.Tab id="date">按日期<Tabs.Indicator /></Tabs.Tab>
-                      <Tabs.Tab id="never">持续重复<Tabs.Indicator /></Tabs.Tab>
-                    </Tabs.List></Tabs.ListContainer>
-                    <Tabs.Panel id="count" className="mt-2 p-0"><NumericField label="重复次数" minValue={1} maxValue={100000} value={count} onChange={setCount} isRequired /></Tabs.Panel>
-                    <Tabs.Panel id="date" className="mt-2 p-0"><CalendarField label="截止日期（含当天）" value={endDate} onChange={setEndDate} timeZone={timeZone} dateOnly /></Tabs.Panel>
-                    <Tabs.Panel id="never" className="mt-2 p-0 text-sm text-muted">持续排期，直到暂停或归档。</Tabs.Panel>
-                  </Tabs>
+                  <div className={`grid items-start gap-3 ${limit === "date" ? "@min-[26rem]/editor:grid-cols-[minmax(0,1fr)_11rem]" : limit === "count" ? "@min-[26rem]/editor:grid-cols-[minmax(0,1fr)_7rem]" : ""}`}>
+                    <div className="workspace-field grid gap-1">
+                      <h3 className="label font-medium text-foreground">何时结束</h3>
+                      <Segment aria-label="提醒结束方式" className="w-fit max-w-full" selectedKey={limit} onSelectionChange={(key) => setLimit(String(key))}>
+                        <Segment.Item id="count">按次数</Segment.Item>
+                        <Segment.Item id="date">按日期</Segment.Item>
+                        <Segment.Item id="never">持续重复</Segment.Item>
+                      </Segment>
+                    </div>
+                    {limit === "count" && <NumericField label="重复次数" minValue={1} maxValue={100000} value={count} onChange={setCount} isRequired />}
+                    {limit === "date" && <CalendarField label="截止日期" value={endDate} onChange={setEndDate} timeZone={timeZone} dateOnly />}
+                  </div>
+                  {(persisted || limit !== "count") && <p className="text-xs leading-relaxed text-muted">{limit === "never" ? "持续排期，直到暂停或归档。" : limit === "date" ? "包含截止日期当天。" : null}{persisted && <span className="tabular-nums">{limit !== "count" ? " · " : ""}已排期 {persisted.queuedCount} 次</span>}</p>}
                 </section>}
               </Fieldset.Group>
             </Fieldset>
 
-            <section className="grid gap-3" aria-label="投递设备">
+            <div className="grid gap-3">
               <Pick label="投递设备" value={deviceId} onChange={setDeviceId} options={(devices?.devices ?? [{ id: "default", name: "默认设备" }]).map((device) => ({ value: device.id, label: device.name }))} />
               {dashboard && !dashboard.deviceKeyConfigured && deviceId === "default" && <Notice kind="info" action={<WorkspaceLink href="/settings" className="workspace-link">前往设置</WorkspaceLink>}>默认设备未连接。</Notice>}
-            </section>
+            </div>
 
             <Details title="时区、节假日与通知策略">
               <Field label="排期时区" value={timeZone} onChange={(event) => setTimeZone(event.target.value)} required hint="IANA 时区，例如 Asia/Shanghai 或 UTC。" />

@@ -1,6 +1,7 @@
 "use client";
 
-import { Button, Card, Dropdown, Label, Table } from "@heroui/react";
+import { Button, Card, Dropdown, Label } from "@heroui/react";
+import { DataGrid, ListView, type DataGridColumn } from "@heroui-pro/react";
 import { useState } from "react";
 import { Glyph } from "@/components/icons";
 import { Confirm, Empty, IconButton, Loading, Notice, PageHeading, TaskBadge } from "@/components/primitives";
@@ -23,7 +24,7 @@ const filters = [
 const PAGE_SIZE = 10;
 
 export default function TasksPage() {
-  const { refresh: refreshDashboard, notify } = useWorkspace();
+  const { refresh: refreshDashboard, notify, openTask } = useWorkspace();
   const { filter, setFilter, setPage, query, setQuery, search, params, selected, setSelected, clearFilters } = useRecordQuery(PAGE_SIZE, filters);
   const [archive, setArchive] = useState<Task | null>(null);
   const [busy, setBusy] = useState("");
@@ -105,64 +106,45 @@ export default function TasksPage() {
   }
 
   const selectPage = <Selection text="选择本页提醒" selected={Boolean(data?.tasks.length && selectedTasks.length === data.tasks.length)} partial={selectedTasks.length > 0 && selectedTasks.length !== data?.tasks.length} disabled={Boolean(busy)} onChange={(value) => setSelected(value ? data?.tasks.map((task) => task.id) ?? [] : [])} />;
-  function selectTask(task: Task) {
-    return <Selection label={`选择 ${task.name}`} selected={selected.includes(task.id)} disabled={Boolean(busy)} onChange={(value) => setSelected((current) => value ? [...current, task.id] : current.filter((id) => id !== task.id))} />;
-  }
   function taskActions(task: Task) {
     return <TaskActions task={task} busy={Boolean(busy)} onToggle={() => void toggle(task)} onArchive={() => setArchive(task)} onRestore={() => void restore(task)} onDelete={() => setDestroy(task)} />;
   }
+  const columns: DataGridColumn<Task>[] = [
+    { id: "name", header: "提醒事项", isRowHeader: true, minWidth: 200, cell: (task) => <TaskName task={task} /> },
+    { id: "schedule", header: "下次排期", minWidth: 195, cell: (task) => <TaskSchedule task={task} /> },
+    { id: "counts", header: "投递计数", minWidth: 140, cell: (task) => <TaskCounts task={task} /> },
+    { id: "status", header: "状态", width: 110, cell: (task) => <TaskBadge task={task} /> },
+    { id: "actions", header: <span className="sr-only">操作</span>, width: 100, pinned: "end", cell: taskActions },
+  ];
 
   return (
     <div className="grid gap-6 pb-12">
-      <PageHeading title="所有提醒" context={data && <span className="page-context tabular-nums">{data.total} 条记录</span>} />
+      <PageHeading title="所有提醒" />
       <RecordList label="提醒状态" searchLabel="搜索提醒" filters={filters} filter={filter} query={query} onFilter={setFilter} onSearch={setQuery}>
         {error && <Notice action={<Button variant="ghost" onPress={() => void refresh()}>重试</Button>}>{error}</Notice>}
         {!data ? !error && <Loading>正在读取提醒</Loading> : !data.tasks.length ? <Card>
           <Empty title={filtered ? "没有匹配的提醒" : "暂无提醒"} description={filtered ? "试试其他关键词，或切换提醒状态。" : "创建提醒后，可以在这里管理排期。"}
-            icon={filtered ? "search" : "calendar"} action={filtered && <Button variant="outline" className="max-sm:min-h-11" onPress={clearFilters}>清除筛选</Button>} />
+            icon={filtered ? "search" : "calendar"} action={filtered ? <Button variant="outline" onPress={clearFilters}>清除筛选</Button> : <Button onPress={() => openTask()}>创建提醒</Button>} />
         </Card> : <>
-          <Card className="hidden min-w-0 gap-2 overflow-visible p-2 md:flex sm:p-3">
-            <Table variant="secondary">
-              <Table.ScrollContainer>
-                <Table.Content aria-label="提醒列表" className="min-w-[760px]" selectionMode="multiple" selectedKeys={selectedTasks.map(({ id }) => id)}
-                  disabledKeys={busy ? data.tasks.map(({ id }) => id) : undefined}
-                  onSelectionChange={(keys) => setSelected(keys === "all" ? data.tasks.map(({ id }) => id) : [...keys].map(String))}>
-                  <Table.Header>
-                    <Table.Column aria-label="选择" className="w-12 whitespace-nowrap"><Selection label="选择本页提醒" slot="selection" /></Table.Column>
-                    <Table.Column isRowHeader className="min-w-36">提醒事项</Table.Column>
-                    <Table.Column className="whitespace-nowrap">下次排期</Table.Column>
-                    <Table.Column className="whitespace-nowrap">投递计数</Table.Column>
-                    <Table.Column className="whitespace-nowrap">状态</Table.Column>
-                    <Table.Column aria-label="操作" className="w-24" />
-                  </Table.Header>
-                  <Table.Body>
-                    {data.tasks.map((task) => <Table.Row key={task.id} id={task.id}>
-                      <Table.Cell><Selection slot="selection" /></Table.Cell>
-                      <Table.Cell className="max-w-60"><TaskName task={task} /></Table.Cell>
-                      <Table.Cell className="whitespace-nowrap"><TaskSchedule task={task} /></Table.Cell>
-                      <Table.Cell className="whitespace-nowrap"><TaskCounts task={task} /></Table.Cell>
-                      <Table.Cell><TaskBadge task={task} /></Table.Cell>
-                      <Table.Cell>{taskActions(task)}</Table.Cell>
-                    </Table.Row>)}
-                  </Table.Body>
-                </Table.Content>
-              </Table.ScrollContainer>
-            </Table>
-          </Card>
-          <div className="grid gap-3 md:hidden">
+          <DataGrid aria-label="提醒列表" className="hidden @min-[54rem]/records:block" data={data.tasks} columns={columns} getRowId={(task) => task.id}
+            selectionMode="multiple" showSelectionCheckboxes selectedKeys={new Set(selectedTasks.map(({ id }) => id))}
+            disabledKeys={busy ? data.tasks.map(({ id }) => id) : undefined}
+            onSelectionChange={(keys) => setSelected(keys === "all" ? data.tasks.map(({ id }) => id) : [...keys].map(String))} />
+          <div className="grid gap-3 @min-[54rem]/records:hidden">
             <div className="px-2">{selectPage}</div>
-            <ul className="grid gap-3">
-              {data.tasks.map((task) => <li key={task.id}>
-                <Card className="grid grid-cols-[auto_minmax(0,1fr)] items-start gap-3 p-4">
-                  {selectTask(task)}
-                  <div className="min-w-0 space-y-3">
+            <ListView aria-label="提醒列表" items={data.tasks} selectionMode="multiple" selectedKeys={selectedTasks.map(({ id }) => id)}
+              disabledKeys={busy ? data.tasks.map(({ id }) => id) : undefined}
+              onSelectionChange={(keys) => setSelected(keys === "all" ? data.tasks.map(({ id }) => id) : [...keys].map(String))}>
+              {(task) => <ListView.Item id={task.id} textValue={task.name} className="items-start p-4">
+                <ListView.ItemContent className="min-w-0 flex-1">
+                  <div className="w-full min-w-0 space-y-3">
                     <TaskName task={task} />
-                    <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3"><TaskSchedule task={task} /><TaskBadge task={task} /></div>
+                    <div className="flex flex-wrap items-start justify-between gap-3"><TaskSchedule task={task} /><TaskBadge task={task} /></div>
                     <div className="flex flex-wrap items-center justify-between gap-2"><TaskCounts task={task} />{taskActions(task)}</div>
                   </div>
-                </Card>
-              </li>)}
-            </ul>
+                </ListView.ItemContent>
+              </ListView.Item>}
+            </ListView>
           </div>
           <Pagination page={data.page} total={data.total} pageSize={PAGE_SIZE} onChange={setPage} />
         </>}

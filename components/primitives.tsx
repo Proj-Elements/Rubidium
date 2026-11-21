@@ -1,6 +1,7 @@
 "use client";
 
-import { Alert, AlertDialog, Button, Card, Chip, Description, Disclosure, EmptyState, FieldError, Input, Label, Link, ListBox, NumberField, Select, Spinner, TextArea, TextField, Tooltip } from "@heroui/react";
+import { Alert, AlertDialog, Button, Card, Chip, Description, Disclosure, FieldError, Input, Label, Link, ListBox, NumberField, Select, Spinner, TextArea, TextField, Tooltip } from "@heroui/react";
+import { EmptyState } from "@heroui-pro/react";
 import NextLink from "next/link";
 import type { ComponentProps, ReactNode, Ref } from "react";
 import type { Delivery, Task } from "@/lib/types";
@@ -8,7 +9,7 @@ import { Glyph, type IconName } from "./icons";
 
 export function IconButton({ label, icon, className, ...props }: { label: string; icon: IconName } & Omit<ComponentProps<typeof Button>, "children" | "aria-label">) {
   return <Tooltip delay={350}>
-    <Button isIconOnly type="button" variant="ghost" aria-label={label} className={className ?? "max-sm:min-h-11 max-sm:min-w-11"} {...props}><Glyph name={icon} /></Button>
+    <Button isIconOnly type="button" variant="ghost" aria-label={label} className={`max-sm:min-h-11 max-sm:min-w-11 ${className ?? ""}`} {...props}><Glyph name={icon} /></Button>
     <Tooltip.Content>{label}</Tooltip.Content>
   </Tooltip>;
 }
@@ -35,7 +36,7 @@ export function CardHeading({ title, description, action }: { title: string; des
 }
 
 export function Field({ label, hint, required, disabled, type, name, ...props }: { label: string; hint?: string } & ComponentProps<typeof Input>) {
-  return <TextField fullWidth type={type} name={name} isRequired={required} isDisabled={disabled}>
+  return <TextField className="workspace-field" fullWidth type={type} name={name} isRequired={required} isDisabled={disabled}>
     <Label>{label}</Label>
     <Input variant="secondary" fullWidth {...props} />
     {hint && <Description className="leading-relaxed">{hint}</Description>}
@@ -43,7 +44,7 @@ export function Field({ label, hint, required, disabled, type, name, ...props }:
 }
 
 export function AreaField({ label, hint, error, ...props }: { label: string; hint?: string; error?: string } & ComponentProps<typeof TextArea>) {
-  return <TextField fullWidth isInvalid={Boolean(error)}>
+  return <TextField className="workspace-field" fullWidth isInvalid={Boolean(error)}>
     <Label>{label}</Label>
     <TextArea variant="secondary" fullWidth {...props} />
     {hint && <Description className="leading-relaxed">{hint}</Description>}
@@ -52,9 +53,9 @@ export function AreaField({ label, hint, error, ...props }: { label: string; hin
 }
 
 export function NumericField({ label, hideLabel, hint, inputClassName, ...props }: { label: string; hideLabel?: boolean; hint?: string; inputClassName?: string } & ComponentProps<typeof NumberField>) {
-  return <NumberField variant="secondary" aria-label={hideLabel ? label : undefined} {...props}>
+  return <NumberField className="workspace-field" variant="secondary" aria-label={hideLabel ? label : undefined} {...props}>
     {!hideLabel && <Label>{label}</Label>}
-    <NumberField.Group className="w-fit">
+    <NumberField.Group className="w-fit max-w-full">
       <NumberField.Input className={inputClassName ?? "w-28 tabular-nums"} />
     </NumberField.Group>
     {hint && <Description className="leading-relaxed">{hint}</Description>}
@@ -62,7 +63,7 @@ export function NumericField({ label, hideLabel, hint, inputClassName, ...props 
 }
 
 export function Pick({ label, value, options, onChange, className, isDisabled, hideLabel }: { label: string; value: string; options: Array<{ value: string; label: string }>; onChange: (value: string) => void; className?: string; isDisabled?: boolean; hideLabel?: boolean }) {
-  return <Select aria-label={hideLabel ? label : undefined} className={className} fullWidth variant="secondary" value={value} isDisabled={isDisabled} onChange={(key) => { if (key !== null) onChange(String(key)); }}>
+  return <Select aria-label={hideLabel ? label : undefined} className={`workspace-field ${className ?? ""}`} fullWidth variant="secondary" value={value} isDisabled={isDisabled} onChange={(key) => { if (key !== null) onChange(String(key)); }}>
     {!hideLabel && <Label>{label}</Label>}
     <Select.Trigger><Select.Value /><Select.Indicator /></Select.Trigger>
     <Select.Popover>
@@ -90,32 +91,34 @@ export const deliveryLabels: Record<Delivery["status"], string> = {
 };
 
 export function TaskBadge({ task }: { task: Task }) {
-  return <Chip variant="soft" color={task.status === "active" ? "success" : "default"}><Chip.Label>{taskLabels[task.status]}</Chip.Label></Chip>;
+  return <Chip variant="soft" className="w-fit shrink-0 whitespace-nowrap" color={task.status === "active" ? "success" : "default"}><Chip.Label>{taskLabels[task.status]}</Chip.Label></Chip>;
 }
 
 export function DeliveryBadge({ item }: { item: Delivery }) {
   const pending = item.status === "pending";
   const manual = pending && item.manualOnly;
   const retrying = pending && item.attempts > 0;
-  return <Chip variant="soft" color={item.status === "sent" ? "success" : manual ? "danger" : retrying ? "warning" : "default"}>
+  return <Chip variant="soft" className="w-fit shrink-0 whitespace-nowrap" color={item.status === "sent" ? "success" : manual ? "danger" : retrying ? "warning" : "default"}>
     <Chip.Label>{manual ? "等待人工处理" : retrying ? "重试中" : deliveryLabels[item.status]}</Chip.Label>
   </Chip>;
 }
 
 export function Notice({ children, kind = "error", action }: { children: ReactNode; kind?: "error" | "success" | "info" | "warning"; action?: ReactNode }) {
   const status = kind === "error" ? "danger" : kind === "info" ? "accent" : kind;
-  return <Alert className={`notice-${kind} items-start rounded-lg break-words`} status={status} role={kind === "error" ? "alert" : "status"}>
+  return <Alert className={`notice-${kind} items-start rounded-lg bg-surface-secondary shadow-none break-words`} status={status} role={kind === "error" ? "alert" : "status"}>
     <Alert.Indicator />
     <Alert.Content className="min-w-0 flex-1 gap-2 text-sm leading-relaxed [overflow-wrap:anywhere]">{children}{action && <div>{action}</div>}</Alert.Content>
   </Alert>;
 }
 
 export function Empty({ title, description, action, icon = "inbox" }: { title: string; description: string; action?: ReactNode; icon?: IconName }) {
-  return <EmptyState className="flex flex-col items-center gap-3 px-4 py-8 text-center">
-    <span className="icon-well mb-1"><Glyph name={icon} size={21} /></span>
-    <h3 className="font-semibold text-foreground">{title}</h3>
-    <p className="max-w-xs text-sm leading-relaxed text-muted">{description}</p>
-    {action && <div className="mt-1">{action}</div>}
+  return <EmptyState className="px-4 py-8" size="sm">
+    <EmptyState.Header>
+      <EmptyState.Media variant="icon"><Glyph name={icon} className="text-accent" /></EmptyState.Media>
+      <EmptyState.Title>{title}</EmptyState.Title>
+      <EmptyState.Description className="max-w-xs leading-relaxed">{description}</EmptyState.Description>
+    </EmptyState.Header>
+    {action && <EmptyState.Content>{action}</EmptyState.Content>}
   </EmptyState>;
 }
 

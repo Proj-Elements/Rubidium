@@ -33,7 +33,7 @@ test("production HTML uses a fresh nonce for its inline scripts", async ({ page 
   const first = await readNonce();
   expect(await readNonce()).not.toBe(first);
   await login(page);
-  await page.getByRole("link", { name: "所有提醒", exact: true }).click();
+  await page.getByRole("treegrid", { name: "主导航" }).getByRole("row", { name: "所有提醒", exact: true }).click();
   await expect(page.getByRole("heading", { name: /所有提醒/ })).toBeVisible();
 });
 
@@ -50,15 +50,19 @@ test("mobile overview prioritizes the next reminder and unsaved settings protect
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
   await page.screenshot({ path: test.info().outputPath("mobile-overview.png"), fullPage: true, animations: "disabled" });
 
+  await page.getByRole("button", { name: "打开导航", exact: true }).click();
+  await expect(page.getByRole("dialog", { name: "工作空间导航" })).toBeInViewport({ ratio: 1 });
+  await page.getByRole("treegrid", { name: "主导航" }).getByRole("row", { name: "推送设置", exact: true }).click();
+  await expect(page).toHaveURL(/\/settings$/);
+  await expect(page.getByRole("button", { name: "关闭导航", exact: true })).toBeHidden();
   await page.setViewportSize({ width: 1280, height: 900 });
-  await page.goto("/settings");
   const endpoint = page.getByLabel("API 服务地址");
   await endpoint.fill("https://api.day.app/");
-  await page.getByRole("link", { name: "投递记录" }).click();
+  await page.getByRole("treegrid", { name: "主导航" }).getByRole("row", { name: "投递记录", exact: true }).click();
   await expect(page.getByRole("alertdialog")).toBeVisible();
   await page.getByRole("button", { name: "继续编辑" }).click();
   await expect(page).toHaveURL(/\/settings$/);
-  await page.getByRole("link", { name: "投递记录" }).click();
+  await page.getByRole("treegrid", { name: "主导航" }).getByRole("row", { name: "投递记录", exact: true }).click();
   await expect(page.getByRole("alertdialog")).toBeVisible();
   await page.getByRole("button", { name: "离开页面" }).click();
   await expect(page).toHaveURL(/\/deliveries$/);
@@ -78,8 +82,8 @@ test("mobile overview prioritizes the next reminder and unsaved settings protect
 
 test("browser Back preserves dirty settings when leaving is rejected", async ({ page }) => {
   await login(page);
-  await page.getByRole("link", { name: "所有提醒", exact: true }).click();
-  await page.getByRole("link", { name: "推送设置", exact: true }).click();
+  await page.getByRole("treegrid", { name: "主导航" }).getByRole("row", { name: "所有提醒", exact: true }).click();
+  await page.getByRole("treegrid", { name: "主导航" }).getByRole("row", { name: "推送设置", exact: true }).click();
   await page.getByLabel("API 服务地址", { exact: true }).fill("https://edited.example");
   await page.evaluate(() => history.back());
   await expect(page.getByRole("alertdialog")).toBeVisible();
@@ -241,9 +245,9 @@ test("calendar overflow is visible and overview remains usable on desktop", asyn
   } });
   expect(response.status()).toBe(201);
   await page.goto("/");
-  await page.locator(".week-strip button").filter({ hasText: "5 条" }).click();
+  await page.getByRole("radio", { name: /，5 条$/ }).click();
   await expect(page.locator(".upcoming-row")).toHaveCount(4);
-  await expect(page.locator(".forecast-overflow")).toContainText("当天共 5 条，另有 1 条未展开");
+  await expect(page.getByText("当天共 5 条，另有 1 条未展开。")).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
   await page.evaluate(() => window.scrollTo(0, 0));
   await page.screenshot({ path: test.info().outputPath("desktop-overview.png"), fullPage: true, animations: "disabled" });

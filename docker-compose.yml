@@ -1,6 +1,9 @@
 services:
   barker:
-    build: .
+    build:
+      context: .
+      secrets:
+        - HEROUI_KEY
     image: barker:local
     container_name: barker
     ports:
@@ -20,3 +23,7 @@ services:
 
 volumes:
   barker-data:
+
+secrets:
+  HEROUI_KEY:
+    environment: HEROUI_KEY

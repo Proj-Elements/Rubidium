@@ -32,13 +32,13 @@ export function Gate({ onAuthed }: { onAuthed: () => void }) {
         <Brand />
         <ThemeToggle />
       </header>
-      <Card className="gap-5 rounded-lg p-5 sm:p-6">
+      <Card className="gap-5 p-5 sm:p-6">
         <Card.Header>
           <Card.Title render={(props) => <h1 {...props} />} className="text-xl leading-tight font-bold">登录工作空间</Card.Title>
         </Card.Header>
         <Card.Content>
           <Form onSubmit={signIn} className="grid gap-4">
-            <TextField fullWidth name="password" type="password" isRequired isDisabled={busy}>
+            <TextField className="workspace-field" fullWidth name="password" type="password" isRequired isDisabled={busy}>
               <Label>访问密码</Label>
               <Input variant="secondary" fullWidth className="h-11" autoComplete="current-password" value={password} onChange={(event) => setPassword(event.target.value)} maxLength={300} />
             </TextField>

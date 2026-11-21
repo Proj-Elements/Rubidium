@@ -1,9 +1,10 @@
 "use client";
 
-import { Chip, SearchField, Toolbar, Tooltip } from "@heroui/react";
+import { Chip, ListBox, SearchField, Tooltip } from "@heroui/react";
+import { ActionBar, InlineSelect } from "@heroui-pro/react";
 import { useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { IconButton, Pick } from "./primitives";
+import { IconButton } from "./primitives";
 
 type RecordFilter = { value: string; label: string };
 
@@ -66,8 +67,8 @@ export function RecordList({ label, searchLabel, filters, filter, query, onFilte
   children: ReactNode;
 }) {
   const activeFilter = filters.find((item) => item.value === filter && item.value !== "all");
-  return <div className="grid min-w-0 gap-5">
-    <div className="record-toolbar">
+  return <div className="@container/records grid min-w-0 gap-5">
+    <div className="record-toolbar workspace-field">
       <SearchField aria-label={searchLabel} variant="secondary" value={query} onChange={onSearch} onSubmit={(value) => onSearch(value, true)} className="min-w-0">
         <SearchField.Group className="h-11">
           <SearchField.SearchIcon />
@@ -75,7 +76,12 @@ export function RecordList({ label, searchLabel, filters, filter, query, onFilte
           <Tooltip delay={350}><SearchField.ClearButton className="me-0 size-11" aria-label="清空搜索" /><Tooltip.Content>清空搜索</Tooltip.Content></Tooltip>
         </SearchField.Group>
       </SearchField>
-      <Pick label={label} hideLabel value={filter} options={filters} onChange={onFilter} className="min-w-0 [&_[data-slot=select-trigger]]:h-11" />
+      <InlineSelect aria-label={label} value={filter} onChange={(key) => { if (key !== null) onFilter(String(key)); }} className="min-w-0">
+        <InlineSelect.Trigger className="min-h-11 w-full justify-between"><InlineSelect.Value /><InlineSelect.Indicator /></InlineSelect.Trigger>
+        <InlineSelect.Popover className="min-w-40">
+          <ListBox>{filters.map(({ value, label: text }) => <ListBox.Item key={value} id={value} textValue={text}>{text}<ListBox.ItemIndicator /></ListBox.Item>)}</ListBox>
+        </InlineSelect.Popover>
+      </InlineSelect>
     </div>
     {activeFilter && <div className="flex min-h-7 items-center gap-2" role="status" aria-label="已应用的筛选">
       <span className="text-xs text-muted">筛选中</span>
@@ -86,12 +92,9 @@ export function RecordList({ label, searchLabel, filters, filter, query, onFilte
 }
 
 export function BulkActions({ count, disabled, onClear, children }: { count: number; disabled?: boolean; onClear: () => void; children: ReactNode }) {
-  if (!count) return null;
-  return <div className="bulk-position">
-    <Toolbar aria-label="批量操作" className="pointer-events-auto max-w-full flex-wrap justify-center gap-1 rounded-3xl bg-overlay p-2 text-overlay-foreground shadow-overlay sm:gap-2 sm:px-3">
-      <span role="status" className="mx-2 text-sm font-medium tabular-nums">已选 {count} 项</span>
-      {children}
-      <IconButton icon="close" label="取消选择" isDisabled={disabled} onPress={onClear} />
-    </Toolbar>
-  </div>;
+  return <ActionBar isOpen={count > 0} aria-label="批量操作" className="workspace-actions">
+    <ActionBar.Prefix><span role="status" className="whitespace-nowrap text-sm font-medium tabular-nums">已选 {count} 项</span></ActionBar.Prefix>
+    <ActionBar.Content>{children}</ActionBar.Content>
+    <ActionBar.Suffix><IconButton icon="close" label="取消选择" isDisabled={disabled} onPress={onClear} /></ActionBar.Suffix>
+  </ActionBar>;
 }

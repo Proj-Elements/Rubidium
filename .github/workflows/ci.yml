@@ -50,7 +50,11 @@ jobs:
       - name: Install locked dependencies
         id: install
         if: steps.scope.outputs.source == 'true' || steps.scope.outputs.container == 'true' || steps.scope.outputs.browser == 'true' || steps.scope.outputs.tests != '[]'
-        run: pnpm install --frozen-lockfile
+        env:
+          HEROUI_KEY: ${{ secrets.HEROUI_KEY }}
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm ui:setup
 
       - name: Test affected modules
         id: test
@@ -76,8 +80,10 @@ jobs:
       - name: Check container startup and durable retry
         id: container
         if: steps.scope.outputs.container == 'true'
+        env:
+          HEROUI_KEY: ${{ secrets.HEROUI_KEY }}
         run: |
-          docker build -t barker:local .
+          docker build --secret id=HEROUI_KEY,env=HEROUI_KEY -t barker:local .
           pnpm test:container
 
       - name: Check affected browser interactions

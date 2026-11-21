@@ -16,7 +16,11 @@ WORKDIR /app
 # script approvals (`allowBuilds`) live in pnpm-workspace.yaml. Without that
 # file `pnpm install --frozen-lockfile` aborts with ERR_PNPM_IGNORED_BUILDS.
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
-RUN pnpm install --frozen-lockfile
+# The licensed Pro artifacts are downloaded at build time. BuildKit keeps the
+# installation token out of image layers and the runtime environment.
+COPY scripts/setup-heroui.mjs ./scripts/setup-heroui.mjs
+RUN --mount=type=secret,id=HEROUI_KEY,env=HEROUI_KEY,required=true \
+    pnpm install --frozen-lockfile && pnpm ui:setup
 
 # --- builder: compile Next.js standalone output ---
 FROM deps AS builder

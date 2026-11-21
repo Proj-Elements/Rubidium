@@ -1,10 +1,11 @@
 "use client";
 
-import { Button, Card, Chip, Fieldset, Form, Input, Table } from "@heroui/react";
+import { Button, Card, Chip, Fieldset, Form, Input, Modal } from "@heroui/react";
+import { ItemCard, ItemCardGroup } from "@heroui-pro/react";
 import { useState, type FormEvent } from "react";
 import { api, errorMessage } from "@/lib/ui";
 import { Pagination } from "./pagination";
-import { CardHeading, Confirm, Details, Empty, Field, Loading, Notice, NumericField, Pick } from "./primitives";
+import { CardHeading, Confirm, Details, Empty, Field, IconButton, Loading, Notice, NumericField, Pick } from "./primitives";
 import { useResource } from "./use-resource";
 import { useTime } from "./use-time";
 import { useUnsaved } from "./use-unsaved";
@@ -61,8 +62,8 @@ export function SecurityManager() {
     if (await mutate("revoke", { kind, id }, kind === "token" ? "API 凭据已撤销。" : "会话已撤销。")) setRevocation(null);
   }
 
-  return <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.25fr)]">
-    <Card className="min-w-0 gap-5 rounded-lg p-5 sm:p-6">
+  return <div className="grid items-start gap-5 @min-[52rem]/settings:grid-cols-[minmax(0,1fr)_minmax(0,1.25fr)]">
+    <Card className="min-w-0 gap-5 p-5 sm:p-6">
       <CardHeading title="访问密码" description="修改密码会撤销其他会话和全部 API 凭据。服务端环境密码变更后，以环境配置为准。" />
       <Form onSubmit={password}>
         <Fieldset className="min-w-0 gap-4" disabled={busy !== null}>
@@ -75,20 +76,20 @@ export function SecurityManager() {
       </Form>
     </Card>
 
-    <Card className="min-w-0 gap-5 rounded-lg p-5 sm:p-6">
+    <Card className="min-w-0 gap-5 p-5 sm:p-6">
       <CardHeading title="会话与凭据" description="管理已登录的会话，以及客户端访问 API 使用的凭据。" />
       {error && <Notice action={<Button variant="ghost" onPress={() => void refresh()}>重试</Button>}>{error}</Notice>}
       <section className="grid min-w-0 gap-2">
         <h3 className="text-sm font-semibold">API 凭据</h3>
-        {data && (data.tokens.length ? <ul className="grid divide-y divide-separator" aria-label="API 凭据">
-          {data.tokens.map((item) => <li key={item.id} className="flex flex-wrap items-center justify-between gap-2 py-3 first:pt-1 last:pb-1">
-            <div className="min-w-0 space-y-1">
-              <div className="flex flex-wrap items-center gap-2"><p className="text-sm font-medium [overflow-wrap:anywhere]">{item.name}</p><Chip variant="soft"><Chip.Label>{item.scope === "read" ? "只读" : "读写"}</Chip.Label></Chip></div>
-              <p className="text-xs text-muted tabular-nums">到期 {formatTime(new Date(item.expiresAt).toISOString())}</p>
-            </div>
-            <Button variant="danger-soft" isDisabled={busy !== null} onPress={() => setRevocation({ id: item.id, kind: "token", name: item.name })}>撤销凭据</Button>
-          </li>)}
-        </ul> : <p className="text-sm text-muted">尚未创建 API 凭据。</p>)}
+        {data && (data.tokens.length ? <ItemCardGroup variant="transparent" role="list" aria-label="API 凭据">
+          {data.tokens.map((item) => <ItemCard key={item.id} role="listitem" variant="transparent" className="flex-wrap px-0">
+            <ItemCard.Content className="min-w-36">
+              <div className="flex flex-wrap items-center gap-2"><ItemCard.Title>{item.name}</ItemCard.Title><Chip variant="soft"><Chip.Label>{item.scope === "read" ? "只读" : "读写"}</Chip.Label></Chip></div>
+              <ItemCard.Description className="tabular-nums">到期 {formatTime(new Date(item.expiresAt).toISOString())}</ItemCard.Description>
+            </ItemCard.Content>
+            <ItemCard.Action><Button variant="danger-soft" isDisabled={busy !== null} onPress={() => setRevocation({ id: item.id, kind: "token", name: item.name })}>撤销凭据</Button></ItemCard.Action>
+          </ItemCard>)}
+        </ItemCardGroup> : <p className="text-sm text-muted">尚未创建 API 凭据。</p>)}
         <Details title="创建 API 凭据">
           <Form onSubmit={credential}>
             <Fieldset className="min-w-0 gap-3" disabled={busy !== null}>
@@ -105,20 +106,20 @@ export function SecurityManager() {
         </Details>
         {token && <Notice kind="info" action={<Button variant="ghost" onPress={() => setToken("")}>关闭提示</Button>}>
           <p>凭据只显示这一次。请复制保存，在请求头中使用 <code>Authorization: Bearer</code>。</p>
-          <Input aria-label="新 API 凭据" className="font-mono" fullWidth value={token} readOnly onFocus={(event) => event.currentTarget.select()} />
+          <div className="workspace-field"><Input aria-label="新 API 凭据" className="font-mono" fullWidth value={token} readOnly onFocus={(event) => event.currentTarget.select()} /></div>
         </Notice>}
       </section>
       <section className="grid gap-2">
         <h3 className="text-sm font-semibold">有效会话</h3>
-        {data ? (data.sessions.length ? <ul className="grid divide-y divide-separator" aria-label="有效会话">
-          {data.sessions.map((item) => <li key={item.id} className="flex flex-wrap items-center justify-between gap-2 py-3 first:pt-1 last:pb-1">
-            <div className="min-w-0 space-y-1">
-              <p className="text-sm font-medium">会话 <code className="tabular-nums">{item.id.slice(0, 8)}</code></p>
-              <p className="text-xs text-muted tabular-nums">到期 {formatTime(new Date(item.expiresAt).toISOString())}</p>
-            </div>
-            <Button variant="danger-soft" isDisabled={busy !== null} onPress={() => setRevocation({ id: item.id, kind: "session", name: `会话 ${item.id.slice(0, 8)}` })}>撤销会话</Button>
-          </li>)}
-        </ul> : <p className="text-sm text-muted">暂无有效会话。</p>) : !error && <Loading>正在读取访问记录</Loading>}
+        {data ? (data.sessions.length ? <ItemCardGroup variant="transparent" role="list" aria-label="有效会话">
+          {data.sessions.map((item) => <ItemCard key={item.id} role="listitem" variant="transparent" className="flex-wrap px-0">
+            <ItemCard.Content className="min-w-36">
+              <ItemCard.Title>会话 <code className="tabular-nums">{item.id.slice(0, 8)}</code></ItemCard.Title>
+              <ItemCard.Description className="tabular-nums">到期 {formatTime(new Date(item.expiresAt).toISOString())}</ItemCard.Description>
+            </ItemCard.Content>
+            <ItemCard.Action><Button variant="danger-soft" isDisabled={busy !== null} onPress={() => setRevocation({ id: item.id, kind: "session", name: `会话 ${item.id.slice(0, 8)}` })}>撤销会话</Button></ItemCard.Action>
+          </ItemCard>)}
+        </ItemCardGroup> : <p className="text-sm text-muted">暂无有效会话。</p>) : !error && <Loading>正在读取访问记录</Loading>}
       </section>
     </Card>
 
@@ -139,36 +140,47 @@ const auditActions: Record<string, string> = {
   "security.token.revoke": "撤销 API 凭据", "security.session.revoke": "撤销会话",
 };
 const auditPageSize = 8;
+type AuditEvent = { id: string; action: string; target: string; createdAt: string };
 
 export function AuditLog() {
   const { formatTime } = useTime();
-  const { data, error, refresh } = useResource<{ events: Array<{ id: string; action: string; target: string; createdAt: string }> }>("/api/audit", 15_000);
+  const { notify } = useWorkspace();
+  const { data, error, refresh } = useResource<{ events: AuditEvent[] }>("/api/audit", 15_000);
+  const [details, setDetails] = useState<AuditEvent | null>(null);
   const [page, setPage] = useState(1);
   const total = data?.events.length ?? 0;
   const displayedPage = Math.min(page, Math.max(1, Math.ceil(total / auditPageSize)));
   const events = data?.events.slice((displayedPage - 1) * auditPageSize, displayedPage * auditPageSize) ?? [];
 
-  return <Card className="min-w-0 gap-4 rounded-lg p-5 sm:p-6">
+  return <Card className="min-w-0 gap-4 p-5 sm:p-6">
     <CardHeading title="操作审计" description="显示最近 100 次操作。审计不记录密码或消息正文。" />
     {error && <Notice action={<Button variant="ghost" onPress={() => void refresh()}>重试</Button>}>{error}</Notice>}
     {events.length ? <>
-      <Table variant="secondary">
-        <Table.ScrollContainer>
-          <Table.Content aria-label="操作审计" className="table-fixed tabular-nums">
-            <Table.Header>
-              <Table.Column isRowHeader className="w-2/5 sm:w-44">操作</Table.Column>
-              <Table.Column className="w-[35%] sm:w-48">时间</Table.Column>
-              <Table.Column>目标</Table.Column>
-            </Table.Header>
-            <Table.Body items={events}>{(item) => <Table.Row id={item.id}>
-              <Table.Cell>{auditActions[item.action] ?? item.action}</Table.Cell>
-              <Table.Cell><time dateTime={item.createdAt} className="text-xs text-muted">{formatTime(item.createdAt)}</time></Table.Cell>
-              <Table.Cell><code className="text-xs text-muted [overflow-wrap:anywhere]">{item.target}</code></Table.Cell>
-            </Table.Row>}</Table.Body>
-          </Table.Content>
-        </Table.ScrollContainer>
-      </Table>
+      <ItemCardGroup variant="transparent" role="list" aria-label="操作审计">
+        {events.map((item) => <ItemCard key={item.id} role="listitem" variant="transparent" className="min-w-0 px-0">
+          <ItemCard.Content>
+            <ItemCard.Title>{auditActions[item.action] ?? item.action}</ItemCard.Title>
+            <ItemCard.Description><time dateTime={item.createdAt} className="tabular-nums">{formatTime(item.createdAt)}</time></ItemCard.Description>
+            <code className="mt-1 max-w-full truncate text-xs text-muted">{item.target || "工作空间"}</code>
+          </ItemCard.Content>
+          <ItemCard.Action><IconButton icon="inbox" label={`查看审计详情 ${auditActions[item.action] ?? item.action}`} onPress={() => setDetails(item)} /></ItemCard.Action>
+        </ItemCard>)}
+      </ItemCardGroup>
       <Pagination page={displayedPage} total={total} pageSize={auditPageSize} onChange={setPage} />
     </> : data ? <Empty title="暂无操作记录" description="工作空间的变更会记录在这里。" /> : !error && <Loading>正在读取操作审计</Loading>}
+    {details && <Modal.Backdrop isOpen onOpenChange={(open) => { if (!open) setDetails(null); }}>
+      <Modal.Container size="sm" placement="center"><Modal.Dialog>
+        <Modal.Header><Modal.Heading>操作详情</Modal.Heading></Modal.Header>
+        <Modal.Body className="grid gap-4">
+          <p className="font-medium">{auditActions[details.action] ?? details.action}</p>
+          <time dateTime={details.createdAt} className="text-sm text-muted tabular-nums">{formatTime(details.createdAt)}</time>
+          <div className="grid gap-2"><p className="text-xs text-muted">完整目标标识</p><code className="select-all text-sm [overflow-wrap:anywhere]">{details.target || "工作空间"}</code></div>
+        </Modal.Body>
+        <Modal.Footer className="flex-wrap">
+          <Button variant="ghost" onPress={() => setDetails(null)}>关闭</Button>
+          {details.target && <Button variant="outline" onPress={() => { void navigator.clipboard.writeText(details.target).then(() => notify("目标标识已复制。"), () => notify("无法自动复制，请选中完整标识复制。", "error")); }}>复制标识</Button>}
+        </Modal.Footer>
+      </Modal.Dialog></Modal.Container>
+    </Modal.Backdrop>}
   </Card>;
 }

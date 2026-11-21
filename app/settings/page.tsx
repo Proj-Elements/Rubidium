@@ -17,12 +17,12 @@ export default function SettingsPage() {
   const { data, error, refresh } = useResource<SettingsPayload>("/api/settings", 15_000);
   const panel = "grid min-w-0 gap-4 p-0 data-[inert]:hidden";
 
-  return <div className="grid gap-6">
+  return <div className="@container/settings grid gap-6">
     <PageHeading title="推送设置" />
     {error && <Notice action={<Button variant="ghost" onPress={() => void refresh()}>重试</Button>}>{error}</Notice>}
-    <Tabs className="min-w-0 gap-5" defaultSelectedKey="connection">
-      <Tabs.ListContainer className="w-fit max-w-full min-w-0 self-start">
-        <Tabs.List className="whitespace-nowrap max-sm:[&>[role=tab]]:px-3" aria-label="工作空间设置分类">
+    <Tabs className="settings-tabs min-w-0 gap-5" defaultSelectedKey="connection">
+      <Tabs.ListContainer className="w-full min-w-0 self-start sm:w-fit">
+        <Tabs.List className="grid w-full grid-cols-2 whitespace-nowrap sm:flex [&>[role=tab]]:min-h-11" aria-label="工作空间设置分类">
           <Tabs.Tab id="connection">连接配置<Tabs.Indicator /></Tabs.Tab>
           <Tabs.Tab id="devices">更多设备<Tabs.Indicator /></Tabs.Tab>
           <Tabs.Tab id="access">访问安全<Tabs.Indicator /></Tabs.Tab>
@@ -91,9 +91,9 @@ function SettingsForm({ initial, onSaved }: { initial: SettingsPayload; onSaved:
     finally { setBusy(null); }
   }
 
-  return <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1.6fr)_minmax(15rem,1fr)]">
+  return <div className="grid items-start gap-5 @min-[52rem]/settings:grid-cols-[minmax(0,1.6fr)_minmax(15rem,1fr)]">
     <div className="grid min-w-0 gap-4">
-      <Card className="gap-5 rounded-lg p-5 sm:p-6">
+      <Card className="gap-5 p-5 sm:p-6">
         <CardHeading title="连接 Bark" description="为提醒配置默认设备。" action={<Chip variant="soft" color={configured ? "success" : "default"}>
           <Chip.Label>{configured ? "设备已配置" : "等待连接"}</Chip.Label>
         </Chip>} />
@@ -129,7 +129,7 @@ function SettingsForm({ initial, onSaved }: { initial: SettingsPayload; onSaved:
     </div>
 
     <div className="grid min-w-0 gap-5">
-      <Card className="gap-4 rounded-lg p-5 sm:p-6">
+      <Card className="gap-4 p-5 sm:p-6">
         <CardHeading title="通知预览" />
         <Card.Content className="gap-3">
           <div className="grid gap-2 rounded-lg bg-surface-secondary p-4 text-sm">
@@ -138,10 +138,10 @@ function SettingsForm({ initial, onSaved }: { initial: SettingsPayload; onSaved:
             <p className="line-clamp-2 leading-relaxed text-muted">这是一条来自 Barker 的测试通知。</p>
             {(settings.group || settings.sound) && <p className="line-clamp-1 text-xs break-words text-muted">分组：{settings.group || "无"} · 提示音：{settings.sound || "默认"}</p>}
           </div>
-          <p className="text-xs leading-relaxed text-muted">{dirty ? "保存当前配置后即可发送测试。" : "实际通知样式由 Bark 和设备决定。"}</p>
+          <p id="test-notification-hint" className="text-xs leading-relaxed text-muted">{conflict ? "载入最新设置后再发送测试。" : dirty ? "保存当前配置后即可发送测试。" : !configured ? "先填写 Device Key 并保存，才能发送测试。" : "实际通知样式由 Bark 和设备决定。"}</p>
         </Card.Content>
         <Card.Footer>
-          <Button variant="outline" onPress={() => void test()} isPending={busy === "test"} isDisabled={!configured || dirty || busy === "save" || conflict}>发送测试</Button>
+          <Button variant="outline" aria-describedby="test-notification-hint" onPress={() => void test()} isPending={busy === "test"} isDisabled={!configured || dirty || busy === "save" || conflict}>发送测试</Button>
         </Card.Footer>
       </Card>
     </div>
@@ -168,7 +168,7 @@ function HistorySettings({ dataDir }: { dataDir?: string }) {
     finally { setPruning(false); }
   }
 
-  return <Card className="gap-4 rounded-lg p-5 sm:p-6">
+  return <Card className="gap-4 p-5 sm:p-6">
     <CardHeading title="历史记录维护" description="清理 30 天前已结束的投递记录并回收空间。累计排期与接收次数不变。" />
     <Card.Content className="gap-3">
       <Details title="存储与备份">
