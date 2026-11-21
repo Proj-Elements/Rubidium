@@ -114,6 +114,7 @@
   .upcoming-row { border-radius: 0.75rem; }
   .upcoming-row:hover { background: var(--surface-secondary); }
   .record-toolbar { display: grid; min-width: 0; grid-template-columns: minmax(0, 24rem) minmax(8rem, 12rem); align-items: center; gap: 0.75rem; }
+  .record-filter .select__trigger { border: 1px solid var(--border); background: var(--surface); padding-inline: 0.75rem; }
   .skip-link, :where(a, button, [role="button"]) { -webkit-tap-highlight-color: transparent; }
   @media (width < 40rem) {
     .topbar-inner { min-height: 3.75rem; }

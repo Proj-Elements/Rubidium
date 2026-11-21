@@ -1,7 +1,7 @@
 "use client";
 
-import { Chip, ListBox, SearchField, Tooltip } from "@heroui/react";
-import { ActionBar, InlineSelect } from "@heroui-pro/react";
+import { Chip, ListBox, SearchField, Select, Tooltip } from "@heroui/react";
+import { ActionBar } from "@heroui-pro/react";
 import { MotionConfig } from "motion/react";
 import { useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState, type ReactNode } from "react";
@@ -77,12 +77,12 @@ export function RecordList({ label, searchLabel, filters, filter, query, onFilte
           <Tooltip delay={350}><SearchField.ClearButton className="me-0 size-11" aria-label="清空搜索" /><Tooltip.Content>清空搜索</Tooltip.Content></Tooltip>
         </SearchField.Group>
       </SearchField>
-      <InlineSelect aria-label={label} value={filter} onChange={(key) => { if (key !== null) onFilter(String(key)); }} className="min-w-0">
-        <InlineSelect.Trigger className="min-h-11 w-full justify-between"><InlineSelect.Value /><InlineSelect.Indicator /></InlineSelect.Trigger>
-        <InlineSelect.Popover className="min-w-40">
+      <Select className="record-filter min-w-0" aria-label={label} variant="secondary" value={filter} onChange={(key) => { if (key !== null) onFilter(String(key)); }}>
+        <Select.Trigger className="min-h-11 justify-between"><Select.Value /><Select.Indicator /></Select.Trigger>
+        <Select.Popover className="min-w-40">
           <ListBox>{filters.map(({ value, label: text }) => <ListBox.Item key={value} id={value} textValue={text}>{text}<ListBox.ItemIndicator /></ListBox.Item>)}</ListBox>
-        </InlineSelect.Popover>
-      </InlineSelect>
+        </Select.Popover>
+      </Select>
     </div>
     {activeFilter && <div className="flex min-h-7 items-center gap-2" role="status" aria-label="已应用的筛选">
       <span className="text-xs text-muted">筛选中</span>
