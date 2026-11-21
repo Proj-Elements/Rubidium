@@ -5,7 +5,7 @@ import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "nod
 import { loadRuntimeEnvironment, runtimeDirectory } from "./runtime-paths.mjs";
 
 const names = ["barker.sqlite", "access-password.txt", "session-secret.txt"];
-const MAX_SUPPORTED_SCHEMA_VERSION = 4;
+export const MAX_SUPPORTED_SCHEMA_VERSION = 5;
 async function digest(path) {
   const hash = createHash("sha256");
   for await (const chunk of createReadStream(path)) hash.update(chunk);
