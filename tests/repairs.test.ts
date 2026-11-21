@@ -131,6 +131,25 @@ test("Ntfy channels retain protected configuration and task bindings", async () 
   assert.throws(() => db.removeChannel(updated.id, updated.revision), /仍被/);
 });
 
+test("scheduler dispatches Ntfy failures through the automatic retry queue", async (context) => {
+  const channel = db.saveChannel({ name: "Retry Ntfy", type: "ntfy", endpoint: "https://ntfy.example", topic: "rubidium_retry", credential: "retry-token" });
+  const task = db.createTask({ ...input, deviceId: channel.id }, created);
+  await scheduler.enqueueDueOccurrences(due);
+  const request = context.mock.method(globalThis, "fetch", async (url: string | URL | Request, init?: RequestInit) => {
+    assert.equal(String(url), "https://ntfy.example/rubidium_retry");
+    assert.equal(new Headers(init?.headers).get("authorization"), "Bearer retry-token");
+    return new Response(null, { status: 429 });
+  });
+
+  assert.equal(await scheduler.processOneDelivery(due), true);
+  assert.equal(request.mock.callCount(), 1);
+  const delivery = db.listDeliveries({ page: 1, pageSize: 10 }).deliveries[0];
+  assert.equal(delivery.status, "pending");
+  assert.equal(delivery.manualOnly, false);
+  assert.equal(delivery.attempts, 1);
+  assert.equal(db.getTask(task.id)?.sentCount, 0);
+});
+
 test("once, endless, holiday exceptions and weekend make-up dates share worker rules", () => {
   const once = db.createTask({ ...input, preset: "once", repeatCount: 1 }, created);
   db.queueTaskBatch(once.id, due);

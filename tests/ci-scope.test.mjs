@@ -25,7 +25,7 @@ test("UI-only changes build the app without running backend suites", () => {
 
 test("scheduler changes select owning workflows and restart tests", () => {
   assert.deepEqual(selectChecks(["lib/scheduler.ts"]), {
-    tests: ["tests/persistence.test.ts", "tests/scheduler.test.ts", "tests/shutdown.test.mjs", "tests/workflow.test.ts"],
+    tests: ["tests/ntfy.test.ts", "tests/persistence.test.ts", "tests/repairs.test.ts", "tests/scheduler.test.ts", "tests/shutdown.test.mjs", "tests/workflow.test.ts"],
     source: true,
     container: true,
     browser: false,
@@ -41,11 +41,15 @@ test("API changes select contract tests and container smoke", () => {
 
 test("shared types select every importing test owner", () => {
   assert.deepEqual(selectChecks(["lib/types.ts"]), {
-    tests: ["tests/api.test.ts", "tests/bark.test.ts", "tests/cron.test.ts", "tests/data-tools.test.mjs", "tests/db-init.test.ts", "tests/persistence.test.ts", "tests/repairs.test.ts", "tests/scheduler.test.ts", "tests/ui.test.ts", "tests/validation.test.ts", "tests/workflow.test.ts"],
+    tests: ["tests/api.test.ts", "tests/bark.test.ts", "tests/cron.test.ts", "tests/data-tools.test.mjs", "tests/db-init.test.ts", "tests/ntfy.test.ts", "tests/persistence.test.ts", "tests/repairs.test.ts", "tests/scheduler.test.ts", "tests/ui.test.ts", "tests/validation.test.ts", "tests/workflow.test.ts"],
     source: true,
     container: true,
     browser: true,
   });
+});
+
+test("Ntfy modules select provider and dispatcher tests", () => {
+  assert.deepEqual(selectChecks(["lib/ntfy.ts", "lib/notification.ts"]).tests, ["tests/bark.test.ts", "tests/ntfy.test.ts", "tests/scheduler.test.ts"]);
 });
 
 test("documentation-only changes do not trigger unrelated application checks", () => {

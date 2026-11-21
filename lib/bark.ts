@@ -8,23 +8,33 @@ import { redactSecrets } from "./errors";
  * - transient: network/timeout/5xx/429 — worth retrying with backoff.
  * Both kinds remain in the outbox. Permanent failures wait for manual repair.
  */
-export type BarkFailureKind = "permanent" | "transient";
+export type DeliveryFailureKind = "permanent" | "transient";
+export type BarkFailureKind = DeliveryFailureKind;
 
 const PERMANENT_HTTP_STATUSES = new Set([400, 401, 403, 404, 405, 410, 422]);
 
-export class BarkDeliveryError extends Error {
-  readonly kind: BarkFailureKind;
+type DeliveryErrorOptions = { kind?: DeliveryFailureKind; status?: number; retryAt?: Date; scope?: "endpoint" | "payload" };
+
+export class DeliveryError extends Error {
+  readonly kind: DeliveryFailureKind;
   readonly status?: number;
   readonly retryAt?: Date;
   readonly scope: "endpoint" | "payload";
 
-  constructor(message: string, options: { kind?: BarkFailureKind; status?: number; retryAt?: Date; scope?: "endpoint" | "payload" } = {}) {
+  constructor(message: string, options: DeliveryErrorOptions = {}) {
     super(message);
-    this.name = "BarkDeliveryError";
+    this.name = "DeliveryError";
     this.kind = options.kind ?? "transient";
     this.status = options.status;
     this.retryAt = options.retryAt;
     this.scope = options.scope ?? "endpoint";
+  }
+}
+
+export class BarkDeliveryError extends DeliveryError {
+  constructor(message: string, options: DeliveryErrorOptions = {}) {
+    super(message, options);
+    this.name = "BarkDeliveryError";
   }
 }
 

@@ -1,9 +1,10 @@
 import { createHash } from "node:crypto";
-import { claimDelivery, deliverySettings, dueTaskRows, extendEndpointCooldown, isolateInvalidTask, listDevices, markDeliveryFailed, markDeliverySent, queueTaskBatch, readRuntimeState, writeRuntimeState } from "./db";
-import { BarkDeliveryError, sendBark } from "./bark";
+import { claimDelivery, deliverySettings, dueTaskRows, extendEndpointCooldown, isolateInvalidTask, listChannels, markDeliveryFailed, markDeliverySent, queueTaskBatch, readRuntimeState, writeRuntimeState } from "./db";
+import { DeliveryError } from "./bark";
 import { redactSecrets } from "./errors";
-import type { BarkSettings, ChannelDeliverySettings } from "./types";
+import type { ChannelDeliverySettings } from "./types";
 import { logError } from "./logging";
+import { sendNotification } from "./notification";
 
 let cycle: Promise<void> | null = null;
 let enqueueCycle: Promise<number> | null = null;
@@ -46,21 +47,24 @@ export async function enqueueDueOccurrences(now = new Date()): Promise<number> {
   finally { enqueueCycle = null; }
 }
 
-function endpointStateKey(settings: BarkSettings): string {
-  return `endpoint:${createHash("sha256").update(`${settings.endpoint}\n${settings.deviceKey}`).digest("hex")}`;
+function endpointStateKey(settings: ChannelDeliverySettings): string {
+  const identity = settings.channelType === "ntfy"
+    ? `${settings.endpoint}\n${settings.deviceKey}\nntfy:${settings.topic}`
+    : `${settings.endpoint}\n${settings.deviceKey}`;
+  return `endpoint:${createHash("sha256").update(identity).digest("hex")}`;
 }
 
 export async function processOneDelivery(
   now = new Date(),
-  deliver: (settings: ChannelDeliverySettings, title: string, body: string) => Promise<void> = sendBark,
+  deliver: (settings: ChannelDeliverySettings, title: string, body: string) => Promise<void> = sendNotification,
 ): Promise<boolean> {
   if (stopping) return false;
   const claimAt = new Date(Math.max(now.getTime(), Date.now()));
-  const excludedDevices = listDevices().filter((device) => Number(readRuntimeState(endpointStateKey(deliverySettings(device.id))) ?? 0) > claimAt.getTime()).map((device) => device.id);
+  const excludedChannels = listChannels().filter((channel) => Number(readRuntimeState(endpointStateKey(deliverySettings(channel.id))) ?? 0) > claimAt.getTime()).map((channel) => channel.id);
   // Lease recovery and expiration still run while the endpoint is cooling
   // down; otherwise a long Retry-After would keep already-undeliverable
   // messages looking pending for days.
-  const item = claimDelivery(claimAt, true, excludedDevices);
+  const item = claimDelivery(claimAt, true, excludedChannels);
   if (!item) return false;
   const settings = deliverySettings(item.deviceId, item.notification);
   const endpointKey = endpointStateKey(settings);
@@ -72,9 +76,9 @@ export async function processOneDelivery(
   } catch (error) {
     const nowCompleted = completedAt();
     const message = redactSecrets(error instanceof Error ? error.message : "未知推送错误", [settings.deviceKey]);
-    const retryAt = error instanceof BarkDeliveryError ? error.retryAt : undefined;
-    markDeliveryFailed(item.id, item.leaseUntil, attempt, message, nowCompleted, retryAt, error instanceof BarkDeliveryError && error.kind === "permanent");
-    if (error instanceof BarkDeliveryError && error.scope === "endpoint") {
+    const retryAt = error instanceof DeliveryError ? error.retryAt : undefined;
+    markDeliveryFailed(item.id, item.leaseUntil, attempt, message, nowCompleted, retryAt, error instanceof DeliveryError && error.kind === "permanent");
+    if (error instanceof DeliveryError && error.scope === "endpoint") {
       const delay = error.kind === "permanent" ? 60_000 : 5000;
       extendEndpointCooldown(endpointKey, Math.max(retryAt?.getTime() ?? 0, nowCompleted.getTime() + delay));
     }
@@ -83,7 +87,7 @@ export async function processOneDelivery(
   return true;
 }
 
-export async function runSchedulerCycle(now = new Date(), deliver = sendBark): Promise<void> {
+export async function runSchedulerCycle(now = new Date(), deliver = sendNotification): Promise<void> {
   if (stopping) return;
   try {
     await enqueueDueOccurrences(now);
