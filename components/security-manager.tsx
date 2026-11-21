@@ -1,6 +1,6 @@
 "use client";
 
-import { Button, Card, Chip, Fieldset, Form, Input, Modal, Tooltip } from "@heroui/react";
+import { Button, Card, Chip, FieldError, Fieldset, Form, Input, Label, Modal, TextField, Tooltip } from "@heroui/react";
 import { ItemCard, ItemCardGroup } from "@heroui-pro/react";
 import { useState, type FormEvent } from "react";
 import { api, errorMessage } from "@/lib/ui";
@@ -26,6 +26,7 @@ export function SecurityManager({ active }: { active: boolean }) {
   const { data, error, refresh } = useResource<Security>("/api/security", 0, active);
   const [current, setCurrent] = useState("");
   const [next, setNext] = useState("");
+  const [confirmNext, setConfirmNext] = useState("");
   const [name, setName] = useState("");
   const [scope, setScope] = useState("read");
   const [days, setDays] = useState(defaultDays);
@@ -33,7 +34,8 @@ export function SecurityManager({ active }: { active: boolean }) {
   const [token, setToken] = useState("");
   const [revocation, setRevocation] = useState<{ id: string; kind: "session" | "token"; name: string } | null>(null);
   const [busy, setBusy] = useState<"password" | "token" | "revoke" | null>(null);
-  useUnsaved(Boolean(current || next || name || scope !== "read" || days !== defaultDays));
+  const passwordMismatch = confirmNext.length > 0 && next !== confirmNext;
+  useUnsaved(Boolean(current || next || confirmNext || name || scope !== "read" || days !== defaultDays));
 
   async function mutate(action: NonNullable<typeof busy>, fields: object, message: string) {
     if (busy) return false;
@@ -50,7 +52,8 @@ export function SecurityManager({ active }: { active: boolean }) {
 
   async function password(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (await mutate("password", { current, next }, "访问密码已更新。")) { setCurrent(""); setNext(""); }
+    if (!current || !next || !confirmNext || next !== confirmNext) return;
+    if (await mutate("password", { current, next }, "访问密码已更新。")) { setCurrent(""); setNext(""); setConfirmNext(""); }
   }
 
   async function credential(event: FormEvent<HTMLFormElement>) {
@@ -73,8 +76,13 @@ export function SecurityManager({ active }: { active: boolean }) {
           <Fieldset.Group className="security-password-fields @min-[52rem]/settings:grid-cols-2">
             <Field label="当前访问密码" type="password" value={current} onChange={(event) => setCurrent(event.target.value)} maxLength={300} autoComplete="current-password" required />
             <Field label="新访问密码" type="password" value={next} onChange={(event) => setNext(event.target.value)} minLength={16} maxLength={300} autoComplete="new-password" required />
+            <TextField className="workspace-field" fullWidth name="confirmNewPassword" type="password" isRequired isDisabled={busy !== null} isInvalid={passwordMismatch}>
+              <Label>确认新访问密码</Label>
+              <Input variant="secondary" fullWidth className="h-11" autoComplete="new-password" value={confirmNext} onChange={(event) => setConfirmNext(event.target.value)} maxLength={300} />
+              {passwordMismatch && <FieldError>两次输入的新访问密码不一致</FieldError>}
+            </TextField>
           </Fieldset.Group>
-          <Fieldset.Actions><Button type="submit" isPending={busy === "password"} isDisabled={busy !== null && busy !== "password"}>修改访问密码</Button></Fieldset.Actions>
+          <Fieldset.Actions><Button type="submit" isPending={busy === "password"} isDisabled={busy !== null || !current || !next || !confirmNext || passwordMismatch}>修改访问密码</Button></Fieldset.Actions>
         </Fieldset>
       </Form>
     </Card>

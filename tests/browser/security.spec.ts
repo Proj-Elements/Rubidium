@@ -1,5 +1,30 @@
 import { expect, test } from "@playwright/test";
 
+test("password changes require a matching confirmation", async ({ page }) => {
+  await page.setViewportSize({ width: 844, height: 390 });
+  await page.goto("/");
+  await page.getByLabel("访问密码").fill("browser-regression-password");
+  await page.getByRole("button", { name: "进入工作空间" }).click();
+  await page.goto("/settings");
+  await page.getByRole("tab", { name: "访问安全", exact: true }).click();
+
+  await page.getByLabel("当前访问密码").fill("browser-regression-password");
+  await page.getByLabel("新访问密码", { exact: true }).fill("confirmed-password-2030");
+  const confirmation = page.getByLabel("确认新访问密码");
+  await confirmation.fill("different-password-2030");
+  await expect(page.getByText("两次输入的新访问密码不一致")).toBeVisible();
+  await expect(page.getByRole("button", { name: "修改访问密码" })).toBeDisabled();
+  await page.screenshot({ path: test.info().outputPath("password-confirmation-mismatch-landscape.png"), fullPage: true, animations: "disabled" });
+
+  await confirmation.fill("confirmed-password-2030");
+  await expect(page.getByText("两次输入的新访问密码不一致")).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "修改访问密码" })).toBeEnabled();
+  await page.setViewportSize({ width: 568, height: 320 });
+  await confirmation.scrollIntoViewIfNeeded();
+  expect(await confirmation.evaluate((input) => input.getBoundingClientRect().height)).toBeGreaterThanOrEqual(44);
+  await page.screenshot({ path: test.info().outputPath("password-confirmation-short-landscape.png"), animations: "disabled" });
+});
+
 test("API credentials can remain valid indefinitely and display the selected expiry", async ({ page }) => {
   await page.setViewportSize({ width: 844, height: 390 });
   await page.goto("/");
