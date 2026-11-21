@@ -12,6 +12,88 @@ async function contained(page: Page) {
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
 }
 
+test("landscape workspace sidebar collapses accessibly and releases list width", async ({ page }) => {
+  await enter(page);
+  const taskName = `横屏侧栏检查-${test.info().project.name}`;
+  const created = await page.request.post("/api/tasks", { data: {
+    name: taskName, startsAt: "2035-01-01T09:00:00+08:00", preset: "daily", cron: "0 9 * * *", repeatCount: 3,
+  } });
+  expect(created.status()).toBe(201);
+  await page.goto("/tasks");
+  const modifier = await page.evaluate(() => /Mac/i.test(navigator.platform) ? "Meta" : "Control");
+
+  for (const width of [844, 768]) {
+    await page.setViewportSize({ width, height: 390 });
+    const sidebar = page.locator(".sidebar").first();
+    const collapse = page.getByRole("button", { name: "收起侧栏", exact: true });
+    await expect(collapse).toBeVisible();
+    expect(await collapse.evaluate((button) => button.getBoundingClientRect().height)).toBeGreaterThanOrEqual(44);
+    await expect(sidebar).toHaveAttribute("data-state", "expanded");
+    const expandedWidth = (await sidebar.boundingBox())!.width;
+    const expandedMainWidth = (await page.locator(".sidebar__main").boundingBox())!.width;
+    expect(expandedWidth).toBe(240);
+
+    await page.evaluate(() => document.activeElement instanceof HTMLElement && document.activeElement.blur());
+    for (let index = 0; index < 20; index += 1) {
+      await page.keyboard.press("Tab");
+      if (await collapse.evaluate((button) => button === document.activeElement)) break;
+    }
+    expect(await collapse.evaluate((button) => button.matches(":focus-visible"))).toBe(true);
+    await page.keyboard.press(`${modifier}+b`);
+    const expand = page.getByRole("button", { name: "展开侧栏", exact: true });
+    await expect(sidebar).toHaveAttribute("data-state", "collapsed");
+    await expect(expand).toBeVisible();
+    await expect.poll(async () => (await sidebar.boundingBox())?.width).toBe(48);
+    expect((await sidebar.boundingBox())!.width).toBe(48);
+    expect((await page.locator(".sidebar__main").boundingBox())!.width - expandedMainWidth).toBe(192);
+    expect(await expand.evaluate((button) => button.matches(":focus-visible"))).toBe(true);
+
+    const selectPage = page.getByRole("checkbox", { name: "选择本页提醒" });
+    await selectPage.locator("xpath=ancestor::label[1]").click();
+    const actionBar = page.getByRole("toolbar", { name: "批量操作" });
+    await expect(actionBar).toBeVisible();
+    expect(Number.parseFloat(await page.locator(".action-bar:has(.workspace-actions)").evaluate((element) => getComputedStyle(element).insetInlineStart))).toBe(48);
+    await contained(page);
+    await page.screenshot({ path: test.info().outputPath(`sidebar-collapsed-${width}x390.png`), animations: "disabled" });
+    await page.getByRole("button", { name: "取消选择", exact: true }).click();
+
+    await expand.focus();
+    await page.keyboard.press("Space");
+    await expect(sidebar).toHaveAttribute("data-state", "expanded");
+    await expect.poll(async () => (await sidebar.boundingBox())?.width).toBe(expandedWidth);
+    expect((await sidebar.boundingBox())!.width).toBe(expandedWidth);
+    await expect(page.getByRole("button", { name: "收起侧栏", exact: true })).toBeVisible();
+  }
+
+  for (const width of [767]) {
+    await page.setViewportSize({ width, height: 390 });
+    await expect(page.getByRole("button", { name: "收起侧栏", exact: true })).toBeHidden();
+    const mobileToggle = page.getByRole("button", { name: "打开导航", exact: true });
+    await expect(mobileToggle).toBeVisible();
+    expect(await mobileToggle.evaluate((button) => button.getBoundingClientRect().height)).toBeGreaterThanOrEqual(44);
+    await mobileToggle.click();
+    const mobileNavigation = page.getByRole("dialog", { name: "工作空间导航" });
+    await expect(mobileNavigation).toBeVisible();
+    const settingsItem = mobileNavigation.getByRole("treegrid", { name: "主导航" }).getByRole("row", { name: "推送设置", exact: true });
+    await expect(settingsItem).toBeInViewport();
+    const settingsBounds = await settingsItem.boundingBox();
+    expect(settingsBounds).not.toBeNull();
+    expect(settingsBounds!.height).toBeGreaterThanOrEqual(44);
+    expect(await settingsItem.evaluate((itemElement) => {
+      const scrollArea = itemElement.closest(".sidebar__content");
+      if (!(scrollArea instanceof HTMLElement)) return false;
+      const itemRect = itemElement.getBoundingClientRect();
+      const scrollAreaRect = scrollArea.getBoundingClientRect();
+      return itemRect.top >= scrollAreaRect.top && itemRect.bottom <= scrollAreaRect.bottom;
+    })).toBe(true);
+    await settingsItem.focus();
+    await expect(settingsItem).toBeFocused();
+    await settingsItem.press("Enter");
+    await expect(page).toHaveURL(/\/settings$/);
+    await expect(page.getByRole("button", { name: "关闭导航", exact: true })).toBeHidden();
+  }
+});
+
 test("editor aligns schedule fields and keeps ending controls usable at every width", async ({ page }) => {
   await page.emulateMedia({ reducedMotion: "reduce" });
   await enter(page);

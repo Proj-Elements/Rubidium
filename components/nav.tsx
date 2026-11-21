@@ -21,7 +21,7 @@ const navigation: Array<{ href: string; label: string; icon: IconName }> = [
 
 export function Shell({ children }: { children: ReactNode }) {
   const router = useRouter();
-  return <Sidebar.Provider className="app-layout" open toggleShortcut={false} reduceMotion
+  return <Sidebar.Provider className="app-layout" defaultOpen toggleShortcut="mod+b" reduceMotion
     navigate={(href) => confirmUnsavedNavigation(() => router.push(href))}>
     <Link href="#main" className="skip-link">跳转到主要内容</Link>
     <Sidebar><SidebarSections /></Sidebar>
@@ -35,11 +35,15 @@ export function Shell({ children }: { children: ReactNode }) {
 
 function WorkspaceToolbar() {
   const { openTask, refresh } = useWorkspace();
+  const { isMobile, isMobileOpen, isOpen } = useSidebar();
+  const toggleLabel = isMobile ? isMobileOpen ? "关闭导航" : "打开导航" : isOpen ? "收起侧栏" : "展开侧栏";
   return <header className="topbar">
     <div className="topbar-inner">
       <Tooltip delay={350}>
-        <Sidebar.Trigger aria-label="打开导航" className="mobile-toggle size-11"><Glyph name="menu" /></Sidebar.Trigger>
-        <Tooltip.Content>打开导航</Tooltip.Content>
+        <Sidebar.Trigger aria-label={toggleLabel} className={`${isMobile ? "mobile-toggle" : "desktop-toggle"} size-11`}>
+          <Glyph name={isMobile ? "menu" : "chevron"} className={!isMobile && isOpen ? "-rotate-180" : "rotate-0"} />
+        </Sidebar.Trigger>
+        <Tooltip.Content>{toggleLabel}</Tooltip.Content>
       </Tooltip>
       <div className="ms-auto flex shrink-0 items-center gap-2">
         <IconButton className="topbar-refresh" icon="refresh" label="刷新工作空间" onPress={() => void refresh()} />
@@ -52,14 +56,17 @@ function WorkspaceToolbar() {
 
 function SidebarSections({ mobile = false }: { mobile?: boolean }) {
   const path = usePathname();
-  const { setMobileOpen } = useSidebar();
+  const { isOpen, setMobileOpen } = useSidebar();
   const { dashboard, logout, notify } = useWorkspace();
   const [confirmLogout, setConfirmLogout] = useState(false);
+  const collapsed = !mobile && !isOpen;
+  const footerGap = collapsed ? "gap-1" : mobile ? "gap-2" : "gap-3";
   const close = () => setMobileOpen(false);
+  const requestLogout = () => setConfirmLogout(true);
 
   return <>
     {mobile && <Sheet.Heading className="sr-only">工作空间导航</Sheet.Heading>}
-    <Sidebar.Header className="flex-row items-center justify-between px-5 pt-6 pb-8">
+    <Sidebar.Header className={`flex-row items-center justify-between px-5 ${mobile ? "py-3" : "pt-6 pb-8"}`}>
       <WorkspaceLink href="/" className="w-fit no-underline hover:no-underline" aria-label="Rubidium 工作概览" onNavigate={close}><Brand /></WorkspaceLink>
       {mobile && <IconButton icon="close" label="关闭导航" onPress={close} />}
     </Sidebar.Header>
@@ -74,14 +81,29 @@ function SidebarSections({ mobile = false }: { mobile?: boolean }) {
         </Sidebar.Menu>
       </Sidebar.Group>
     </Sidebar.Content>
-    <Sidebar.Footer className="gap-3">
-      {dashboard?.displayTimeZone && <p className="flex items-center gap-2 px-3 text-xs text-muted" aria-label={`显示时区：${dashboard.displayTimeZone}`}>
+    <Sidebar.Footer className={`${footerGap}${collapsed ? " sidebar-footer-collapsed" : ""}`}>
+      {!mobile && !collapsed && dashboard?.displayTimeZone && <p className="flex items-center gap-2 px-3 text-xs text-muted" aria-label={`显示时区：${dashboard.displayTimeZone}`}>
         <Glyph name="globe" size={15} />{dashboard.displayTimeZone}
       </p>}
-      <SourceLink className="px-3" />
-      <Button variant="danger-soft" fullWidth className="min-h-11 justify-start gap-2" onPress={() => setConfirmLogout(true)}>
-        <Glyph name="logout" />退出登录
-      </Button>
+      {collapsed ? <>
+        <Tooltip delay={350}>
+          <Link href="https://github.com/Proj-Elements/Rubidium" target="_blank" rel="noopener noreferrer" aria-label="获取 Rubidium 源码" className="sidebar-compact-action flex size-11 items-center justify-center rounded-lg text-muted no-underline hover:bg-default">
+            <Glyph name="link" />
+          </Link>
+          <Tooltip.Content>获取 Rubidium 源码</Tooltip.Content>
+        </Tooltip>
+        <Tooltip delay={350}>
+          <Button isIconOnly variant="danger-soft" aria-label="退出登录" className="sidebar-compact-action size-11" onPress={requestLogout}>
+            <Glyph name="logout" />
+          </Button>
+          <Tooltip.Content>退出登录</Tooltip.Content>
+        </Tooltip>
+      </> : <>
+        <SourceLink className="px-3" />
+        <Button variant="danger-soft" fullWidth className="min-h-11 justify-start gap-2" onPress={requestLogout}>
+          <Glyph name="logout" />退出登录
+        </Button>
+      </>}
     </Sidebar.Footer>
     {confirmLogout && <Confirm title="退出 Rubidium？" confirmLabel="退出登录" onClose={() => setConfirmLogout(false)} onConfirm={() => {
       close();

@@ -65,18 +65,24 @@
   .skip-link { position: fixed; top: -5rem; left: 1rem; z-index: 50; padding: 0.75rem 1rem; border-radius: var(--field-radius); background: var(--surface); box-shadow: var(--surface-shadow); }
   .skip-link:focus { top: 0.75rem; }
   .app-layout { --workspace-sidebar-width: 240px; --workspace-max: 86rem; min-height: 100dvh; background: var(--background); }
+  .app-layout[data-state="collapsed"] { --workspace-sidebar-width: 48px; }
   .sidebar { --sidebar-edge-outline: color-mix(in oklab, var(--foreground) 10%, transparent); }
   .sidebar__menu-item { transition: none; }
   .sidebar__menu-item-content { min-height: 2.75rem; }
   .sidebar__menu-item[data-current="true"] .sidebar__menu-item-content { background: var(--surface); box-shadow: var(--surface-shadow); }
   .sidebar__menu-item[data-current="true"] :is(.sidebar__menu-label, .sidebar__menu-icon) { color: var(--accent); }
-  .mobile-toggle { display: none; }
-  .action-bar:has(.workspace-actions) { inset-inline: 240px 0; bottom: max(1rem, env(safe-area-inset-bottom)); padding-inline: 1rem; }
+  .sidebar-compact-action { width: 2.75rem; min-width: 2.75rem; height: 2.75rem; min-height: 2.75rem; padding: 0; }
+  .sidebar[data-state="collapsed"] .sidebar__footer.sidebar-footer-collapsed { align-items: center; gap: 0.25rem; padding: 0.25rem 0.125rem; }
+  .desktop-toggle, .mobile-toggle { display: none; }
+  .action-bar:has(.workspace-actions) { inset-inline: var(--workspace-sidebar-width) 0; bottom: max(1rem, env(safe-area-inset-bottom)); padding-inline: 1rem; }
   .workspace-actions { max-width: 100%; }
   @media (width < 48rem) {
     .app-layout { --workspace-sidebar-width: 0rem; }
     .mobile-toggle { display: inline-flex; }
     .action-bar:has(.workspace-actions) { inset-inline: 0; }
+  }
+  @media (width >= 48rem) {
+    .desktop-toggle { display: inline-flex; }
   }
   .topbar { position: sticky; top: 0; z-index: 20; background: color-mix(in oklab, var(--background) 92%, transparent); backdrop-filter: blur(14px); }
   .topbar-inner { display: flex; min-height: 4.5rem; align-items: center; justify-content: space-between; gap: 0.75rem; }
