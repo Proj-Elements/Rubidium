@@ -78,8 +78,8 @@ test("mobile overview prioritizes the next reminder and unsaved settings protect
   await expect(page).toHaveURL(/\/settings$/);
   await expect(page.getByRole("button", { name: "关闭导航", exact: true })).toBeHidden();
   await page.setViewportSize({ width: 1280, height: 900 });
-  const endpoint = page.getByLabel("API 服务地址");
-  await endpoint.fill("https://api.day.app/");
+  await page.getByRole("button", { name: "更多通知选项", exact: true }).click();
+  await page.getByLabel("默认通知分组", { exact: true }).fill("Unsaved navigation draft");
   await page.getByRole("treegrid", { name: "主导航" }).getByRole("row", { name: "投递记录", exact: true }).click();
   await expect(page.getByRole("alertdialog")).toBeVisible();
   await page.getByRole("button", { name: "继续编辑" }).click();
@@ -97,7 +97,7 @@ test("mobile overview prioritizes the next reminder and unsaved settings protect
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
   await page.screenshot({ path: test.info().outputPath("mobile-tasks.png"), fullPage: true, animations: "disabled" });
   await page.goto("/settings");
-  await expect(page.getByLabel("API 服务地址")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "通知渠道", exact: true })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
   await page.screenshot({ path: test.info().outputPath("mobile-settings.png"), fullPage: true, animations: "disabled" });
 });
@@ -106,57 +106,64 @@ test("browser Back preserves dirty settings when leaving is rejected", async ({ 
   await login(page);
   await page.getByRole("treegrid", { name: "主导航" }).getByRole("row", { name: "所有提醒", exact: true }).click();
   await page.getByRole("treegrid", { name: "主导航" }).getByRole("row", { name: "推送设置", exact: true }).click();
-  await page.getByLabel("API 服务地址", { exact: true }).fill("https://edited.example");
+  await page.getByRole("button", { name: "更多通知选项", exact: true }).click();
+  await page.getByLabel("默认通知分组", { exact: true }).fill("History draft");
   await page.evaluate(() => history.back());
   await expect(page.getByRole("alertdialog")).toBeVisible();
   await page.getByRole("button", { name: "继续编辑" }).click();
   await expect(page).toHaveURL(/\/settings$/);
-  await expect(page.getByLabel("API 服务地址", { exact: true })).toHaveValue("https://edited.example");
+  await expect(page.getByLabel("默认通知分组", { exact: true })).toHaveValue("History draft");
   await page.evaluate(() => history.back());
   await expect(page.getByRole("alertdialog")).toBeVisible();
   await page.getByRole("button", { name: "离开页面" }).click();
   await expect(page).toHaveURL(/\/tasks$/);
 });
 
-test("settings only poll the active panel and preserve connection drafts in landscape", async ({ page }) => {
+test("settings only poll the active panel and preserve notification preference drafts in landscape", async ({ page }) => {
   test.setTimeout(60_000);
   await page.setViewportSize({ width: 844, height: 390 });
   await login(page);
   const requests: string[] = [];
   page.on("request", (request) => {
     const path = new URL(request.url()).pathname;
-    if (["/api/settings", "/api/devices", "/api/security", "/api/audit"].includes(path) && request.method() === "GET") requests.push(path);
+    if (["/api/settings", "/api/channels", "/api/devices", "/api/security", "/api/audit"].includes(path) && request.method() === "GET") requests.push(path);
   });
 
   await page.goto("/settings");
-  await expect(page.getByLabel("API 服务地址", { exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "通知渠道", exact: true })).toBeVisible();
   const tab = (name: string) => page.getByRole("tab", { name, exact: true });
   const count = (path: string) => requests.filter((requestPath) => requestPath === path).length;
   expect(count("/api/devices")).toBe(0);
+  await expect.poll(() => count("/api/channels")).toBe(1);
+  await expect.poll(() => count("/api/settings")).toBe(1);
   expect(count("/api/security")).toBe(0);
   expect(count("/api/audit")).toBe(0);
 
-  const endpoint = page.getByLabel("API 服务地址", { exact: true });
-  await endpoint.fill("https://draft.example");
-  await tab("更多设备").click();
-  await expect.poll(() => count("/api/devices")).toBe(1);
+  await page.getByRole("button", { name: "更多通知选项" }).click();
+  const group = page.getByLabel("默认通知分组", { exact: true });
+  await group.fill("Landscape Draft");
   await tab("访问安全").click();
   await expect.poll(() => count("/api/security")).toBe(1);
   await tab("记录维护").click();
   await expect.poll(() => count("/api/audit")).toBe(1);
-  await tab("连接配置").click();
-  await expect(endpoint).toHaveValue("https://draft.example");
+  await tab("通知渠道").click();
+  await expect(group).toHaveValue("Landscape Draft");
+  await tab("访问安全").click();
+  await expect.poll(() => count("/api/security")).toBe(2);
 
+  const channelRequests = count("/api/channels");
+  const settingsRequests = count("/api/settings");
   const deviceRequests = count("/api/devices");
-  const securityRequests = count("/api/security");
   const auditRequests = count("/api/audit");
   await page.waitForTimeout(15_500);
+  expect(count("/api/channels")).toBe(channelRequests);
+  expect(count("/api/settings")).toBe(settingsRequests);
   expect(count("/api/devices")).toBe(deviceRequests);
-  expect(count("/api/security")).toBe(securityRequests);
   expect(count("/api/audit")).toBe(auditRequests);
 
-  await tab("更多设备").click();
-  await expect.poll(() => count("/api/devices")).toBe(deviceRequests + 1);
+  await tab("通知渠道").click();
+  await expect.poll(() => count("/api/channels")).toBe(channelRequests + 1);
+  await expect.poll(() => count("/api/settings")).toBe(settingsRequests + 1);
   await tab("记录维护").click();
   await expect.poll(() => count("/api/audit")).toBe(auditRequests + 1);
   await page.screenshot({ path: test.info().outputPath("settings-history-landscape.png"), fullPage: true, animations: "disabled" });
@@ -261,46 +268,40 @@ test("copying an expired cutoff picks a fresh date in the task timezone", async 
   expect((await preview).postDataJSON()).toMatchObject({ timeZone, endDate: expected });
 });
 
-test("a stale settings tab cannot overwrite a newer saved configuration", async ({ page, context }) => {
+test("a stale settings draft cannot overwrite a newer saved configuration", async ({ page }) => {
   await login(page);
   await page.goto("/settings");
   const initial = await (await page.request.get("/api/settings")).json();
-  const other = await context.newPage();
-  await other.route("**/api/settings", async (route) => {
-    if (route.request().method() === "GET") await route.fulfill({ json: initial });
-    else await route.continue();
+  await page.getByRole("button", { name: "更多通知选项", exact: true }).click();
+  await page.getByLabel("默认通知分组", { exact: true }).fill("Older tab edits");
+  const updated = await page.request.put("/api/settings", {
+    data: { ...initial.settings, revision: initial.revision, group: "Latest configuration" },
   });
-  await other.goto("/settings");
-  await other.getByText("更多通知选项", { exact: true }).click();
-  await other.getByLabel("通知分组", { exact: true }).fill("Older tab edits");
-  await page.getByText("更多通知选项", { exact: true }).click();
-  await page.getByLabel("通知分组", { exact: true }).fill("Latest configuration");
-  await page.getByLabel("Device Key", { exact: true }).fill("browser-test-key");
-  await page.getByRole("button", { name: "保存设置", exact: true }).click();
-  await expect(page.getByText("设置已保存。队列中的提醒将使用新配置继续尝试。", { exact: true })).toBeVisible();
-  await other.getByRole("button", { name: "保存设置", exact: true }).click();
-  await expect(other.getByRole("alert").filter({ hasText: "其他页面修改" })).toBeVisible();
-  await expect(other.getByLabel("通知分组", { exact: true })).toHaveValue("Older tab edits");
+  expect(updated.status()).toBe(200);
+  await page.getByRole("button", { name: "保存偏好", exact: true }).click();
+  await expect(page.getByRole("status").filter({ hasText: "设置已在其他页面更新" })).toBeVisible();
+  await expect(page.getByLabel("默认通知分组", { exact: true })).toHaveValue("Older tab edits");
   const actual = await (await page.request.get("/api/settings")).json();
   expect(actual.settings.group).toBe("Latest configuration");
-  expect(actual.settings.deviceKey).toBeUndefined();
-  await other.close();
 });
 
-test("disconnecting clears a typed replacement key before saving", async ({ page }) => {
+test("clearing a configured Bark credential requires an empty replacement field", async ({ page }) => {
   await login(page);
   const before = await (await page.request.get("/api/settings")).json();
   const saved = await page.request.put("/api/settings", { data: { ...before.settings, revision: before.revision, deviceKey: "browser-connected-key" } });
   expect(saved.status()).toBe(200);
   await page.goto("/settings");
+  await page.getByRole("button", { name: "编辑 默认 Bark", exact: true }).click();
   const key = page.getByLabel("Device Key", { exact: true });
   await key.fill("unsaved-key");
-  await page.getByRole("button", { name: "断开设备", exact: true }).click();
-  await page.getByRole("alertdialog").getByRole("button", { name: "断开设备", exact: true }).click();
+  const clear = page.getByRole("button", { name: "清除已保存凭据", exact: true });
+  await expect(clear).toBeDisabled();
+  await key.fill("");
+  await clear.click();
   await expect(key).toHaveValue("");
-  await page.getByRole("button", { name: "保存设置", exact: true }).click();
-  await expect(page.getByRole("status").filter({ hasText: "设备连接已清除" })).toBeVisible();
-  expect((await (await page.request.get("/api/settings")).json()).deviceKeyConfigured).toBe(false);
+  await page.getByRole("button", { name: "保存渠道", exact: true }).click();
+  await expect(page.getByText("未配置密钥", { exact: true })).toBeVisible();
+  expect((await (await page.request.get("/api/channels")).json()).channels[0].credentialConfigured).toBe(false);
 });
 
 test("calendar overflow is visible and overview remains usable on desktop", async ({ page }) => {
@@ -340,7 +341,7 @@ test("settings edits made while saving remain unsaved until the next save", asyn
   await login(page);
   await page.goto("/settings");
   await page.getByText("更多通知选项", { exact: true }).click();
-  const group = page.getByLabel("通知分组", { exact: true });
+  const group = page.getByLabel("默认通知分组", { exact: true });
   await group.fill("Submitted group");
   let release!: () => void;
   let received!: () => void;
@@ -351,16 +352,16 @@ test("settings edits made while saving remain unsaved until the next save", asyn
     await route.continue();
   });
   try {
-    await page.getByRole("button", { name: "保存设置", exact: true }).click();
+    await page.getByRole("button", { name: "保存偏好", exact: true }).click();
     await started;
     await group.fill("Newer local edit");
     release();
-    await expect(page.getByText("设置已保存。队列中的提醒将使用新配置继续尝试。", { exact: true })).toBeVisible();
+    await expect(page.getByText("通知偏好已保存。", { exact: true })).toBeVisible();
     await expect(group).toHaveValue("Newer local edit");
-    await expect(page.getByText("有尚未保存的修改", { exact: true })).toBeVisible();
+    await expect(page.getByRole("button", { name: "保存偏好", exact: true })).toBeEnabled();
     expect((await (await page.request.get("/api/settings")).json()).settings.group).toBe("Submitted group");
-    await page.getByRole("button", { name: "保存设置", exact: true }).click();
-    await expect(page.getByText("修改配置后，记得保存", { exact: true })).toBeVisible();
+    await page.getByRole("button", { name: "保存偏好", exact: true }).click();
+    await expect(page.getByRole("button", { name: "保存偏好", exact: true })).toBeDisabled();
     expect((await (await page.request.get("/api/settings")).json()).settings.group).toBe("Newer local edit");
   } finally { release(); }
 });

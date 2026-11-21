@@ -200,7 +200,7 @@ test("320px settings expose every category and audit identifiers remain accessib
   await enter(page);
   await page.goto("/settings");
   const categories = page.getByRole("tablist", { name: "工作空间设置分类" });
-  for (const name of ["连接配置", "更多设备", "访问安全", "记录维护"]) {
+  for (const name of ["通知渠道", "访问安全", "记录维护"]) {
     const tab = categories.getByRole("tab", { name, exact: true });
     await expect(tab).toBeInViewport();
     await tab.click();
@@ -215,11 +215,12 @@ test("320px settings expose every category and audit identifiers remain accessib
   await contained(page);
   await page.getByRole("button", { name: "关闭", exact: true }).click();
   await page.screenshot({ path: test.info().outputPath("320-settings-history.png"), fullPage: true, animations: "disabled" });
-  await categories.getByRole("tab", { name: "连接配置", exact: true }).click();
-  await page.getByLabel("API 服务地址").fill("https://api.day.app/");
-  await categories.getByRole("tab", { name: "更多设备", exact: true }).click();
-  await categories.getByRole("tab", { name: "连接配置", exact: true }).click();
-  await expect(page.getByLabel("API 服务地址")).toHaveValue("https://api.day.app/");
+  await categories.getByRole("tab", { name: "通知渠道", exact: true }).click();
+  await page.getByRole("button", { name: "更多通知选项" }).click();
+  await page.getByLabel("默认通知分组").fill("Landscape 320 Draft");
+  await categories.getByRole("tab", { name: "访问安全", exact: true }).click();
+  await categories.getByRole("tab", { name: "通知渠道", exact: true }).click();
+  await expect(page.getByLabel("默认通知分组")).toHaveValue("Landscape 320 Draft");
 });
 
 test("touch layouts keep bulk actions reachable and hide selection on completed deliveries", async ({ browser }) => {

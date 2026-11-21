@@ -6,7 +6,7 @@ import { Button, Fieldset, Form, Modal, Popover, Separator, Tooltip } from "@her
 import { parseDate } from "@internationalized/date";
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { DEFAULT_REMINDER_BODY, REMINDER_CONTENT_MAX_BYTES, reminderContentBytes } from "@/lib/contracts";
-import type { Device, RecurrencePreset, Task, TaskInput } from "@/lib/types";
+import type { Channel, RecurrencePreset, Task, TaskInput } from "@/lib/types";
 import { api, clientPresetCron, createIdempotencyKey, duplicateStart, errorMessage, localDateValue, localInputValue, PRESET_LABELS, toOffsetDateTime } from "@/lib/ui";
 import { useTime } from "./use-time";
 import { CalendarField } from "./calendar-field";
@@ -22,7 +22,7 @@ export function TaskEditor({ task, duplicate = false, onClose }: { task?: Task; 
   const [persisted, setPersisted] = useState<Task | undefined>(duplicate ? undefined : task);
   const editing = Boolean(persisted);
   const { refresh, notify, dashboard } = useWorkspace();
-  const { data: devices } = useResource<{ devices: Device[] }>("/api/devices", 0);
+  const { data: channels } = useResource<{ channels: Channel[] }>("/api/channels", 0);
   const [name, setName] = useState(task ? duplicate ? `${task.name.slice(0, 76)}（副本）` : task.name : "");
   const [description, setDescription] = useState(task?.description ?? "");
   const [timeZone, setTimeZone] = useState(task?.timeZone ?? displayTimeZone);
@@ -170,8 +170,10 @@ export function TaskEditor({ task, duplicate = false, onClose }: { task?: Task; 
             </Fieldset>
 
             <div className="grid gap-3">
-              <Pick label="投递设备" value={deviceId} onChange={setDeviceId} options={(devices?.devices ?? [{ id: "default", name: "默认设备" }]).map((device) => ({ value: device.id, label: device.name }))} />
-              {dashboard && !dashboard.deviceKeyConfigured && deviceId === "default" && <Notice kind="info" action={<WorkspaceLink href="/settings" className="workspace-link">前往设置</WorkspaceLink>}>默认设备未连接。</Notice>}
+              <Pick label="通知渠道" value={deviceId} onChange={setDeviceId} options={(channels?.channels ?? [{ id: "default", name: "默认 Bark", type: "bark" }]).map((channel) => ({
+                value: channel.id, label: `${channel.name} · ${channel.type === "ntfy" ? "Ntfy" : "Bark"}`,
+              }))} />
+              {dashboard && !dashboard.deviceKeyConfigured && deviceId === "default" && <Notice kind="info" action={<WorkspaceLink href="/settings" className="workspace-link">前往设置</WorkspaceLink>}>默认渠道未配置 Device Key。</Notice>}
             </div>
 
             <Details title="时区、节假日与通知策略">
