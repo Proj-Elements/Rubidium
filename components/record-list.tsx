@@ -2,6 +2,7 @@
 
 import { Chip, ListBox, SearchField, Tooltip } from "@heroui/react";
 import { ActionBar, InlineSelect } from "@heroui-pro/react";
+import { MotionConfig } from "motion/react";
 import { useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { IconButton } from "./primitives";
@@ -92,9 +93,11 @@ export function RecordList({ label, searchLabel, filters, filter, query, onFilte
 }
 
 export function BulkActions({ count, disabled, onClear, children }: { count: number; disabled?: boolean; onClear: () => void; children: ReactNode }) {
-  return <ActionBar isOpen={count > 0} aria-label="批量操作" className="workspace-actions">
-    <ActionBar.Prefix><span role="status" className="whitespace-nowrap text-sm font-medium tabular-nums">已选 {count} 项</span></ActionBar.Prefix>
-    <ActionBar.Content>{children}</ActionBar.Content>
-    <ActionBar.Suffix><IconButton icon="close" label="取消选择" size="sm" isDisabled={disabled} onPress={onClear} /></ActionBar.Suffix>
-  </ActionBar>;
+  return <MotionConfig reducedMotion="user">
+    <ActionBar isOpen={count > 0} aria-label="批量操作" className="workspace-actions">
+      <ActionBar.Prefix><span role="status" className="whitespace-nowrap text-sm font-medium tabular-nums">已选 {count} 项</span></ActionBar.Prefix>
+      <ActionBar.Content>{children}</ActionBar.Content>
+      <ActionBar.Suffix><IconButton icon="close" label="取消选择" size="sm" isDisabled={disabled} onPress={onClear} /></ActionBar.Suffix>
+    </ActionBar>
+  </MotionConfig>;
 }

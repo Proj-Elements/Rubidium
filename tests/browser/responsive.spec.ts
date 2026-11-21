@@ -145,6 +145,7 @@ test("touch layouts keep bulk actions reachable and hide selection on completed 
     isMobile: true,
   });
   const page = await context.newPage();
+  await page.emulateMedia({ reducedMotion: "reduce" });
   const stamp = "2035-01-01T01:00:00Z";
   const deliveries = [
     { id: "pending-landscape", taskName: "等待中的提醒", status: "pending", manualOnly: true, deliveredAt: null },
@@ -157,10 +158,16 @@ test("touch layouts keep bulk actions reachable and hide selection on completed 
 
   try {
     await enter(page);
-    const taskName = "横屏批量操作检查";
+    const taskName = `横屏批量操作检查-${test.info().project.name}`;
     expect((await page.request.post("/api/tasks", { data: {
       name: taskName, startsAt: "2035-01-01T09:00:00+08:00", preset: "daily", cron: "0 9 * * *", repeatCount: 5,
     } })).status()).toBe(201);
+    await page.route("**/api/tasks?*", async (route) => {
+      const response = await route.fetch();
+      const payload = await response.json() as { tasks: Array<{ name: string }>; total: number };
+      const tasks = payload.tasks.filter((task) => task.name === taskName);
+      await route.fulfill({ response, json: { ...payload, tasks, total: tasks.length } });
+    });
 
     for (const viewport of [
       { width: 844, height: 390 },
@@ -176,6 +183,10 @@ test("touch layouts keep bulk actions reachable and hide selection on completed 
       const bar = page.getByRole("toolbar", { name: "批量操作" });
       await expect(bar).toBeVisible();
       await expect(bar.getByRole("status")).toHaveText("已选 1 项");
+      if (viewport.width === 844) {
+        const transform = await page.locator('.action-bar[data-slot="action-bar"]').evaluate((element) => getComputedStyle(element).transform);
+        expect(transform).toBe("none");
+      }
       await page.screenshot({ path: test.info().outputPath(`task-actions-${viewport.width}x${viewport.height}.png`), animations: "disabled" });
       await expect(bar.getByRole("button", { name: "归档", exact: true })).toHaveClass(/button--danger-soft/);
       const bounds = await bar.boundingBox();
@@ -219,11 +230,40 @@ test("touch layouts keep bulk actions reachable and hide selection on completed 
       await expect(bar).toBeHidden();
     }
 
+    await page.setViewportSize({ width: 844, height: 390 });
+    await page.goto("/tasks");
+    const selectTasks = page.getByRole("checkbox", { name: "选择本页提醒" });
+    await selectTasks.locator("xpath=ancestor::label[1]").click();
+    const busyBar = page.getByRole("toolbar", { name: "批量操作" });
+    let releaseBulk!: () => void;
+    const pendingBulk = new Promise<void>((resolve) => { releaseBulk = resolve; });
+    await page.route("**/api/tasks", async (route) => {
+      if (route.request().method() === "PATCH") {
+        await pendingBulk;
+        await route.fulfill({ json: { results: [{ success: true }] } });
+      } else await route.continue();
+    });
+    await busyBar.getByRole("button", { name: "暂停", exact: true }).click();
+    try {
+      await expect(busyBar.getByRole("button", { name: "暂停", exact: true })).toBeDisabled();
+      await expect(busyBar.getByRole("button", { name: "取消选择", exact: true })).toBeDisabled();
+      const busyTargets = await busyBar.locator("button").evaluateAll((buttons) => buttons.map((button) => {
+        const { width, height } = button.getBoundingClientRect();
+        return { width, height };
+      }));
+      expect(busyTargets.every(({ width, height }) => width >= 44 && height >= 44)).toBe(true);
+    } finally {
+      releaseBulk();
+    }
+    await expect(busyBar).toBeHidden();
+
     await page.route("**/api/deliveries?**", (route) => route.fulfill({ json: { deliveries, total: 3, page: 1, pageSize: 12 } }));
     for (const viewport of [
       { width: 844, height: 390 },
+      { width: 667, height: 450 },
       { width: 568, height: 320 },
       { width: 390, height: 844 },
+      { width: 320, height: 568 },
       { width: 1440, height: 900 },
     ]) {
       await page.setViewportSize(viewport);
@@ -239,7 +279,7 @@ test("touch layouts keep bulk actions reachable and hide selection on completed 
         ? page.getByRole("row").filter({ hasText: "已经取消的提醒" })
         : list.locator(".list-view__item").filter({ hasText: "已经取消的提醒" });
 
-      await page.screenshot({ path: test.info().outputPath(`landscape-${viewport.width}x${viewport.height}-before.png`), animations: "disabled" });
+      await page.screenshot({ path: test.info().outputPath(`landscape-${viewport.width}x${viewport.height}-before.png`), fullPage: true, animations: "disabled" });
       expect(await page.evaluate(() => matchMedia("(pointer: coarse)").matches)).toBe(true);
       if (isGrid) {
         expect.soft(await sent.getByRole("checkbox").count()).toBe(0);
@@ -247,10 +287,16 @@ test("touch layouts keep bulk actions reachable and hide selection on completed 
       } else {
         await expect.soft(sent.locator(".list-view__selection-cell")).toBeHidden();
         await expect.soft(cancelled.locator(".list-view__selection-cell")).toBeHidden();
+        expect.soft(await sent.getByRole("checkbox").count()).toBe(0);
+        expect.soft(await cancelled.getByRole("checkbox").count()).toBe(0);
         const pendingTitle = await list.locator(".list-view__item").filter({ hasText: "等待中的提醒" }).locator(".list-view__title").boundingBox();
         const sentTitle = await sent.locator(".list-view__title").boundingBox();
         expect.soft(Math.abs(pendingTitle!.x - sentTitle!.x)).toBeLessThanOrEqual(1);
       }
+
+      if (isGrid) await sent.locator("td").first().click();
+      else await sent.locator(".list-view__title").click();
+      await expect(page.getByRole("toolbar", { name: "批量操作" })).toBeHidden();
 
       const selectDeliveries = page.getByRole("checkbox", { name: "选择本页待投递消息" });
       await selectDeliveries.locator("xpath=ancestor::label[1]").click();
@@ -266,7 +312,7 @@ test("touch layouts keep bulk actions reachable and hide selection on completed 
         return { width, height };
       }));
       expect.soft(targets.every(({ width, height }) => width >= 44 && height >= 44)).toBe(true);
-      await page.screenshot({ path: test.info().outputPath(`landscape-${viewport.width}x${viewport.height}-selected.png`), animations: "disabled" });
+      await page.screenshot({ path: test.info().outputPath(`landscape-${viewport.width}x${viewport.height}-selected.png`), fullPage: true, animations: "disabled" });
       await page.getByRole("button", { name: "取消选择", exact: true }).click();
       await expect(bar).toBeHidden();
     }
