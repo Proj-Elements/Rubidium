@@ -101,7 +101,7 @@ jobs:
               --label "org.opencontainers.image.source=https://github.com/$GITHUB_REPOSITORY" \
               --label "org.opencontainers.image.revision=$GITHUB_SHA" \
               --label "org.opencontainers.image.version=$VERSION" \
-              --label "org.opencontainers.image.licenses=MIT" .
+              --label "org.opencontainers.image.licenses=AGPL-3.0-only" .
             BARKER_SMOKE_PLATFORM="linux/$architecture" node scripts/container-smoke.mjs "rubidium:candidate-$architecture"
           done
       - name: Recheck registry before publication
@@ -131,7 +131,7 @@ jobs:
             --annotation "index:org.opencontainers.image.source=https://github.com/$GITHUB_REPOSITORY" \
             --annotation "index:org.opencontainers.image.revision=$GITHUB_SHA" \
             --annotation "index:org.opencontainers.image.version=$VERSION" \
-            --annotation "index:org.opencontainers.image.licenses=MIT" \
+            --annotation "index:org.opencontainers.image.licenses=AGPL-3.0-only" \
             "${sources[@]}"
           digest="$(docker buildx imagetools inspect "$IMAGE:$VERSION" --format '{{json .Manifest.Digest}}' |
             jq -er 'select(type == "string" and test("^sha256:[0-9a-f]{64}$"))')"

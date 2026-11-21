@@ -44,7 +44,7 @@
 - [x] 凭据有效天数支持无限期；统一约定 `0` 为永久有效，正整数仍为 1–365 天，提供 HeroUI Tooltip，并在鉴权、过期清理、有效凭据列表、README 与 API 输入校验中保持同一语义。通过 API 专项 17 项、类型检查、定向 ESLint、生产构建和 Chromium/WebKit 横屏浏览器测试（2 项），验证永久 Bearer 凭据有效、到期标记显示及触屏 Tooltip。
 - [x] 除 HTTP API 外提供基于官方 TypeScript SDK 的无状态 Streamable HTTP MCP（`POST /api/mcp`）；采用 Bearer API 凭据，读凭据只能调用只读工具，写凭据可调用经现有 HTTP API handler 校验的写工具；统一暴露结构化成功与错误状态，限流请求体至 64 KiB，不返回 Device Key 或凭据。通过 MCP 协议与权限专项 3 项、HTTP API 回归 17 项、类型检查和定向 ESLint。
 - [x] 新增 `docs/api-mcp.md`，覆盖全部 HTTP 路由与 12 个 MCP 工具的输入、响应、权限、常见错误、示例及版本兼容约束；明确 Bearer 与浏览器会话权限边界、单条任务读取方式和导入导出暂不开放 API/MCP。
-- [ ] 将项目许可证改为 AGPL-3.0，核对许可证文件、package 元数据、README 和依赖声明。
+- [~] 将项目许可证改为 AGPL-3.0-only：替换为 GNU 官方完整版本文本、同步 package 元数据与 OCI 镜像标签、将许可证及第三方声明复制进运行镜像；增加第三方依赖许可证清单并标明 HeroUI Pro 独立许可。发布专项 5 项、许可证文本/元数据断言、ESLint 通过；README 许可说明随 README 专项完成，且须在最终镜像检查 `heroui-pro` CLI 未被分发。
 - [ ] 补全 README：初始化、访问密码设置与重置、时区、数据与加密导入导出、API/MCP、Docker Compose、备份恢复、升级和故障排查；不在 README 或示例中放真实凭据。
 
 ## 仓库与发布门槛

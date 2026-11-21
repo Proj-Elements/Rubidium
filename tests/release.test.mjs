@@ -55,6 +55,10 @@ test("release and CI workflow YAML parse with the expected publication gates", (
   assert.match(release.jobs.verify.steps.find((step) => step.name === "Verify version syntax and package agreement").run, /git merge-base --is-ancestor/);
   assert.equal(ci.concurrency["cancel-in-progress"], "${{ github.event_name == 'pull_request' }}");
   const steps = release.jobs.image.steps;
+  assert.equal(JSON.parse(readFileSync("package.json", "utf8")).license, "AGPL-3.0-only");
+  assert.match(steps.find((step) => step.name === "Build and smoke each candidate platform").run, /org\.opencontainers\.image\.licenses=AGPL-3\.0-only/);
+  assert.match(steps.find((step) => step.id === "publish").run, /org\.opencontainers\.image\.licenses=AGPL-3\.0-only/);
+  assert.match(readFileSync("Dockerfile", "utf8"), /\/app\/LICENSE \/app\/THIRD_PARTY_NOTICES\.md/);
   assert.equal(release.concurrency, undefined);
   assert.deepEqual(release.jobs.image.concurrency, { group: "release-publication", "cancel-in-progress": false });
   assert.ok(steps.findIndex((step) => step.name === "Promote tested digest to stable channels") > steps.findIndex((step) => step.name === "Pull and verify published digest on each platform"));
