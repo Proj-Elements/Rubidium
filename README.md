@@ -12,10 +12,17 @@
 
 所有列表、统计和排期都来自服务端数据，没有内置演示任务。尚未配置 Bark 时也可以创建提醒，到期消息会持久保存在队列中。
 
+## 首次部署与时区
+
+- 首次访问会进入初始化页，创建 16–300 个字符的访问密码并确认密码。密码以 scrypt 哈希保存在 SQLite，不写入启动日志；以后使用同一密码登录。也可在首次启动前通过 `BARKER_PASSWORD` 预设访问密码并跳过初始化。
+- 初始化页会预选浏览器当前的 IANA 时区，可以搜索并改选其他时区。之后可在「设置」更改全局显示时区；新提醒默认使用全局时区，每个提醒也可以单独指定时区。日期和重复时间按该提醒自己的时区执行。
+- 若在浏览器或主机之间切换时区，请分别检查「设置」里的显示时区和提醒编辑器里的任务时区；它们控制不同的显示/排期行为。
+- 外观设置支持浅色、深色和跟随系统。
+
 ## 排期规则
 
 - 每个任务使用一个有效 IANA 时区，默认 `Asia/Shanghai`。预设周期会按该任务时区的墙上时间生成五段 cron。
-- 概览、投递记录和今日统计统一按北京时间展示；任务本身仍按各自时区执行。
+- 概览、投递记录、今日统计与侧栏时间使用「设置」中选定的显示时区；任务本身仍按各自时区执行。
 - 开始时间是最早允许执行的分钟。新建任务时已经过去的排期不会补发。
 - 每月预设沿用相同日历日；29–31 日在不存在的月份跳过。
 - 次数指累计排期次数，包含已入队、已取消或已过期的排期。失败重试不额外消耗次数。
@@ -54,6 +61,16 @@ pending -> sending（2 分钟租约）-> sent
 - 新建任务可带 `Idempotency-Key: <16–128 位 A-Z/a-z/0-9/_/->`。相同键和相同内容会返回同一任务，不同内容返回 `409`。
 - API 请求体上限为 64 KiB；`POST`、`PUT`、`PATCH` 只接受同源 `application/json`，所有写请求都会拒绝跨站浏览器来源。
 - API 处理函数中的错误统一返回 JSON；数据库或认证存储故障返回脱敏后的 500。启动配置或数据库迁移失败时，服务拒绝启动，健康检查不会返回成功。
+- 会话与 API 凭据可以在「设置 → 访问安全」查看和撤销。凭据原文仅在创建时显示一次；`read` 不能写入，`write` 同时允许读取。永久凭据不会自动过期，应在不再使用时撤销。
+- API/MCP 接口、字段、权限、错误码和协议版本详见 [docs/api-mcp.md](docs/api-mcp.md)。MCP 地址为 `/api/mcp`，使用 Streamable HTTP 和 Bearer API 凭据；它不接受浏览器 Cookie。
+
+## 加密数据导入与导出
+
+在「设置 → 记录维护 → 数据导入与导出」创建加密文件或导入已有文件。导出密码须为 12–200 个字符；导入时必须提供相同密码。密码不保存在服务器，遗失后不能恢复导出文件。
+
+导出使用 scrypt 派生密钥与 AES-256-GCM 加密，快照压缩后最多 40 MiB。文件包含提醒、投递历史、设备和通知设置，但不含访问密码哈希、活动会话、API 凭据或运行期调度状态。把文件和加密密码分开保管，不要将两者放在同一备份位置。
+
+导入会替换当前提醒、投递历史、设备和通知设置，且需二次确认；当前访问密码、活动会话及 API 凭据保留。错误密码、篡改或不兼容文件不会修改现有数据。导入前仍建议另外创建管理员备份。该工作流只在网页中提供，目前没有对应 HTTP API 或 MCP 工具。
 
 ## Docker 运行
 
@@ -76,11 +93,15 @@ docker compose logs -f rubidium
 
 Compose 从当前代码构建 `rubidium:local`，服务和容器名为 `rubidium`。默认只绑定 `127.0.0.1`；跨设备访问时设置 `BARKER_BIND_ADDR`，并建议放在 HTTPS 反向代理后。`.env` 在运行时传入容器，不进入镜像。Compose 继续使用历史命名卷 `barker-data`，与仓库中的 `data/` 不同；保留该卷名是为了让现有部署升级后继续挂载原数据。迁移已有本地实例时，先按「备份与恢复」创建快照，并在首次启动容器前恢复到该卷。不要先用空数据卷启动新实例。
 
+正常启动后首次访问 `http://localhost:3000` 创建访问密码。预设 `BARKER_PASSWORD` 时应在首次访问前准备好该值；清空环境变量不会自动重置已经创建的密码。
+
 忘记访问密码时，可在运行中的容器内安全重置；密码交互输入时不回显，不会删除任务、队列或设置，会撤销所有会话和 API 凭据：
 
 ```bash
 docker compose exec -it rubidium node /app/scripts/password-reset.mjs
 ```
+
+该命令需要真实交互终端，输入两次新密码（16–300 个字符）。若设置了 `BARKER_PASSWORD`，重置结果与当时的环境变量绑定；之后更改该环境变量会切换回新的环境密码配置。API token 和旧会话会立即失效。
 
 从旧版 Compose 升级时，旧容器名为 `barker`。首次切换前移除旧容器（不会删除 `barker-data` 卷），再启动新服务：
 
@@ -113,6 +134,19 @@ docker compose up -d --build
 ```
 
 `docker compose down -v` 会删除任务、队列、配置和密钥，除非明确希望清空数据，否则不要使用。
+
+正式发布后，多架构镜像按 SemVer 推送到 `ghcr.io/proj-elements/rubidium`。例如拉取指定版本：
+
+```bash
+docker pull ghcr.io/proj-elements/rubidium:v1.0.0
+docker run -d --init --name rubidium \
+  --stop-timeout 30 \
+  -p 127.0.0.1:3000:3000 \
+  -v barker-data:/app/data \
+  ghcr.io/proj-elements/rubidium:v1.0.0
+```
+
+不要把 `:latest` 当作可复现版本；生产部署应固定明确版本或镜像摘要。若 GHCR 镜像尚未随对应 Tag 发布，先使用上面的 Compose 本地构建方式。
 
 ## 环境变量
 
@@ -183,11 +217,48 @@ pnpm data:restore /srv/rubidium/data-restored /secure/backups/rubidium-20261112
 
 备份目录必须不存在；命令创建权限为 `0700` 的目录和 `0600` 的文件，并生成包含 SHA-256 校验和的 `manifest.json`。恢复同样拒绝覆盖任何已有目录，会验证完整性、外键和 schema 版本，并清除恢复副本中的会话与运行期调度状态。
 
+Compose 使用命名卷，宿主机上的 `./data` 与容器数据不是同一目录。使用 Compose 时，可通过容器内备份命令创建快照，再复制到受限的宿主机目录：
+
+```bash
+mkdir -p /secure/backups
+docker compose exec -u 0 rubidium node /app/scripts/data-tools.mjs backup /tmp/rubidium-backup-20261121
+docker cp rubidium:/tmp/rubidium-backup-20261121 /secure/backups/
+test -f /secure/backups/rubidium-backup-20261121/manifest.json
+docker compose exec -u 0 rubidium rm -r /tmp/rubidium-backup-20261121
+```
+
+Compose 恢复到同一卷中的新目录，不覆盖当前数据。先停止服务，将快照目录按只读方式挂入一次性容器；恢复目标必须不存在：
+
+```bash
+docker compose stop rubidium
+docker compose run --rm --no-deps --user 0 \
+  -v /secure/backups:/backups:ro \
+  --entrypoint node rubidium \
+  /app/scripts/data-tools.mjs restore \
+  /app/data/restore-20261121 /backups/rubidium-backup-20261121
+docker compose run --rm --no-deps --user 0 \
+  --entrypoint chown rubidium -R 1001:1001 /app/data/restore-20261121
+```
+
+确认恢复命令成功后，将 `.env` 中的 `BARKER_DATA_DIR` 设为 `/app/data/restore-20261121`，再运行 `docker compose up -d rubidium`。旧数据仍留在原卷的 `/app/data`，可在核对新实例前用于回退；不要运行 `docker compose down -v`。`/secure/backups` 必须替换为实际绝对路径，快照包含敏感凭据材料，需限制访问。
+
+这是管理员级原始快照，不等同于网页里的加密导出：快照目录可能包含访问密码兼容文件、会话签名密钥和明文 Bark Device Key。应写入受限权限的本地磁盘或加密存储，限制访问，并在需要时对备份介质本身加密。
+
 先从旧实例停机，再把 `BARKER_DATA_DIR` 指向恢复目录并启动。没有既有访问凭据且未设置 `BARKER_PASSWORD` 时，服务会进入初始化页面；缺少会话签名密钥时会生成新密钥，既有会话随之失效。
 
 数据目录包含 `barker.sqlite`、WAL/SHM、`session-secret.txt`；升级中的旧安装还可能保留 `access-password.txt`。Device Key 保存在 SQLite 中，**没有静态加密**，数据目录和备份都应按秘密材料保护。不要把 SQLite 放在不支持文件锁和可靠写入的网络文件系统上，也不要让多个实例共同挂载同一数据目录。
 
 升级时自动执行事务式增量迁移，保留旧版任务和投递历史，并补齐旧版暂停任务的排期边界。升级前仍应先备份；升级后不要用旧版本继续写新数据库。
+
+升级建议：
+
+1. 使用 `pnpm data:backup` 创建一份新快照，并确认 `manifest.json` 存在。
+2. 拉取或检出目标版本。源码构建需提供有效 `HEROUI_KEY`；直接使用 GHCR 镜像则无需该构建密钥。
+3. 保持原有 `barker-data` 命名卷与 `.env`，仅重建/更新容器，不要执行 `docker compose down -v`。
+4. 检查 `docker compose ps`、`docker compose logs --tail=100 rubidium` 和 `/api/health`。
+5. 确认提醒、排期和设备设置正常后，再保留旧镜像或清理空间。
+
+回滚前先停止新版本。数据库迁移可能改变 schema；旧版本不能在新版本已写入数据库后继续运行。需要回滚数据时，使用升级前独立快照恢复到一个新的数据目录，再切回旧版本。
 
 ## 发布与 CI
 
@@ -241,8 +312,20 @@ pnpm ui:setup
 docker build --secret id=HEROUI_KEY,env=HEROUI_KEY -t rubidium:local .
 ```
 
-不要将访问码写入 Dockerfile、构建参数或版本库。生产运行镜像无需此访问码。HeroUI Pro 依赖按其商业许可使用；下方 MIT 许可适用于 Rubidium 自身代码。
+不要将访问码写入 Dockerfile、构建参数或版本库。生产运行镜像无需此访问码。HeroUI Pro 依赖按其独立商业许可使用；该许可与 Rubidium 自身的 AGPL-3.0-only 许可相互独立。
 
 ## License
 
-MIT © MournInk
+Rubidium 自身源代码采用 [GNU Affero General Public License v3.0 only](LICENSE)。远程交互用户可通过应用登录页或导航侧栏的「获取 Rubidium 源码」链接访问对应源码。
+
+第三方组件保留各自原有许可，不因 Rubidium 的 AGPL 声明而改变；请同时阅读 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。`@heroui-pro/react` 使用 HeroUI Pro 独立许可，构建/使用它需要有效的 Pro 许可；该许可不属于 AGPL。CI 与本地源码构建使用的 `HEROUI_KEY` 只能作为密钥注入，不能写入源码或镜像。
+
+## 故障排查
+
+- **无法登录或忘记密码**：不要查容器日志找密码。先启动服务容器，再使用上方交互式重置命令；该操作不会删除任务和设置，但会撤销所有会话及 API 凭据。
+- **健康检查返回 503**：查看 `docker compose ps` 和 `docker compose logs --tail=100 rubidium`。确认没有设置 `BARKER_DISABLE_SCHEDULER=1`、`/app/data` 可写，且数据库没有被其他进程占用。
+- **首次构建失败并提示 HeroUI Pro 缺失**：确认已设置有效的 `HEROUI_KEY` 环境变量后重新运行 `docker compose up -d --build`；不要把 key 放在 `--build-arg`、Dockerfile 或普通构建日志中。
+- **提醒没有投递**：检查设备 Endpoint/Device Key、调度器健康和投递记录中的脱敏错误；使用设置页的测试推送确认 Bark 连通性。`sent` 仅表示 Bark API 确认接收，不保证设备已展示通知。
+- **时间看起来偏移**：确认全局「显示时区」和单条提醒的任务时区。重复周期按任务时区计算，列表与统计按全局显示时区格式化。
+- **备份/恢复拒绝目标目录**：这是防覆盖保护。为每次操作选择一个不存在的新目录，并确认备份目录不在源数据目录内部。
+- **服务启动失败或 SQLite 错误**：停止所有共享该数据目录的进程，先复制并妥善保护数据，再检查磁盘空间、目录写权限和文件系统锁支持；不要删除数据库、WAL/SHM 或密钥文件尝试“修复”。

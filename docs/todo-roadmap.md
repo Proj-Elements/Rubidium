@@ -45,7 +45,7 @@
 - [x] 除 HTTP API 外提供基于官方 TypeScript SDK 的无状态 Streamable HTTP MCP（`POST /api/mcp`）；采用 Bearer API 凭据，读凭据只能调用只读工具，写凭据可调用经现有 HTTP API handler 校验的写工具；统一暴露结构化成功与错误状态，限流请求体至 64 KiB，不返回 Device Key 或凭据。通过 MCP 协议与权限专项 3 项、HTTP API 回归 17 项、类型检查和定向 ESLint。
 - [x] 新增 `docs/api-mcp.md`，覆盖全部 HTTP 路由与 12 个 MCP 工具的输入、响应、权限、常见错误、示例及版本兼容约束；明确 Bearer 与浏览器会话权限边界、单条任务读取方式和导入导出暂不开放 API/MCP。
 - [~] 将项目许可证改为 AGPL-3.0-only：替换为 GNU 官方完整版本文本、同步 package 元数据与 OCI 镜像标签、将许可证及第三方声明复制进运行镜像；增加第三方依赖许可证清单并标明 HeroUI Pro 独立许可。在登录/初始化页和桌面/移动导航提供 GitHub 源码链接，Chromium/WebKit 60 项视觉回归通过；发布专项 5 项及许可证文本/元数据断言通过。README 许可说明随 README 专项完成，且须在最终镜像检查 `heroui-pro` CLI 未被分发。
-- [ ] 补全 README：初始化、访问密码设置与重置、时区、数据与加密导入导出、API/MCP、Docker Compose、备份恢复、升级和故障排查；不在 README 或示例中放真实凭据。
+- [x] 补全 README：初始化、访问密码设置与重置、时区、数据与加密导入导出、API/MCP、Docker Compose、命名卷备份恢复、升级和故障排查；不在 README 或示例中放真实凭据。Compose 可指定数据目录以恢复到现有命名卷的新子目录；修正旧 MIT 许可文案和误导性的密码重置排障命令。
 
 ## 仓库与发布门槛
 
