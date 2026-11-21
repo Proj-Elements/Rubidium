@@ -123,7 +123,7 @@ export default function TasksPage() {
       <RecordList label="提醒状态" searchLabel="搜索提醒" filters={filters} filter={filter} query={query} onFilter={setFilter} onSearch={setQuery}>
         {error && <Notice action={<Button variant="ghost" onPress={() => void refresh()}>重试</Button>}>{error}</Notice>}
         {!data ? !error && <Loading>正在读取提醒</Loading> : !data.tasks.length ? <Card>
-          <Empty title={filtered ? "没有匹配的提醒" : "暂无提醒"} description={filtered ? "试试其他关键词，或切换提醒状态。" : "创建提醒后，可以在这里管理排期。"}
+          <Empty title={filtered ? "没有匹配的提醒" : "暂无提醒"}
             icon={filtered ? "search" : "calendar"} action={filtered ? <Button variant="outline" onPress={clearFilters}>清除筛选</Button> : <Button onPress={() => openTask()}>创建提醒</Button>} />
         </Card> : <>
           <DataGrid aria-label="提醒列表" className="hidden @min-[54rem]/records:block" data={data.tasks} columns={columns} getRowId={(task) => task.id}
@@ -149,7 +149,6 @@ export default function TasksPage() {
           <Pagination page={data.page} total={data.total} pageSize={PAGE_SIZE} onChange={setPage} />
         </>}
       </RecordList>
-      <p className="flex items-start gap-2 text-xs leading-relaxed text-muted"><Glyph name="shield" size={16} className="shrink-0 text-accent" />暂停和归档只停止后续排期，已排队消息仍会投递。</p>
       <BulkActions count={selectedTasks.length} disabled={Boolean(busy)} onClear={() => setSelected([])}>
         <Button size="sm" variant="ghost" isDisabled={!canPause || Boolean(busy)} onPress={() => void bulk("paused")}>暂停</Button>
         <Button size="sm" variant="ghost" isDisabled={!canResume || Boolean(busy)} onPress={() => void bulk("active")}>恢复</Button>

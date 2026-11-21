@@ -72,13 +72,13 @@ export function DeviceManager() {
 
   return <div className="grid items-start gap-5 @min-[52rem]/settings:grid-cols-2">
     <Card className="min-w-0 gap-5 p-5 sm:p-6">
-      <CardHeading title={form.id ? "编辑设备" : "添加设备"} description="设备可独立配置 Bark 服务地址和密钥。" />
+      <CardHeading title={form.id ? "编辑设备" : "添加设备"} />
       <Form onSubmit={save}>
         <Fieldset className="min-w-0 gap-4" disabled={busy !== null}>
           <Fieldset.Group>
             <Field ref={nameInput} label="设备名称" value={form.name} onChange={(event) => update("name", event.target.value)} maxLength={80} required />
             <Field label="设备服务地址" value={form.endpoint} onChange={(event) => update("endpoint", event.target.value)} type="url" maxLength={300} required />
-            <Field label="设备密钥" value={form.deviceKey} onChange={(event) => update("deviceKey", event.target.value)} type="password" autoComplete="new-password" maxLength={300} required={!form.id} hint={form.id ? "服务地址不变时，留空保留已有密钥。" : "密钥只在服务端保存，不会回显。"} />
+            <Field label="设备密钥" value={form.deviceKey} onChange={(event) => update("deviceKey", event.target.value)} type="password" autoComplete="new-password" maxLength={300} required={!form.id} placeholder={form.id ? "留空以保留当前密钥" : undefined} />
           </Fieldset.Group>
           {feedback && <Notice kind={feedback.kind}>{feedback.message}</Notice>}
           <Fieldset.Actions className="justify-end">
@@ -89,7 +89,7 @@ export function DeviceManager() {
       </Form>
     </Card>
     <Card className="min-w-0 gap-4 p-5 sm:p-6">
-      <CardHeading title="其他 Bark 设备" description="为提醒选择设备时，默认设备和这里的设备均可使用。" />
+      <CardHeading title="其他 Bark 设备" />
       {error && <Notice action={<Button variant="ghost" onPress={() => void refresh()}>重试</Button>}>{error}</Notice>}
       {devices.length ? <ItemCardGroup variant="transparent" role="list" aria-label="其他 Bark 设备">
         {devices.map((device) => <ItemCard key={device.id} role="listitem" variant="transparent" className="flex-wrap px-0">
@@ -102,7 +102,7 @@ export function DeviceManager() {
           <IconButton icon="trash" label={`删除 ${device.name}`} variant="danger-soft" isDisabled={busy !== null} onPress={() => setConfirmation({ kind: "delete", device })} />
           </ItemCard.Action>
         </ItemCard>)}
-      </ItemCardGroup> : data ? <Empty title="还没有其他设备" description="添加后，可在编辑提醒时选择推送到哪台设备。" /> : !error && <Loading>正在读取设备</Loading>}
+      </ItemCardGroup> : data ? <Empty title="还没有其他设备" /> : !error && <Loading>正在读取设备</Loading>}
     </Card>
     {confirmation?.kind === "edit" && <Confirm title="放弃当前设备的修改？" confirmLabel="放弃并编辑" onClose={() => setConfirmation(null)} onConfirm={() => edit(confirmation.device)}>
       <p>当前草稿不会保存，将改为编辑「{confirmation.device.name}」。</p>

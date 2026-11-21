@@ -25,7 +25,7 @@ export function AgendaDetails({ date, onClose }: { date: string | null; onClose:
               <strong className="min-w-0 break-words">{item.name}</strong><time dateTime={item.occurrenceAt} className="text-xs text-muted tabular-nums">{formatTime(item.occurrenceAt)}</time>
             </li>)}
           </ul>
-        </ScrollShadow> : <Empty title="暂无排期" description="所选日期没有剩余提醒。" />}
+        </ScrollShadow> : <Empty title="暂无排期" />}
         <Pagination aria-label="排期分页" className="flex-row flex-wrap border-none p-0">
           <Pagination.Summary>共 {data.total} 次 · 第 {cursors.length + 1} 页</Pagination.Summary>
           <Pagination.Content>

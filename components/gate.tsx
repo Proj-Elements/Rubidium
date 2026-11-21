@@ -1,6 +1,6 @@
 "use client";
 
-import { Button, Card, Description, FieldError, Form, Input, Label, TextField } from "@heroui/react";
+import { Button, Card, FieldError, Form, Input, Label, TextField } from "@heroui/react";
 import { useState, type FormEvent } from "react";
 import { api, errorMessage } from "@/lib/ui";
 import { Brand } from "./brand";
@@ -48,7 +48,6 @@ export function Gate({ onAuthed, setup }: { onAuthed: () => void; setup: boolean
             <TextField className="workspace-field" fullWidth name="password" type="password" isRequired isDisabled={busy}>
               <Label>{setup ? "设置访问密码" : "访问密码"}</Label>
               <Input variant="secondary" fullWidth className="h-11" autoComplete={setup ? "new-password" : "current-password"} value={password} onChange={(event) => setPassword(event.target.value)} minLength={setup ? 16 : undefined} maxLength={300} />
-              {setup && <Description>至少 16 个字符</Description>}
             </TextField>
             {setup && <TextField className="workspace-field" fullWidth name="confirmation" type="password" isRequired isDisabled={busy} isInvalid={mismatch}>
               <Label>确认访问密码</Label>

@@ -59,7 +59,6 @@ export default function OverviewPage() {
       <Alert.Indicator />
       <Alert.Content className="gap-2">
         <Alert.Title>默认设备尚未连接</Alert.Title>
-        <Alert.Description>提醒会留在队列中，连接 Bark 后继续投递。</Alert.Description>
         <WorkspaceLink className="workspace-link" href="/settings">连接设备<Glyph name="arrow" size={14} /></WorkspaceLink>
       </Alert.Content>
     </Alert>}
@@ -109,7 +108,7 @@ export default function OverviewPage() {
                 <Glyph name="chevron" size={14} className="text-muted" />
               </ListView.ItemContent>
             </ListView.Item>)}
-          </ListView> : <Empty title="没有排期" description={date ? "这一天没有提醒，可以选择其他日期。" : "未来七天暂无已安排的提醒。"} icon="calendar" />}
+          </ListView> : <Empty title="没有排期" icon="calendar" />}
 
           {dashboard.forecastTruncated && <p className="text-xs leading-relaxed text-warning-soft-foreground">排期较多，当前仅显示部分预测。</p>}
           {(hidden > 0 || dashboard.forecastTruncated) && <div className="flex flex-wrap items-center justify-between gap-2 text-sm text-muted tabular-nums">
@@ -125,7 +124,7 @@ export default function OverviewPage() {
             <h2 id="recent-heading" className="font-semibold">最近投递</h2>
             <WorkspaceLink href="/deliveries" className="workspace-link">查看记录<Glyph name="arrow" size={14} /></WorkspaceLink>
           </header>
-          {!dashboard ? error ? null : <Loading>正在读取投递记录</Loading> : dashboard.recent.length === 0 ? <Empty title="暂无投递记录" description="提醒触发后，最近的投递状态会显示在这里。" /> : (
+          {!dashboard ? error ? null : <Loading>正在读取投递记录</Loading> : dashboard.recent.length === 0 ? <Empty title="暂无投递记录" /> : (
             <div className="grid" role="list" aria-label="最近投递记录">
               {dashboard.recent.map((item) => <ItemCard key={item.id} role="listitem" variant="transparent" className="flex-wrap px-0">
                 <ItemCard.Content className="min-w-32">
@@ -141,9 +140,8 @@ export default function OverviewPage() {
         <Card role="region" aria-labelledby="activity-heading" className="grid min-w-0 gap-4 p-5 sm:p-6">
           <header className="space-y-1">
             <h2 id="activity-heading" className="font-semibold">投递节奏</h2>
-            <p className="text-xs text-muted">最近七天 Bark 接收数量</p>
           </header>
-          {dashboard && !activity.some((item) => item.sent > 0) ? <Empty title="最近七天暂无投递" description="Bark 接收通知后，这里会显示每日数量。" icon="send" /> : activity.length ? <div className="grid gap-3">
+          {dashboard && !activity.some((item) => item.sent > 0) ? <Empty title="最近七天暂无投递" icon="send" /> : activity.length ? <div className="grid gap-3">
             {activity.map((item, index) => {
               const label = index === activity.length - 1 ? "今天" : item.date.slice(5).replace("-", "/");
               return <Meter key={item.date} aria-label={`${item.date} Bark 接收数量`} value={item.sent} maxValue={dailyMaximum} valueLabel={`${item.sent} 条`} className="activity-meter items-center gap-3 text-xs tabular-nums" size="sm">

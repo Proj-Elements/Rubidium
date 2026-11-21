@@ -64,12 +64,12 @@ export function SecurityManager() {
 
   return <div className="grid items-start gap-5 @min-[52rem]/settings:grid-cols-[minmax(0,1fr)_minmax(0,1.25fr)]">
     <Card className="min-w-0 gap-5 p-5 sm:p-6">
-      <CardHeading title="访问密码" description="修改密码会撤销其他会话和全部 API 凭据。服务端环境密码变更后，以环境配置为准。" />
+      <CardHeading title="访问密码" />
       <Form onSubmit={password}>
         <Fieldset className="min-w-0 gap-4" disabled={busy !== null}>
           <Fieldset.Group>
             <Field label="当前访问密码" type="password" value={current} onChange={(event) => setCurrent(event.target.value)} maxLength={300} autoComplete="current-password" required />
-            <Field label="新访问密码" type="password" value={next} onChange={(event) => setNext(event.target.value)} minLength={16} maxLength={300} autoComplete="new-password" required hint="至少 16 个字符。" />
+            <Field label="新访问密码" type="password" value={next} onChange={(event) => setNext(event.target.value)} minLength={16} maxLength={300} autoComplete="new-password" required />
           </Fieldset.Group>
           <Fieldset.Actions><Button type="submit" isPending={busy === "password"} isDisabled={busy !== null && busy !== "password"}>修改访问密码</Button></Fieldset.Actions>
         </Fieldset>
@@ -77,7 +77,7 @@ export function SecurityManager() {
     </Card>
 
     <Card className="min-w-0 gap-5 p-5 sm:p-6">
-      <CardHeading title="会话与凭据" description="管理已登录的会话，以及客户端访问 API 使用的凭据。" />
+      <CardHeading title="会话与凭据" />
       {error && <Notice action={<Button variant="ghost" onPress={() => void refresh()}>重试</Button>}>{error}</Notice>}
       <section className="grid min-w-0 gap-2">
         <h3 className="text-sm font-semibold">API 凭据</h3>
@@ -153,7 +153,7 @@ export function AuditLog() {
   const events = data?.events.slice((displayedPage - 1) * auditPageSize, displayedPage * auditPageSize) ?? [];
 
   return <Card className="min-w-0 gap-4 p-5 sm:p-6">
-    <CardHeading title="操作审计" description="显示最近 100 次操作。审计不记录密码或消息正文。" />
+    <CardHeading title="操作审计" />
     {error && <Notice action={<Button variant="ghost" onPress={() => void refresh()}>重试</Button>}>{error}</Notice>}
     {events.length ? <>
       <ItemCardGroup variant="transparent" role="list" aria-label="操作审计">
@@ -167,7 +167,7 @@ export function AuditLog() {
         </ItemCard>)}
       </ItemCardGroup>
       <Pagination page={displayedPage} total={total} pageSize={auditPageSize} onChange={setPage} />
-    </> : data ? <Empty title="暂无操作记录" description="工作空间的变更会记录在这里。" /> : !error && <Loading>正在读取操作审计</Loading>}
+    </> : data ? <Empty title="暂无操作记录" /> : !error && <Loading>正在读取操作审计</Loading>}
     {details && <Modal.Backdrop isOpen onOpenChange={(open) => { if (!open) setDetails(null); }}>
       <Modal.Container size="sm" placement="center"><Modal.Dialog>
         <Modal.Header><Modal.Heading>操作详情</Modal.Heading></Modal.Header>

@@ -140,7 +140,6 @@ export function TaskEditor({ task, duplicate = false, onClose }: { task?: Task; 
               <Field label="提醒名称" value={name} onChange={(event) => setName(event.target.value)} required maxLength={80} placeholder="例如：给绿植浇水" />
               <AreaField label="提醒内容" rows={2} value={description} onChange={(event) => setDescription(event.target.value)} maxLength={2000}
                 ref={descriptionInput} placeholder={`可选，默认「${DEFAULT_REMINDER_BODY}」`} className="resize-y"
-                hint={`标题与正文用量 ${contentSize} / ${REMINDER_CONTENT_MAX_BYTES} 字节`}
                 error={contentOverLimit ? `内容超出 ${contentSize - REMINDER_CONTENT_MAX_BYTES} 字节，请缩短标题或正文。` : undefined} />
             </div>
 
@@ -151,8 +150,7 @@ export function TaskEditor({ task, duplicate = false, onClose }: { task?: Task; 
                   <CalendarField label="开始时间" value={startsAt} onChange={setStartsAt} timeZone={timeZone} />
                   <Pick label="重复周期" value={preset} onChange={(value) => setPreset(value as RecurrencePreset)} options={Object.entries(PRESET_LABELS).map(([value, label]) => ({ value, label }))} />
                 </div>
-                {preset === "custom" && <Field label="Cron 表达式" value={cron} onChange={(event) => setCron(event.target.value)} required maxLength={80} hint="标准五段格式：分 时 日 月 周。" />}
-                {preset === "monthly" && Number(startsAt.slice(8, 10)) > 28 && <Notice kind="info">短月不存在的日期会跳过。</Notice>}
+                {preset === "custom" && <Field label="Cron 表达式" value={cron} onChange={(event) => setCron(event.target.value)} required maxLength={80} />}
                 {preset !== "once" && <section className="grid gap-2" aria-label="结束条件">
                   <div className={`grid items-start gap-3 ${limit === "date" ? "@min-[26rem]/editor:grid-cols-[minmax(0,1fr)_11rem]" : limit === "count" ? "@min-[26rem]/editor:grid-cols-[minmax(0,1fr)_7rem]" : ""}`}>
                     <div className="workspace-field grid gap-1">
@@ -166,7 +164,7 @@ export function TaskEditor({ task, duplicate = false, onClose }: { task?: Task; 
                     {limit === "count" && <NumericField label="重复次数" minValue={1} maxValue={100000} value={count} onChange={setCount} isRequired />}
                     {limit === "date" && <CalendarField label="截止日期" value={endDate} onChange={setEndDate} timeZone={timeZone} dateOnly />}
                   </div>
-                  {(persisted || limit !== "count") && <p className="text-xs leading-relaxed text-muted">{limit === "never" ? "持续排期，直到暂停或归档。" : limit === "date" ? "包含截止日期当天。" : null}{persisted && <span className="tabular-nums">{limit !== "count" ? " · " : ""}已排期 {persisted.queuedCount} 次</span>}</p>}
+                  {persisted && <p className="text-xs leading-relaxed text-muted tabular-nums">已排期 {persisted.queuedCount} 次</p>}
                 </section>}
               </Fieldset.Group>
             </Fieldset>
@@ -178,9 +176,9 @@ export function TaskEditor({ task, duplicate = false, onClose }: { task?: Task; 
 
             <Details title="时区、节假日与通知策略">
               <TimeZonePicker label="排期时区" value={timeZone} onChange={setTimeZone} />
-              <Field label="跳过日期" value={skipDates} onChange={(event) => setSkipDates(event.target.value)} hint="填写 YYYY-MM-DD，多个日期用逗号分隔。" />
-              {preset === "weekdays" && <Field label="补班日期" value={includeDates} onChange={(event) => setIncludeDates(event.target.value)} hint="补充周末工作日，沿用开始时间的时分。" />}
-              <NumericField label="允许延迟（分钟）" minValue={1} maxValue={525600} value={lateness} onChange={setLateness} hint="可留空；永久错误仍须手动处理。" />
+              <Field label="跳过日期" value={skipDates} onChange={(event) => setSkipDates(event.target.value)} placeholder="2026-12-25, 2027-01-01" />
+              {preset === "weekdays" && <Field label="补班日期" value={includeDates} onChange={(event) => setIncludeDates(event.target.value)} placeholder="2026-12-26" />}
+              <NumericField label="允许延迟（分钟）" minValue={1} maxValue={525600} value={lateness} onChange={setLateness} />
               <div className="grid gap-4 sm:grid-cols-2">
                 <Field label="任务通知分组" value={group} onChange={(event) => setGroup(event.target.value)} maxLength={100} placeholder="使用全局设置" />
                 <Field label="任务提示音" value={sound} onChange={(event) => setSound(event.target.value)} maxLength={80} placeholder="使用全局设置" />

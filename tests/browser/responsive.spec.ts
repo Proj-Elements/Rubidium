@@ -43,7 +43,8 @@ test("editor aligns schedule fields and keeps ending controls usable at every wi
     await expect(editor.getByRole("button", { name: /^选择截止日期/ })).toBeVisible();
     await contained(page);
     await editor.getByRole("radio", { name: "持续重复", exact: true }).click();
-    await expect(editor.getByText("持续排期，直到暂停或归档。", { exact: false })).toBeVisible();
+    await expect(editor.getByRole("radio", { name: "持续重复", exact: true })).toBeChecked();
+    await expect(editor.getByText("持续排期，直到暂停或归档。", { exact: true })).toHaveCount(0);
     await editor.getByRole("radio", { name: "按次数", exact: true }).click();
     await expect(editor.getByLabel("重复次数", { exact: true })).toHaveValue("7");
     await page.screenshot({ path: test.info().outputPath(`editor-${width}.png`), animations: "disabled" });
@@ -76,6 +77,7 @@ for (const theme of ["light", "dark"] as const) {
     for (const width of [320, 390, 768, 1024, 1440]) {
       await page.setViewportSize({ width, height: 1000 });
       await page.goto("/tasks");
+      await expect(page.getByText("暂停和归档只停止后续排期，已排队消息仍会投递。", { exact: true })).toHaveCount(0);
       await expect(page.getByRole("button", { name: `编辑 ${name}`, exact: true })).toBeVisible();
       await contained(page);
       if (width >= 1440) {
@@ -96,6 +98,7 @@ for (const theme of ["light", "dark"] as const) {
       await expect(bar).toBeHidden();
 
       await page.goto("/deliveries");
+      await expect(page.getByText("投递与重试规则", { exact: true })).toHaveCount(0);
       await expect(page.getByText("等待人工处理", { exact: true }).filter({ visible: true })).toBeVisible();
       await expect(page.getByText("Bark 已接收", { exact: true }).filter({ visible: true })).toBeVisible();
       await contained(page);

@@ -1,6 +1,6 @@
 "use client";
 
-import { Alert, AlertDialog, Button, Card, Chip, Description, Disclosure, FieldError, Input, Label, Link, ListBox, NumberField, Select, Spinner, TextArea, TextField, Tooltip } from "@heroui/react";
+import { Alert, AlertDialog, Button, Card, Chip, Disclosure, FieldError, Input, Label, Link, ListBox, NumberField, Select, Spinner, TextArea, TextField, Tooltip } from "@heroui/react";
 import { EmptyState } from "@heroui-pro/react";
 import NextLink from "next/link";
 import type { ComponentProps, ReactNode, Ref } from "react";
@@ -25,40 +25,36 @@ export function PageHeading({ title, context }: { title: string; context?: React
   </header>;
 }
 
-export function CardHeading({ title, description, action }: { title: string; description?: string; action?: ReactNode }) {
+export function CardHeading({ title, action }: { title: string; action?: ReactNode }) {
   return <Card.Header className="card-header flex-row flex-wrap items-start justify-between gap-x-4 gap-y-2">
-    <div className="min-w-0 space-y-1">
+    <div className="min-w-0">
       <Card.Title render={(props) => <h2 {...props} />} className="text-base font-semibold">{title}</Card.Title>
-      {description && <Card.Description className="leading-relaxed">{description}</Card.Description>}
     </div>
     {action}
   </Card.Header>;
 }
 
-export function Field({ label, hint, required, disabled, type, name, ...props }: { label: string; hint?: string } & ComponentProps<typeof Input>) {
+export function Field({ label, required, disabled, type, name, ...props }: { label: string } & ComponentProps<typeof Input>) {
   return <TextField className="workspace-field" fullWidth type={type} name={name} isRequired={required} isDisabled={disabled}>
     <Label>{label}</Label>
     <Input variant="secondary" fullWidth {...props} />
-    {hint && <Description className="leading-relaxed">{hint}</Description>}
   </TextField>;
 }
 
-export function AreaField({ label, hint, error, ...props }: { label: string; hint?: string; error?: string } & ComponentProps<typeof TextArea>) {
+export function AreaField({ label, error, ...props }: { label: string; error?: string } & ComponentProps<typeof TextArea>) {
   return <TextField className="workspace-field" fullWidth isInvalid={Boolean(error)}>
     <Label>{label}</Label>
     <TextArea variant="secondary" fullWidth {...props} />
-    {hint && <Description className="leading-relaxed">{hint}</Description>}
     {error && <FieldError>{error}</FieldError>}
   </TextField>;
 }
 
-export function NumericField({ label, hideLabel, hint, inputClassName, ...props }: { label: string; hideLabel?: boolean; hint?: string; inputClassName?: string } & ComponentProps<typeof NumberField>) {
+export function NumericField({ label, hideLabel, inputClassName, ...props }: { label: string; hideLabel?: boolean; inputClassName?: string } & ComponentProps<typeof NumberField>) {
   return <NumberField className="workspace-field" variant="secondary" aria-label={hideLabel ? label : undefined} {...props}>
     {!hideLabel && <Label>{label}</Label>}
     <NumberField.Group className="w-fit max-w-full">
       <NumberField.Input className={inputClassName ?? "w-28 tabular-nums"} />
     </NumberField.Group>
-    {hint && <Description className="leading-relaxed">{hint}</Description>}
   </NumberField>;
 }
 
@@ -111,12 +107,11 @@ export function Notice({ children, kind = "error", action }: { children: ReactNo
   </Alert>;
 }
 
-export function Empty({ title, description, action, icon = "inbox" }: { title: string; description: string; action?: ReactNode; icon?: IconName }) {
+export function Empty({ title, action, icon = "inbox" }: { title: string; action?: ReactNode; icon?: IconName }) {
   return <EmptyState className="px-4 py-8" size="sm">
     <EmptyState.Header>
       <EmptyState.Media variant="icon"><Glyph name={icon} className="text-accent" /></EmptyState.Media>
       <EmptyState.Title>{title}</EmptyState.Title>
-      <EmptyState.Description className="max-w-xs leading-relaxed">{description}</EmptyState.Description>
     </EmptyState.Header>
     {action && <EmptyState.Content>{action}</EmptyState.Content>}
   </EmptyState>;

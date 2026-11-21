@@ -4,7 +4,7 @@ import { Button, Card, Chip, Drawer, Dropdown, Form, Label, Modal, ScrollShadow,
 import { DataGrid, ListView, type DataGridColumn } from "@heroui-pro/react";
 import { useState, type FormEvent } from "react";
 import { Glyph } from "@/components/icons";
-import { AreaField, Confirm, DeliveryBadge, deliveryLabels, Details, Empty, Field, IconButton, Loading, Notice, PageHeading } from "@/components/primitives";
+import { AreaField, Confirm, DeliveryBadge, deliveryLabels, Empty, Field, IconButton, Loading, Notice, PageHeading } from "@/components/primitives";
 import { Pagination } from "@/components/pagination";
 import { BulkActions, RecordList, useRecordQuery } from "@/components/record-list";
 import { Selection } from "@/components/selection";
@@ -85,7 +85,7 @@ export default function DeliveriesPage() {
     <RecordList label="投递状态" searchLabel="搜索记录" filters={filters} filter={filter} query={query} onFilter={setFilter} onSearch={setQuery}>
       {error && <Notice action={<Button variant="ghost" onPress={() => void refresh()}>重试</Button>}>{error}</Notice>}
       {!data ? !error && <Loading>正在读取投递记录</Loading> : !data.deliveries.length ? <Card>
-        <Empty title={filtered ? "没有匹配的记录" : "暂无投递记录"} description={filtered ? "试试其他关键词，或切换投递状态。" : "提醒触发后，会在这里显示通知和尝试结果。"}
+        <Empty title={filtered ? "没有匹配的记录" : "暂无投递记录"}
           icon={filtered ? "search" : "inbox"} action={filtered && <Button variant="outline" className="max-sm:min-h-11" onPress={clearFilters}>清除筛选</Button>} />
       </Card> : <>
         {pending.length > 0 && <div className="px-2 @min-[58rem]/records:hidden">
@@ -125,12 +125,6 @@ export default function DeliveriesPage() {
       </>}
     </RecordList>
 
-    <Details title="投递与重试规则">
-      <div className="max-w-2xl space-y-2 text-sm leading-relaxed text-muted">
-        <p>提醒到期后先进入持久队列。失败时按 5 秒至 1 小时退避，并遵守 Bark 的 Retry-After；已过期或取消的消息不再发送。</p>
-        <p>「Bark 已接收」表示 API 已确认接收，不代表设备已展示通知。网络中断时重试可能产生重复通知。</p>
-      </div>
-    </Details>
     <BulkActions count={selectedIds.length} disabled={Boolean(busy)} onClear={() => setSelected([])}>
       <Button size="sm" variant="ghost" isDisabled={Boolean(busy)} onPress={() => void bulk("retry")}>批量重试</Button>
       <Button size="sm" variant="danger-soft" isDisabled={Boolean(busy)} onPress={() => setBulkConfirm(true)}>批量取消</Button>
@@ -244,8 +238,7 @@ function DeliveryDetails({ item, onClose }: { item: Delivery; onClose: () => voi
                 </li>)}
               </ol>
             </ScrollShadow>
-            <p className="text-xs text-muted">显示最近 100 次尝试。</p>
-          </> : <Empty title="暂无尝试历史" description="投递开始后会记录尝试结果。旧版记录可能只保留累计次数。" />}
+          </> : <Empty title="暂无尝试历史" />}
         </section>
       </Drawer.Body>
     </Drawer.Dialog></Drawer.Content>
