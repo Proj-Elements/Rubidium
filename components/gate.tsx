@@ -6,12 +6,16 @@ import { api, errorMessage } from "@/lib/ui";
 import { Brand } from "./brand";
 import { Notice } from "./primitives";
 import { ThemeToggle } from "./theme-toggle";
+import { TimeZonePicker, useBrowserTimeZone } from "./time-zone-picker";
 
 export function Gate({ onAuthed, setup }: { onAuthed: () => void; setup: boolean }) {
   const [password, setPassword] = useState("");
   const [confirmation, setConfirmation] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const browserTimeZone = useBrowserTimeZone();
+  const [selectedTimeZone, setSelectedTimeZone] = useState<string | null>(null);
+  const timeZone = selectedTimeZone ?? browserTimeZone;
   const mismatch = setup && confirmation.length > 0 && password !== confirmation;
 
   async function signIn(event: FormEvent<HTMLFormElement>) {
@@ -21,7 +25,7 @@ export function Gate({ onAuthed, setup }: { onAuthed: () => void; setup: boolean
     setBusy(true);
     setError("");
     try {
-      await api("/api/session", { method: "POST", body: JSON.stringify({ mode: setup ? "setup" : "login", password }) });
+      await api("/api/session", { method: "POST", body: JSON.stringify({ mode: setup ? "setup" : "login", password, ...(setup ? { timeZone } : {}) }) });
       setPassword("");
       setConfirmation("");
       onAuthed();
@@ -51,6 +55,7 @@ export function Gate({ onAuthed, setup }: { onAuthed: () => void; setup: boolean
               <Input variant="secondary" fullWidth className="h-11" autoComplete="new-password" value={confirmation} onChange={(event) => setConfirmation(event.target.value)} maxLength={300} />
               {mismatch && <FieldError>两次输入的密码不一致</FieldError>}
             </TextField>}
+            {setup && <TimeZonePicker value={timeZone} onChange={setSelectedTimeZone} isDisabled={busy} />}
             {error && <Notice>{error}</Notice>}
             <Button fullWidth className="h-11" type="submit" isPending={busy} isDisabled={!password || (setup && (!confirmation || mismatch))}>{setup ? "完成初始化" : "进入工作空间"}</Button>
           </Form>

@@ -4,7 +4,7 @@ test("first-visit setup stays usable in touch landscape and confirms the passwor
   await page.emulateMedia({ reducedMotion: "reduce" });
   await page.route("**/api/session", async (route) => {
     if (route.request().method() === "POST") {
-      expect(route.request().postDataJSON()).toEqual({ mode: "setup", password: "landscape-setup-password-2030" });
+      expect(route.request().postDataJSON()).toEqual({ mode: "setup", password: "landscape-setup-password-2030", timeZone: "Europe/Paris" });
       await route.fulfill({ json: { authenticated: true, initialized: true } });
       return;
     }
@@ -30,6 +30,10 @@ test("first-visit setup stays usable in touch landscape and confirms the passwor
   await expect(page.getByText("两次输入的密码不一致")).toBeVisible();
   await expect(page.getByRole("button", { name: "完成初始化" })).toBeDisabled();
   await page.getByLabel("确认访问密码").fill("landscape-setup-password-2030");
+  await page.getByRole("button", { name: /时区$/ }).click();
+  await page.getByRole("searchbox", { name: "搜索时区" }).fill("Paris");
+  await page.getByRole("option", { name: "Europe/Paris", exact: true }).click();
+  await expect(page.getByRole("button", { name: /Europe\/Paris/ })).toBeVisible();
   await page.getByRole("button", { name: "完成初始化" }).click();
   await expect(page.getByRole("heading", { name: "提醒概览" })).toBeVisible();
 });

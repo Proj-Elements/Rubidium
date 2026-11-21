@@ -8,6 +8,7 @@ import { useResource } from "@/components/use-resource";
 import { useWorkspace } from "@/components/workspace-context";
 import { DeviceManager } from "@/components/device-manager";
 import { AuditLog, SecurityManager } from "@/components/security-manager";
+import { TimeZonePicker } from "@/components/time-zone-picker";
 import type { BarkSettings } from "@/lib/types";
 import { api, errorMessage } from "@/lib/ui";
 
@@ -105,8 +106,7 @@ function SettingsForm({ initial, onSaved }: { initial: SettingsPayload; onSaved:
           <Field label="Device Key" value={settings.deviceKey} onChange={(event) => update("deviceKey", event.target.value)}
             placeholder={configured ? "留空保留当前密钥" : "粘贴 Bark 设备密钥"} type="password" autoComplete="new-password" maxLength={300}
             hint={configured ? "密钥保存在服务端，不会在页面回显。" : "设备链接中，服务地址后的那段字符就是 Device Key。"} />
-          <Field label="显示时区" value={settings.displayTimeZone ?? "Asia/Shanghai"} onChange={(event) => update("displayTimeZone", event.target.value)} maxLength={100}
-            required hint="用于界面显示和统计，不改变任务自身的调度时区。" />
+          <TimeZonePicker label="显示时区" value={settings.displayTimeZone ?? "Asia/Shanghai"} onChange={(value) => update("displayTimeZone", value)} />
           <Details title="更多通知选项">
             <Field label="测试通知标题" value={settings.title} onChange={(event) => update("title", event.target.value)} maxLength={100} required />
             <div className="grid gap-4 sm:grid-cols-2">

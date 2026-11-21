@@ -11,13 +11,14 @@ export const GET = apiRoute(async (request: Request): Promise<NextResponse> => {
 export const POST = apiRoute(async (request: Request): Promise<NextResponse> => {
   const blocked = requireSameOriginMutation(request);
   if (blocked) return blocked;
-  const { password, mode } = jsonObjectBody(await requestBody(request));
+  const { password, mode, timeZone } = jsonObjectBody(await requestBody(request));
   if (typeof password !== "string") return jsonError("请输入访问密码", 400);
   if (password.length > MAX_SECRET_LENGTH) return jsonError("访问密码过长", 400);
   if (mode !== undefined && mode !== "login" && mode !== "setup") return jsonError("初始化请求无效", 400);
   if (mode === "setup") {
     if (passwordIsConfigured()) return jsonError("初始化已完成，请刷新页面后登录", 409);
-    if (!initializePassword(password)) return jsonError("初始化已由其他请求完成，请刷新页面后登录", 409);
+    if (timeZone !== undefined && typeof timeZone !== "string") return jsonError("时区无效", 400);
+    if (!initializePassword(password, timeZone)) return jsonError("初始化已由其他请求完成，请刷新页面后登录", 409);
   } else {
     if (!passwordIsConfigured()) return jsonError("请先创建访问密码", 428);
   }

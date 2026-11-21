@@ -1,7 +1,8 @@
 import { createHash, createHmac, randomBytes, randomUUID, scryptSync, timingSafeEqual } from "node:crypto";
 import { linkSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { apiTokenValid, auditEvent, passwordOverride, passwordRevision, persistSession, removeSession, revokeOtherPasswordSessions, saveApiToken, saveInitialPasswordOverride, savePasswordOverride, sessionExists } from "./db";
+import { apiTokenValid, auditEvent, passwordOverride, passwordRevision, persistSession, readSettings, removeSession, revokeOtherPasswordSessions, saveApiToken, saveInitialPasswordOverride, savePasswordOverride, sessionExists, transaction, writeSettings } from "./db";
+import { timeZoneSchema } from "./contracts";
 import { DomainError } from "./errors";
 import { initializeStorage, privateFile, runtimeDataDir } from "./storage";
 import { registerLogSecret } from "./logging";
@@ -163,14 +164,19 @@ export function passwordIsConfigured(): boolean {
   return Boolean(runtimePassword || passwordOverride());
 }
 
-export function initializePassword(password: string): boolean {
+export function initializePassword(password: string, timeZone?: string): boolean {
   initializeAuth();
   if (passwordIsConfigured()) return false;
   if (password.length < MIN_SECRET_LENGTH || password.length > MAX_SECRET_LENGTH || password.trim() !== password) {
     throw new DomainError("新密码应为 16–300 字符且不能有首尾空格");
   }
   const salt = randomBytes(32).toString("hex");
-  const saved = saveInitialPasswordOverride(JSON.stringify({ source: "setup", salt, hash: scryptSync(password, salt, 32).toString("hex") }));
+  if (timeZone !== undefined && !timeZoneSchema.safeParse(timeZone).success) throw new DomainError("时区必须是有效的 IANA 时区");
+  const saved = transaction(() => {
+    const created = saveInitialPasswordOverride(JSON.stringify({ source: "setup", salt, hash: scryptSync(password, salt, 32).toString("hex") }));
+    if (created && timeZone) writeSettings({ ...readSettings(), displayTimeZone: timeZone });
+    return created;
+  });
   if (!saved) {
     refreshCredential();
     return false;

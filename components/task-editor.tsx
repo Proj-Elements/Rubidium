@@ -7,7 +7,7 @@ import { parseDate } from "@internationalized/date";
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { DEFAULT_REMINDER_BODY, REMINDER_CONTENT_MAX_BYTES, reminderContentBytes } from "@/lib/contracts";
 import type { Device, RecurrencePreset, Task, TaskInput } from "@/lib/types";
-import { api, clientPresetCron, createIdempotencyKey, duplicateStart, errorMessage, localDateValue, localInputValue, PRESET_LABELS, SCHEDULE_TIME_ZONE, toOffsetDateTime } from "@/lib/ui";
+import { api, clientPresetCron, createIdempotencyKey, duplicateStart, errorMessage, localDateValue, localInputValue, PRESET_LABELS, toOffsetDateTime } from "@/lib/ui";
 import { useTime } from "./use-time";
 import { CalendarField } from "./calendar-field";
 import { Glyph } from "./icons";
@@ -15,6 +15,7 @@ import { AreaField, Confirm, Details, Field, Notice, NumericField, Pick, Workspa
 import { useWorkspace } from "./workspace-context";
 import { useUnsaved } from "./use-unsaved";
 import { useResource } from "./use-resource";
+import { TimeZonePicker } from "./time-zone-picker";
 
 export function TaskEditor({ task, duplicate = false, onClose }: { task?: Task; duplicate?: boolean; onClose: () => void }) {
   const { formatTime, timeZone: displayTimeZone } = useTime();
@@ -24,8 +25,8 @@ export function TaskEditor({ task, duplicate = false, onClose }: { task?: Task; 
   const { data: devices } = useResource<{ devices: Device[] }>("/api/devices", 0);
   const [name, setName] = useState(task ? duplicate ? `${task.name.slice(0, 76)}（副本）` : task.name : "");
   const [description, setDescription] = useState(task?.description ?? "");
-  const [timeZone, setTimeZone] = useState(task?.timeZone ?? SCHEDULE_TIME_ZONE);
-  const [startsAt, setStartsAt] = useState(() => task ? duplicate ? duplicateStart(task) : localInputValue(new Date(task.startsAt), task.timeZone) : localInputValue(new Date(Date.now() + 300_000)));
+  const [timeZone, setTimeZone] = useState(task?.timeZone ?? displayTimeZone);
+  const [startsAt, setStartsAt] = useState(() => task ? duplicate ? duplicateStart(task) : localInputValue(new Date(task.startsAt), task.timeZone) : localInputValue(new Date(Date.now() + 300_000), displayTimeZone));
   const [preset, setPreset] = useState<RecurrencePreset>(task?.preset ?? "once");
   const [cron, setCron] = useState(task?.cron ?? "0 9 * * *");
   const [limit, setLimit] = useState(task?.endDate ? "date" : task && task.repeatCount === null ? "never" : "count");
@@ -176,7 +177,7 @@ export function TaskEditor({ task, duplicate = false, onClose }: { task?: Task; 
             </div>
 
             <Details title="时区、节假日与通知策略">
-              <Field label="排期时区" value={timeZone} onChange={(event) => setTimeZone(event.target.value)} required hint="IANA 时区，例如 Asia/Shanghai 或 UTC。" />
+              <TimeZonePicker label="排期时区" value={timeZone} onChange={setTimeZone} />
               <Field label="跳过日期" value={skipDates} onChange={(event) => setSkipDates(event.target.value)} hint="填写 YYYY-MM-DD，多个日期用逗号分隔。" />
               {preset === "weekdays" && <Field label="补班日期" value={includeDates} onChange={(event) => setIncludeDates(event.target.value)} hint="补充周末工作日，沿用开始时间的时分。" />}
               <NumericField label="允许延迟（分钟）" minValue={1} maxValue={525600} value={lateness} onChange={setLateness} hint="可留空；永久错误仍须手动处理。" />

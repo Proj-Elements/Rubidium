@@ -36,12 +36,15 @@ test("first boot requires one-time setup and persists only a password hash", asy
   const weak = await session.POST(request({ mode: "setup", password: "too-short" }));
   assert.equal(weak.status, 400);
   assert.equal(auth.passwordIsConfigured(), false);
+  assert.equal((await session.POST(request({ mode: "setup", password: "first-install-password-2030", timeZone: "Invalid/Zone" }))).status, 400);
+  assert.equal(auth.passwordIsConfigured(), false);
 
   const password = "first-install-password-2030";
-  const setup = await session.POST(request({ mode: "setup", password }));
+  const setup = await session.POST(request({ mode: "setup", password, timeZone: "Europe/Paris" }));
   assert.equal(setup.status, 200);
   assert.match(setup.headers.get("set-cookie") ?? "", /HttpOnly; SameSite=Lax/);
   assert.equal(auth.verifyPassword(password), true);
+  assert.equal((await import("../lib/db")).readSettings().displayTimeZone, "Europe/Paris");
   assert.equal(auth.verifyPassword("another-password-value"), false);
   assert.equal(existsSync(join(directory, "access-password.txt")), false);
   const override = JSON.parse((await import("../lib/db")).passwordOverride()!) as { hash: string };
