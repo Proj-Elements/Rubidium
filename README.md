@@ -321,7 +321,7 @@ docker build --secret id=HEROUI_KEY,env=HEROUI_KEY -t rubidium:local .
 
 ## License
 
-Rubidium 自身源代码采用 [GNU Affero General Public License v3.0 only](LICENSE)。远程交互用户可通过应用登录页或导航侧栏的「获取 Rubidium 源码」链接访问对应源码。
+Rubidium 自身源代码采用 [GNU Affero General Public License v3.0 only](LICENSE)，项目仓库位于 [Proj-Elements/Rubidium](https://github.com/Proj-Elements/Rubidium)。
 
 第三方组件保留各自原有许可，不因 Rubidium 的 AGPL 声明而改变；请同时阅读 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。`@heroui-pro/react` 使用 HeroUI Pro 独立许可，构建/使用它需要有效的 Pro 许可；该许可不属于 AGPL。CI 与本地源码构建使用的 `HEROUI_KEY` 只能作为密钥注入，不能写入源码或镜像。
 

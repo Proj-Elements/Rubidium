@@ -6,7 +6,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useState, type ReactNode } from "react";
 import { Brand } from "./brand";
 import { Glyph, type IconName } from "./icons";
-import { Confirm, IconButton, SourceLink, WorkspaceLink } from "./primitives";
+import { Confirm, IconButton, WorkspaceLink } from "./primitives";
 import { ThemeToggle } from "./theme-toggle";
 import { confirmUnsavedNavigation } from "./use-unsaved";
 import { useWorkspace } from "./workspace-context";
@@ -87,19 +87,12 @@ function SidebarSections({ mobile = false }: { mobile?: boolean }) {
       </p>}
       {collapsed ? <>
         <Tooltip delay={350}>
-          <Link href="https://github.com/Proj-Elements/Rubidium" target="_blank" rel="noopener noreferrer" aria-label="获取 Rubidium 源码" className="sidebar-compact-action flex size-11 items-center justify-center rounded-lg text-muted no-underline hover:bg-default">
-            <Glyph name="link" />
-          </Link>
-          <Tooltip.Content>获取 Rubidium 源码</Tooltip.Content>
-        </Tooltip>
-        <Tooltip delay={350}>
           <Button isIconOnly variant="danger-soft" aria-label="退出登录" className="sidebar-compact-action size-11" onPress={requestLogout}>
             <Glyph name="logout" />
           </Button>
           <Tooltip.Content>退出登录</Tooltip.Content>
         </Tooltip>
       </> : <>
-        <SourceLink className="px-3" />
         <Button variant="danger-soft" fullWidth className="min-h-11 justify-start gap-2" onPress={requestLogout}>
           <Glyph name="logout" />退出登录
         </Button>

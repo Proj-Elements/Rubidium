@@ -18,12 +18,6 @@ export function WorkspaceLink({ href, onNavigate, ...props }: Omit<ComponentProp
   return <Link {...props} href={href} render={({ ref, ...domProps }) => <NextLink {...domProps} ref={ref as Ref<HTMLAnchorElement>} href={href} onNavigate={onNavigate} />} />;
 }
 
-export function SourceLink({ className = "" }: { className?: string }) {
-  return <Link href="https://github.com/Proj-Elements/Rubidium" target="_blank" rel="noopener noreferrer" className={`flex w-fit items-center gap-1 text-sm text-muted no-underline hover:text-foreground ${className}`}>
-    获取 Rubidium 源码<Glyph name="link" size={14} />
-  </Link>;
-}
-
 export function PageHeading({ title, context }: { title: string; context?: ReactNode }) {
   return <header className="page-heading">
     <h1 className="text-2xl leading-tight font-semibold">{title}</h1>

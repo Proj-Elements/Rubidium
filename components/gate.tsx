@@ -4,7 +4,7 @@ import { Button, Card, FieldError, Form, Input, Label, TextField } from "@heroui
 import { useState, type FormEvent } from "react";
 import { api, errorMessage } from "@/lib/ui";
 import { Brand } from "./brand";
-import { Notice, SourceLink } from "./primitives";
+import { Notice } from "./primitives";
 import { ThemeToggle } from "./theme-toggle";
 import { TimeZonePicker, useBrowserTimeZone } from "./time-zone-picker";
 
@@ -67,7 +67,6 @@ export function Gate({ onAuthed, setup, setupEnabled, setupTokenRequired }: { on
           </Form>}
         </Card.Content>
       </Card>
-      <SourceLink className="gate-source mx-auto px-1" />
     </div>
   </main>;
 }

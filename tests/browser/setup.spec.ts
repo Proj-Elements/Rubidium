@@ -46,9 +46,7 @@ test("first-visit setup stays usable in touch landscape and confirms the passwor
     });
     expect(cardBounds.top).toBeGreaterThanOrEqual(0);
     expect(cardBounds.bottom).toBeLessThanOrEqual(viewport.height);
-    const sourceBottom = await page.getByRole("link", { name: "获取 Rubidium 源码" }).evaluate((link) => link.getBoundingClientRect().bottom);
-    if (viewport.height >= 24 * 16) expect(sourceBottom).toBeLessThanOrEqual(viewport.height);
-    else if (sourceBottom > viewport.height) expect(await page.evaluate(() => document.documentElement.scrollHeight)).toBeGreaterThan(viewport.height);
+    await expect(page.locator('a[href="https://github.com/Proj-Elements/Rubidium"]')).toHaveCount(0);
     await page.screenshot({ path: test.info().outputPath(`setup-${viewport.width}x${viewport.height}.png`), animations: "disabled" });
   }
 
