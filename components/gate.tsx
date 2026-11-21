@@ -33,18 +33,18 @@ export function Gate({ onAuthed, setup }: { onAuthed: () => void; setup: boolean
     finally { setBusy(false); }
   }
 
-  return <main className="grid min-h-dvh place-items-center px-4 py-8">
-    <div className="grid w-full max-w-[25rem] gap-4">
+  return <main className="gate-layout grid min-h-dvh place-items-center px-4 py-8">
+    <div className="gate-stack grid w-full max-w-[25rem] gap-4">
       <header className="flex items-center justify-between gap-4 px-1">
         <Brand />
         <ThemeToggle />
       </header>
-      <Card className="gap-5 p-5 sm:p-6">
+      <Card className="gate-card gap-5 p-5 sm:p-6">
         <Card.Header>
           <Card.Title render={(props) => <h1 {...props} />} className="text-xl leading-tight font-bold">{setup ? "创建访问密码" : "登录工作空间"}</Card.Title>
         </Card.Header>
         <Card.Content>
-          <Form onSubmit={signIn} className="grid gap-4">
+          <Form onSubmit={signIn} className="gate-form grid gap-4">
             <TextField className="workspace-field" fullWidth name="password" type="password" isRequired isDisabled={busy}>
               <Label>{setup ? "设置访问密码" : "访问密码"}</Label>
               <Input variant="secondary" fullWidth className="h-11" autoComplete={setup ? "new-password" : "current-password"} value={password} onChange={(event) => setPassword(event.target.value)} minLength={setup ? 16 : undefined} maxLength={300} />
@@ -60,7 +60,7 @@ export function Gate({ onAuthed, setup }: { onAuthed: () => void; setup: boolean
           </Form>
         </Card.Content>
       </Card>
-      <SourceLink className="mx-auto px-1" />
+      <SourceLink className="gate-source mx-auto px-1" />
     </div>
   </main>;
 }
