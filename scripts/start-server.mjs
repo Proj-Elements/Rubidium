@@ -38,7 +38,7 @@ function shutdown(signal) {
 
 for (const signal of ["SIGINT", "SIGTERM"]) process.on(signal, () => shutdown(signal));
 child.on("message", (message) => { if (message?.type === "barker:stopped") forwardSignal(); });
-child.once("error", (error) => { console.error(`Barker server failed to start: ${error.message}`); process.exitCode = 1; });
+child.once("error", (error) => { console.error(`Rubidium server failed to start: ${error.message}`); process.exitCode = 1; });
 child.once("exit", (code, signal) => {
   clearTimeout(deadline);
   process.exitCode = code ?? (signal === "SIGINT" ? 130 : signal === "SIGTERM" ? 143 : signal === "SIGKILL" ? 137 : 1);

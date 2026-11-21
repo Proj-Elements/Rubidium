@@ -31,7 +31,7 @@ export async function enqueueDueOccurrences(now = new Date()): Promise<number> {
         } catch (error) {
           if (error instanceof Error && /cron|pattern|timezone|time zone|schedule|invalid time value/i.test(error.message)) {
             isolateInvalidTask(task.id, now);
-            console.error(`[Barker] isolated invalid schedule ${task.id}`);
+            console.error(`[Rubidium] isolated invalid schedule ${task.id}`);
           } else throw error;
         }
         await yieldToEventLoop();
@@ -133,7 +133,7 @@ export async function stopScheduler(): Promise<void> {
   globalWorker.barkerSchedulerStarted = false;
   await Promise.allSettled([cycle, enqueueCycle]);
   try { writeRuntimeState("scheduler_heartbeat", "0"); }
-  catch { console.error("[Barker] could not clear shutdown heartbeat"); }
+  catch { console.error("[Rubidium] could not clear shutdown heartbeat"); }
 }
 
 export function startScheduler(): void {

@@ -4,8 +4,8 @@ import { createServer } from "node:http";
 import { setTimeout as delay } from "node:timers/promises";
 
 // Exercise only an isolated volume and a local fake Bark, never a real device.
-const image = process.argv[2] || "barker:local";
-const name = `barker-smoke-${process.pid}-${Date.now()}`;
+const image = process.argv[2] || "rubidium:local";
+const name = `rubidium-smoke-${process.pid}-${Date.now()}`;
 const volume = `${name}-data`;
 const deviceKey = "container-smoke-device";
 let acknowledge = false;
@@ -39,9 +39,9 @@ try {
   docker("image", "inspect", image);
   await new Promise((resolve) => mock.listen(0, "0.0.0.0", resolve));
   const mockPort = mock.address().port;
-  docker("volume", "create", "--label", `barker.smoke=${name}`, volume);
+  docker("volume", "create", "--label", `rubidium.smoke=${name}`, volume);
   volumeCreated = true;
-  docker("run", "-d", "--init", "--name", name, "--label", `barker.smoke=${name}`, "-p", "127.0.0.1::3000",
+  docker("run", "-d", "--init", "--name", name, "--label", `rubidium.smoke=${name}`, "-p", "127.0.0.1::3000",
     ...(process.platform === "linux" ? ["--add-host", "host.docker.internal:host-gateway"] : []),
     "--mount", `type=volume,source=${volume},target=/app/data`,
     ...(process.env.BARKER_SMOKE_PLATFORM ? ["--platform", process.env.BARKER_SMOKE_PLATFORM] : []), image);
@@ -51,7 +51,7 @@ try {
   await until(async () => (await fetch(`${base}/api/health`)).ok);
   assert.notEqual(docker("exec", name, "id", "-u"), "0", "runtime must be non-root");
   assert.equal((await fetch(`${base}/api/tasks`)).status, 401);
-  const password = docker("logs", name).match(/Barker access password: (\S+)/)?.[1];
+  const password = docker("logs", name).match(/Rubidium access password: (\S+)/)?.[1];
   assert.ok(password, "runtime must generate and print a password");
   const login = await fetch(`${base}/api/session`, {
     method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ password }),
@@ -70,7 +70,7 @@ try {
   const beforeSettings = await api("/api/settings");
   await api("/api/settings", "PUT", {
     endpoint: `http://host.docker.internal:${mockPort}`, deviceKey,
-    title: "Barker", sound: "", group: "Smoke", icon: "", revision: beforeSettings.revision,
+    title: "Rubidium", sound: "", group: "Smoke", icon: "", revision: beforeSettings.revision,
   });
   const settings = await api("/api/settings");
   assert.equal(settings.deviceKeyConfigured, true);
@@ -118,7 +118,7 @@ try {
 } catch (error) {
   if (created) {
     console.error(docker("inspect", name, "--format", "status={{.State.Status}} exit={{.State.ExitCode}} oom={{.State.OOMKilled}}"));
-    console.error(docker("logs", "--tail", "30", name).replace(/Barker access password: \S+/g, "Barker access password: [redacted]"));
+    console.error(docker("logs", "--tail", "30", name).replace(/Rubidium access password: \S+/g, "Rubidium access password: [redacted]"));
   }
   throw error;
 } finally {
@@ -127,7 +127,7 @@ try {
     catch (error) { console.error(`Smoke cleanup failed: ${error.message}`); process.exitCode = 1; }
   };
   let containers = "";
-  try { containers = docker("ps", "--all", "--quiet", "--filter", `label=barker.smoke=${name}`); }
+  try { containers = docker("ps", "--all", "--quiet", "--filter", `label=rubidium.smoke=${name}`); }
   catch (error) { console.error(`Smoke cleanup failed: ${error.message}`); process.exitCode = 1; }
   if (containers) cleanup(() => docker("container", "rm", "--force", ...containers.split("\n")));
   if (volumeCreated) cleanup(() => docker("volume", "rm", volume));

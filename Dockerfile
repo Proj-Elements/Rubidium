@@ -1,4 +1,4 @@
-# Barker - Next.js standalone production image
+# Rubidium - Next.js standalone production image
 # Requires Node >=24 (built-in node:sqlite)
 
 FROM node:24.22.2-alpine@sha256:8a32c8cf649a49915a66e81e7a609223c708d0adabf288ee3f4077d765542f85 AS base
@@ -28,8 +28,8 @@ COPY . .
 ENV NEXT_TELEMETRY_DISABLED=1
 # Ensure `public` exists so the runner stage COPY never fails when no static assets are present
 RUN mkdir -p public \
- && BARKER_DATA_DIR=/tmp/barker-build BARKER_DISABLE_SCHEDULER=1 pnpm run build \
- && rm -rf /tmp/barker-build
+ && BARKER_DATA_DIR=/tmp/rubidium-build BARKER_DISABLE_SCHEDULER=1 pnpm run build \
+ && rm -rf /tmp/rubidium-build
 
 # --- runner: minimal production runtime ---
 FROM base AS runner

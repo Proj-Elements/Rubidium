@@ -103,6 +103,56 @@ test("legacy outbox migration is atomic, payload-preserving, and idempotent", ()
   } finally { rmSync(directory, { recursive: true, force: true }); }
 });
 
+test("branding migration updates only legacy defaults and runs once", () => {
+  const defaultsDirectory = mkdtempSync(join(tmpdir(), "barker-brand-defaults-"));
+  const customDirectory = mkdtempSync(join(tmpdir(), "barker-brand-custom-"));
+  try {
+    const defaults = createLegacyDatabase(defaultsDirectory);
+    defaults.prepare("UPDATE settings SET value = ? WHERE key = 'default'").run(JSON.stringify({
+      endpoint: "https://custom.example", deviceKey: "private-key", title: "Barker 提醒", sound: "1107", group: "Barker", icon: "",
+    }));
+    defaults.exec("PRAGMA user_version = 3");
+    defaults.close();
+
+    const custom = createLegacyDatabase(customDirectory);
+    custom.prepare("UPDATE settings SET value = ? WHERE key = 'default'").run(JSON.stringify({
+      endpoint: "https://custom.example", deviceKey: "private-key", title: "Personal title", sound: "1107", group: "Personal group", icon: "",
+    }));
+    custom.exec("PRAGMA user_version = 3");
+    custom.close();
+
+    const inspect = `
+      const db = await import('./lib/db.ts');
+      const version = db.__rawDatabaseForTests().prepare('PRAGMA user_version').get().user_version;
+      console.log(JSON.stringify({ settings: db.readSettings(), version }));
+    `;
+    const migratedDefaults = run(defaultsDirectory, inspect);
+    assert.equal((migratedDefaults.settings as { title: string }).title, "Rubidium 提醒");
+    assert.equal((migratedDefaults.settings as { group: string }).group, "Rubidium");
+    assert.equal((migratedDefaults.settings as { endpoint: string }).endpoint, "https://custom.example");
+    assert.equal((migratedDefaults.settings as { deviceKey: string }).deviceKey, "private-key");
+    assert.equal(migratedDefaults.version, 4);
+
+    const migratedCustom = run(customDirectory, inspect);
+    assert.equal((migratedCustom.settings as { title: string }).title, "Personal title");
+    assert.equal((migratedCustom.settings as { group: string }).group, "Personal group");
+    assert.equal(migratedCustom.version, 4);
+
+    run(defaultsDirectory, `
+      const db = await import('./lib/db.ts');
+      const settings = db.readSettings();
+      const revision = db.writeSettings({ ...settings, title: 'Barker custom title', group: 'Barker' }, db.settingsRevision());
+      console.log(JSON.stringify({ revision }));
+    `);
+    const reopened = run(defaultsDirectory, inspect);
+    assert.equal((reopened.settings as { title: string }).title, "Barker custom title");
+    assert.equal((reopened.settings as { group: string }).group, "Barker");
+  } finally {
+    rmSync(defaultsDirectory, { recursive: true, force: true });
+    rmSync(customDirectory, { recursive: true, force: true });
+  }
+});
+
 test("failed legacy migration rolls back schema changes and row updates", () => {
   const directory = mkdtempSync(join(tmpdir(), "barker-migration-rollback-"));
   try {

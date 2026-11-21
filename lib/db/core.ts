@@ -6,7 +6,7 @@ const globalDb = globalThis as typeof globalThis & { barkerDb?: DatabaseSync };
 const databaseFile = Buffer.from(`${runtimeDataDir}/barker.sqlite`);
 const statements = new Map<string, ReturnType<DatabaseSync["prepare"]>>();
 const retryWait = new Int32Array(new SharedArrayBuffer(4));
-const CURRENT_SCHEMA_VERSION = 3;
+const CURRENT_SCHEMA_VERSION = 4;
 const INITIALIZATION_ATTEMPTS = 3;
 let db: DatabaseSync;
 let initialized = false;
@@ -25,7 +25,21 @@ export function transaction<T>(callback: () => T): T {
   }
 }
 
-function migrate(): void {
+function migrateLegacySettingsBrand(): void {
+  const row = db.prepare("SELECT value FROM settings WHERE key = 'default'").get() as { value: string } | undefined;
+  if (!row) return;
+  let value: unknown;
+  try { value = JSON.parse(row.value); }
+  catch { return; }
+  if (!value || typeof value !== "object" || Array.isArray(value)) return;
+  const settings = value as Record<string, unknown>;
+  let changed = false;
+  if (settings.title === "Barker 提醒") { settings.title = "Rubidium 提醒"; changed = true; }
+  if (settings.group === "Barker") { settings.group = "Rubidium"; changed = true; }
+  if (changed) db.prepare("UPDATE settings SET value = ? WHERE key = 'default'").run(JSON.stringify(settings));
+}
+
+function migrate(existingVersion: number): void {
   db.exec(`
     CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);
     CREATE TABLE IF NOT EXISTS tasks (
@@ -102,6 +116,7 @@ function migrate(): void {
   const insert = db.prepare("INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)");
   insert.run("default", JSON.stringify(DEFAULT_SETTINGS));
   insert.run("revision", "1");
+  if (existingVersion < CURRENT_SCHEMA_VERSION) migrateLegacySettingsBrand();
   db.exec(`PRAGMA user_version=${CURRENT_SCHEMA_VERSION}`);
 }
 
@@ -118,7 +133,7 @@ export function initializeDatabase(): void {
         db.exec("PRAGMA journal_mode=WAL;");
         const { user_version: existingVersion } = db.prepare("PRAGMA user_version").get() as { user_version: number };
         if (existingVersion > CURRENT_SCHEMA_VERSION) throw new Error(`Database schema ${existingVersion} is newer than supported version ${CURRENT_SCHEMA_VERSION}`);
-        transaction(migrate);
+        transaction(() => migrate(existingVersion));
         break;
       } catch (error) {
         if (!(error instanceof Error) || !/database is locked|database schema is locked/i.test(error.message) || attempt === INITIALIZATION_ATTEMPTS) throw error;

@@ -26,9 +26,9 @@ function loadOrCreateSecret(name: string, configuredValue?: string): string {
   const configured = configuredValue?.trim();
   if (configured) {
     if (configured.length < MIN_SECRET_LENGTH) {
-      throw new Error(`Barker secret ${name} must be at least ${MIN_SECRET_LENGTH} characters`);
+      throw new Error(`Rubidium secret ${name} must be at least ${MIN_SECRET_LENGTH} characters`);
     }
-    if (configured.length > MAX_SECRET_LENGTH) throw new Error(`Barker secret ${name} must be at most ${MAX_SECRET_LENGTH} characters`);
+    if (configured.length > MAX_SECRET_LENGTH) throw new Error(`Rubidium secret ${name} must be at most ${MAX_SECRET_LENGTH} characters`);
     return configured;
   }
 
@@ -36,13 +36,13 @@ function loadOrCreateSecret(name: string, configuredValue?: string): string {
   privateFile(path);
   const existing = readSecretFile(path);
   if (existing !== null) {
-    if (existing.length > MAX_SECRET_LENGTH) throw new Error(`Barker secret ${name} must be at most ${MAX_SECRET_LENGTH} characters`);
+    if (existing.length > MAX_SECRET_LENGTH) throw new Error(`Rubidium secret ${name} must be at most ${MAX_SECRET_LENGTH} characters`);
     if (existing.length >= MIN_SECRET_LENGTH) return existing;
     // Fail fast instead of silently accepting an empty/truncated secret (an empty
     // session secret lets anyone forge a valid cookie, an empty password lets
     // anyone log in). A crash during first write is the realistic cause.
     throw new Error(
-      `Barker secret file ${path} is empty or too short. Delete it and restart to regenerate a fresh secret.`,
+      `Rubidium secret file ${path} is empty or too short. Delete it and restart to regenerate a fresh secret.`,
     );
   }
 
@@ -58,7 +58,7 @@ function loadOrCreateSecret(name: string, configuredValue?: string): string {
     if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
     const winner = readSecretFile(path);
     if (winner === null || winner.length < MIN_SECRET_LENGTH || winner.length > MAX_SECRET_LENGTH) {
-      throw new Error(`Unable to persist Barker secret ${name}`);
+      throw new Error(`Unable to persist Rubidium secret ${name}`);
     }
     return winner;
   } finally {
@@ -142,7 +142,7 @@ export function printRuntimePassword(): void {
   initializeAuth();
   if (passwordPrinted || !generatedPassword) return;
   passwordPrinted = true;
-  console.info(`\n🔐 Barker access password: ${runtimePassword}\n`);
+  console.info(`\n🔐 Rubidium access password: ${runtimePassword}\n`);
   console.info("Set BARKER_PASSWORD to use your own password.\n");
 }
 

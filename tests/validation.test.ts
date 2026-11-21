@@ -16,7 +16,7 @@ test("task input accepts presets, rejects conflicting limits", () => {
 });
 
 test("settings allow an empty device key and strip credentials from the endpoint", () => {
-  const minimal = settingsSchema.safeParse({ endpoint: "https://api.day.app", title: "Barker 提醒", sound: "1107", group: "Barker", icon: "" });
+  const minimal = settingsSchema.safeParse({ endpoint: "https://api.day.app", title: "Rubidium 提醒", sound: "1107", group: "Rubidium", icon: "" });
   assert.equal(minimal.success, true);
   assert.equal(minimal.data?.deviceKey, "");
   const withCreds = settingsSchema.safeParse({ endpoint: "https://user:pass@api.day.app", deviceKey: "k", title: "t", sound: "", group: "", icon: "" });

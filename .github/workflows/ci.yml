@@ -83,7 +83,7 @@ jobs:
         env:
           HEROUI_KEY: ${{ secrets.HEROUI_KEY }}
         run: |
-          docker build --secret id=HEROUI_KEY,env=HEROUI_KEY -t barker:local .
+          docker build --secret id=HEROUI_KEY,env=HEROUI_KEY -t rubidium:local .
           pnpm test:container
 
       - name: Check affected browser interactions

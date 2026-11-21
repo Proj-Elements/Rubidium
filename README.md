@@ -1,4 +1,4 @@
-# Barker
+# Rubidium
 
 一个私有部署的 Bark 周期提醒工作空间。Next.js App Router、React 19、HeroUI React V3 与 SQLite 组成单一应用；唯一包管理器是 pnpm，运行时要求 Node.js 24 或更高版本。
 
@@ -69,25 +69,32 @@ docker compose up -d --build
 unset HEROUI_KEY
 docker compose ps
 curl -fsS http://127.0.0.1:3000/api/health
-docker compose logs -f barker
+docker compose logs -f rubidium
 # 访问 http://localhost:3000
 ```
 
-Compose 从当前代码构建 `barker:local`。默认只绑定 `127.0.0.1`；跨设备访问时设置 `BARKER_BIND_ADDR`，并建议放在 HTTPS 反向代理后。`.env` 在运行时传入容器，不进入镜像。Compose 使用独立命名卷 `barker-data`，与仓库中的 `data/` 不同；迁移已有本地实例时，先按「备份与恢复」创建快照，并在首次启动容器前恢复到该卷。不要先用空数据卷启动新实例。
+Compose 从当前代码构建 `rubidium:local`，服务和容器名为 `rubidium`。默认只绑定 `127.0.0.1`；跨设备访问时设置 `BARKER_BIND_ADDR`，并建议放在 HTTPS 反向代理后。`.env` 在运行时传入容器，不进入镜像。Compose 继续使用历史命名卷 `barker-data`，与仓库中的 `data/` 不同；保留该卷名是为了让现有部署升级后继续挂载原数据。迁移已有本地实例时，先按「备份与恢复」创建快照，并在首次启动容器前恢复到该卷。不要先用空数据卷启动新实例。
+
+从旧版 Compose 升级时，旧容器名为 `barker`。首次切换前移除旧容器（不会删除 `barker-data` 卷），再启动新服务：
+
+```bash
+docker rm -f barker
+docker compose up -d --build
+```
 
 也可以使用命名卷直接运行：
 
 ```bash
-docker build --secret id=HEROUI_KEY,env=HEROUI_KEY -t barker:local .
-docker run -d --init --name barker \
+docker build --secret id=HEROUI_KEY,env=HEROUI_KEY -t rubidium:local .
+docker run -d --init --name rubidium \
   --stop-timeout 30 \
   -p 127.0.0.1:3000:3000 \
   -v barker-data:/app/data \
-  barker:local
-docker logs barker
+  rubidium:local
+docker logs rubidium
 ```
 
-镜像使用固定 Node 24 Alpine 摘要、多阶段 standalone 构建和 UID/GID `1001:1001` 非 root 用户。健康检查同时验证 SQLite 可写和调度器心跳；调度器被禁用、数据库只读或心跳过期时，`/api/health` 返回 `503`。
+镜像使用固定 Node 24 Alpine 摘要、多阶段 standalone 构建和 UID/GID `1001:1001` 非 root 用户。健康检查同时验证 SQLite 可写和调度器心跳；调度器被禁用、数据库只读或心跳过期时，`/api/health` 返回 `503`。部分 `BARKER_*` 环境变量、`barker.sqlite` 数据库文件名、`barker_session` Cookie 和 `barker-data` 卷名为既有安装兼容保留，不影响产品显示名。
 
 生产启动入口会先等待正在发送的请求，再把终止信号转发给 Next.js，最长等待 20 秒。转发后再次收到终止信号会强制关闭服务。被中断的租约由下次启动恢复。
 
@@ -149,7 +156,7 @@ pnpm test:browser
 ### 容器端到端冒烟
 
 ```bash
-docker build --secret id=HEROUI_KEY,env=HEROUI_KEY -t barker:local .
+docker build --secret id=HEROUI_KEY,env=HEROUI_KEY -t rubidium:local .
 pnpm test:container
 ```
 
@@ -161,10 +168,10 @@ pnpm test:container
 
 ```bash
 # 默认从 ./data 或 BARKER_DATA_DIR 备份到新目录
-pnpm data:backup /secure/backups/barker-20261112
+pnpm data:backup /secure/backups/rubidium-20261112
 
 # 从新目录恢复，源目录必须已经备份
-pnpm data:restore /srv/barker/data-restored /secure/backups/barker-20261112
+pnpm data:restore /srv/rubidium/data-restored /secure/backups/rubidium-20261112
 ```
 
 备份目录必须不存在；命令创建权限为 `0700` 的目录和 `0600` 的文件，并生成包含 SHA-256 校验和的 `manifest.json`。恢复同样拒绝覆盖任何已有目录，会验证完整性、外键和 schema 版本，并清除恢复副本中的会话与运行期调度状态。
@@ -224,10 +231,10 @@ pnpm ui:setup
 `ui:setup` 使用安装器的 CI 模式，避免自动生成包含访问码的 Vercel 配置。CI 需要在仓库 Secrets 中配置 `HEROUI_KEY`；凭据只用于依赖安装。Fork PR 默认拿不到该 secret，需要在有授权的本地环境完成构建验证。Docker 使用 BuildKit secret：
 
 ```bash
-docker build --secret id=HEROUI_KEY,env=HEROUI_KEY -t barker:local .
+docker build --secret id=HEROUI_KEY,env=HEROUI_KEY -t rubidium:local .
 ```
 
-不要将访问码写入 Dockerfile、构建参数或版本库。生产运行镜像无需此访问码。HeroUI Pro 依赖按其商业许可使用；下方 MIT 许可适用于 Barker 自身代码。
+不要将访问码写入 Dockerfile、构建参数或版本库。生产运行镜像无需此访问码。HeroUI Pro 依赖按其商业许可使用；下方 MIT 许可适用于 Rubidium 自身代码。
 
 ## License
 

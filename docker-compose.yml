@@ -1,11 +1,11 @@
 services:
-  barker:
+  rubidium:
     build:
       context: .
       secrets:
         - HEROUI_KEY
-    image: barker:local
-    container_name: barker
+    image: rubidium:local
+    container_name: rubidium
     ports:
       - "${BARKER_BIND_ADDR:-127.0.0.1}:${BARKER_PORT:-3000}:3000"
     environment:

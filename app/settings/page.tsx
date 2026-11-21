@@ -110,7 +110,7 @@ function SettingsForm({ initial, onSaved }: { initial: SettingsPayload; onSaved:
           <Details title="更多通知选项">
             <Field label="测试通知标题" value={settings.title} onChange={(event) => update("title", event.target.value)} maxLength={100} required />
             <div className="grid gap-4 sm:grid-cols-2">
-              <Field label="通知分组" value={settings.group} onChange={(event) => update("group", event.target.value)} maxLength={100} placeholder="Barker" />
+              <Field label="通知分组" value={settings.group} onChange={(event) => update("group", event.target.value)} maxLength={100} placeholder="Rubidium" />
               <Field label="提示音" value={settings.sound} onChange={(event) => update("sound", event.target.value)} maxLength={80} placeholder="1107" />
             </div>
             <Field label="通知图标 URL" value={settings.icon} onChange={(event) => update("icon", event.target.value)} placeholder="https://example.com/icon.png" type="url" maxLength={300} hint="留空时使用 Bark 默认图标。" />
@@ -134,8 +134,8 @@ function SettingsForm({ initial, onSaved }: { initial: SettingsPayload; onSaved:
         <Card.Content className="gap-3">
           <div className="grid gap-2 rounded-lg bg-surface-secondary p-4 text-sm">
             <p className="text-xs font-medium text-muted">Bark · 测试通知</p>
-            <p className="line-clamp-2 font-semibold break-words">{settings.title || "Barker 提醒"}</p>
-            <p className="line-clamp-2 leading-relaxed text-muted">这是一条来自 Barker 的测试通知。</p>
+            <p className="line-clamp-2 font-semibold break-words">{settings.title || "Rubidium 提醒"}</p>
+            <p className="line-clamp-2 leading-relaxed text-muted">这是一条来自 Rubidium 的测试通知。</p>
             {(settings.group || settings.sound) && <p className="line-clamp-1 text-xs break-words text-muted">分组：{settings.group || "无"} · 提示音：{settings.sound || "默认"}</p>}
           </div>
           <p id="test-notification-hint" className="text-xs leading-relaxed text-muted">{conflict ? "载入最新设置后再发送测试。" : dirty ? "保存当前配置后即可发送测试。" : !configured ? "先填写 Device Key 并保存，才能发送测试。" : "实际通知样式由 Bark 和设备决定。"}</p>

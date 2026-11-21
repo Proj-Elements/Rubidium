@@ -15,7 +15,7 @@ export const POST = apiRoute(async (request: Request): Promise<NextResponse> => 
   const settings = readSettings();
   if (!settings.deviceKey.trim()) return jsonError("尚未配置 Bark Device Key，请先保存设置", 400);
   try {
-    await sendBark(settings, "Barker 测试推送", "Bark 连接已配置成功。");
+    await sendBark(settings, "Rubidium 测试推送", "Bark 连接已配置成功。");
     return NextResponse.json({ delivered: true });
   } catch (error) {
     if (!(error instanceof BarkDeliveryError)) throw error;

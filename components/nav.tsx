@@ -66,7 +66,7 @@ function SidebarSections({ mobile = false }: { mobile?: boolean }) {
   return <>
     {mobile && <Sheet.Heading className="sr-only">工作空间导航</Sheet.Heading>}
     <Sidebar.Header className="flex-row items-center justify-between px-5 pt-6 pb-8">
-      <WorkspaceLink href="/" className="w-fit no-underline hover:no-underline" aria-label="Barker 工作概览" onNavigate={close}><Brand /></WorkspaceLink>
+      <WorkspaceLink href="/" className="w-fit no-underline hover:no-underline" aria-label="Rubidium 工作概览" onNavigate={close}><Brand /></WorkspaceLink>
       {mobile && <IconButton icon="close" label="关闭导航" onPress={close} />}
     </Sidebar.Header>
     <Sidebar.Content>

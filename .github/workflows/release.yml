@@ -96,13 +96,13 @@ jobs:
         run: |
           set -euo pipefail
           for architecture in amd64 arm64; do
-            docker buildx build --load --platform "linux/$architecture" --tag "barker:candidate-$architecture" \
+            docker buildx build --load --platform "linux/$architecture" --tag "rubidium:candidate-$architecture" \
               --secret id=HEROUI_KEY,env=HEROUI_KEY \
               --label "org.opencontainers.image.source=https://github.com/$GITHUB_REPOSITORY" \
               --label "org.opencontainers.image.revision=$GITHUB_SHA" \
               --label "org.opencontainers.image.version=$VERSION" \
               --label "org.opencontainers.image.licenses=MIT" .
-            BARKER_SMOKE_PLATFORM="linux/$architecture" node scripts/container-smoke.mjs "barker:candidate-$architecture"
+            BARKER_SMOKE_PLATFORM="linux/$architecture" node scripts/container-smoke.mjs "rubidium:candidate-$architecture"
           done
       - name: Recheck registry before publication
         id: candidate
@@ -119,7 +119,7 @@ jobs:
           sources=()
           for architecture in amd64 arm64; do
             platform_tag="$IMAGE:sha-$GITHUB_SHA-$VERSION-$architecture"
-            docker tag "barker:candidate-$architecture" "$platform_tag"
+            docker tag "rubidium:candidate-$architecture" "$platform_tag"
             push_output="$(docker push --quiet "$platform_tag")"
             [[ "$push_output" =~ (sha256:[0-9a-f]{64}) ]]
             pushed_digest="${BASH_REMATCH[1]}"

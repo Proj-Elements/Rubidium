@@ -66,9 +66,9 @@ export const DEFAULT_SETTINGS: BarkSettings = {
   displayTimeZone: SCHEDULE_TIME_ZONE,
   endpoint: "https://api.day.app",
   deviceKey: "",
-  title: "Barker 提醒",
+  title: "Rubidium 提醒",
   sound: "1107",
-  group: "Barker",
+  group: "Rubidium",
   icon: "",
 };
 

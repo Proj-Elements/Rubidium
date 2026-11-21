@@ -2,6 +2,7 @@ import { expect, test, type Page } from "@playwright/test";
 
 async function enter(page: Page) {
   await page.goto("/");
+  await expect(page).toHaveTitle(/Rubidium/);
   await page.getByLabel("访问密码").fill("browser-regression-password");
   await page.getByRole("button", { name: "进入工作空间" }).click();
   await expect(page.getByRole("heading", { name: "提醒概览" })).toBeVisible();

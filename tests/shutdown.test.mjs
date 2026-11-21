@@ -16,7 +16,7 @@ test("disabled scheduler still initializes the generated runtime password", { ti
       cwd: process.cwd(), env, encoding: "utf8", timeout: 8_000,
     });
     assert.equal(result.status, 0, result.stderr);
-    assert.match(result.stdout, /Barker access password: \S+/);
+    assert.match(result.stdout, /Rubidium access password: \S+/);
   } finally { rmSync(directory, { recursive: true, force: true }); }
 });
 
