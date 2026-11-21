@@ -2,6 +2,8 @@ import { randomUUID } from "node:crypto";
 import { DomainError } from "../errors";
 import { statement, transaction } from "./core";
 
+export const PERMANENT_CREDENTIAL_EXPIRY = 0;
+
 export function passwordRevision(): number {
   const value = (statement("SELECT value FROM settings WHERE key = 'password_revision'").get() as { value: string } | undefined)?.value;
   const revision = Number(value ?? 0);
@@ -42,7 +44,8 @@ export function removeSession(id: string): void { statement("DELETE FROM session
 export function securityState(): { sessions: Array<{ id: string; expiresAt: number }>; tokens: Array<{ id: string; name: string; scope: string; expiresAt: number; createdAt: number }> } {
   return {
     sessions: statement("SELECT id, expires_at expiresAt FROM sessions WHERE expires_at > ? ORDER BY expires_at DESC").all(Date.now()) as ReturnType<typeof securityState>["sessions"],
-    tokens: statement("SELECT id, name, scope, expires_at expiresAt, created_at createdAt FROM api_tokens WHERE expires_at > ? ORDER BY created_at DESC").all(Date.now()) as ReturnType<typeof securityState>["tokens"],
+    tokens: statement("SELECT id, name, scope, expires_at expiresAt, created_at createdAt FROM api_tokens WHERE expires_at = ? OR expires_at > ? ORDER BY created_at DESC")
+      .all(PERMANENT_CREDENTIAL_EXPIRY, Date.now()) as ReturnType<typeof securityState>["tokens"],
   };
 }
 
@@ -74,7 +77,7 @@ export function saveInitialPasswordOverride(value: string): boolean {
 
 export function saveApiToken(id: string, name: string, digest: string, scope: string, expiresAt: number): void {
   transaction(() => {
-    statement("DELETE FROM api_tokens WHERE expires_at <= ?").run(Date.now());
+    statement("DELETE FROM api_tokens WHERE expires_at != ? AND expires_at <= ?").run(PERMANENT_CREDENTIAL_EXPIRY, Date.now());
     if ((statement("SELECT COUNT(*) total FROM api_tokens").get() as { total: number }).total >= 100) throw new DomainError("最多创建 100 个访问凭据", 409);
     statement("INSERT INTO api_tokens VALUES (?, ?, ?, ?, ?, ?)").run(id, name, digest, scope, expiresAt, Date.now());
     auditEvent("security.token.create", id);
@@ -82,7 +85,8 @@ export function saveApiToken(id: string, name: string, digest: string, scope: st
 }
 
 export function apiTokenValid(digest: string, write: boolean): boolean {
-  return Boolean(statement("SELECT 1 FROM api_tokens WHERE digest = ? AND expires_at > ? AND (scope = 'write' OR ? = 0)").get(digest, Date.now(), Number(write)));
+  return Boolean(statement("SELECT 1 FROM api_tokens WHERE digest = ? AND (expires_at = ? OR expires_at > ?) AND (scope = 'write' OR ? = 0)")
+    .get(digest, PERMANENT_CREDENTIAL_EXPIRY, Date.now(), Number(write)));
 }
 
 export function revokeCredential(id: string, kind: "session" | "token"): void {

@@ -190,6 +190,31 @@ test("security audit requires a session and device updates require a non-empty I
   assert.equal((await devices.POST(request("/api/devices", "POST", device))).status, 200);
 });
 
+test("API credentials support permanent validity without changing finite expiry", async () => {
+  const create = (name: string, days: number) => security.POST(request("/api/security", "POST", { action: "token", name, scope: "read", days }));
+  const permanentResponse = await create("Permanent API token", 0);
+  assert.equal(permanentResponse.status, 200);
+  const permanent = (await permanentResponse.json()).token as string;
+  const permanentRequest = () => new Request("http://localhost/api/tasks", { headers: { authorization: `Bearer ${permanent}` } });
+  assert.equal(auth.requestIsAuthorized(permanentRequest()), true);
+
+  const finiteResponse = await create("Finite API token", 1);
+  assert.equal(finiteResponse.status, 200);
+  const finite = (await finiteResponse.json()).token as string;
+  const raw = database.__rawDatabaseForTests();
+  raw.prepare("UPDATE api_tokens SET expires_at = ? WHERE name = ?").run(Date.now() - 1, "Finite API token");
+  assert.equal(auth.requestIsAuthorized(new Request("http://localhost/api/tasks", { headers: { authorization: `Bearer ${finite}` } })), false);
+
+  const state = await (await security.GET(request("/api/security"))).json();
+  assert.equal(state.tokens.some((item: { name: string }) => item.name === "Finite API token"), false);
+  assert.equal(state.tokens.find((item: { name: string }) => item.name === "Permanent API token").expiresAt, 0);
+  assert.equal((await create("Cleanup API token", 0)).status, 200);
+  assert.equal(raw.prepare("SELECT COUNT(*) count FROM api_tokens WHERE name = ?").get("Finite API token")?.count, 0);
+  assert.equal(auth.requestIsAuthorized(permanentRequest()), true);
+
+  for (const days of [-1, 366, 1.5]) assert.equal((await create(`Invalid ${days}`, days)).status, 400);
+});
+
 test("health requires a writable database and a fresh enabled scheduler", async () => {
   const previous = process.env.BARKER_DISABLE_SCHEDULER;
   const raw = database.__rawDatabaseForTests();

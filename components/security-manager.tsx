@@ -1,9 +1,10 @@
 "use client";
 
-import { Button, Card, Chip, Fieldset, Form, Input, Modal } from "@heroui/react";
+import { Button, Card, Chip, Fieldset, Form, Input, Modal, Tooltip } from "@heroui/react";
 import { ItemCard, ItemCardGroup } from "@heroui-pro/react";
 import { useState, type FormEvent } from "react";
 import { api, errorMessage } from "@/lib/ui";
+import { Glyph } from "./icons";
 import { Pagination } from "./pagination";
 import { CardHeading, Confirm, Details, Empty, Field, IconButton, Loading, Notice, NumericField, Pick } from "./primitives";
 import { useResource } from "./use-resource";
@@ -28,6 +29,7 @@ export function SecurityManager() {
   const [name, setName] = useState("");
   const [scope, setScope] = useState("read");
   const [days, setDays] = useState(defaultDays);
+  const [expiryTooltipOpen, setExpiryTooltipOpen] = useState(false);
   const [token, setToken] = useState("");
   const [revocation, setRevocation] = useState<{ id: string; kind: "session" | "token"; name: string } | null>(null);
   const [busy, setBusy] = useState<"password" | "token" | "revoke" | null>(null);
@@ -85,7 +87,7 @@ export function SecurityManager() {
           {data.tokens.map((item) => <ItemCard key={item.id} role="listitem" variant="transparent" className="flex-wrap px-0">
             <ItemCard.Content className="min-w-36">
               <div className="flex flex-wrap items-center gap-2"><ItemCard.Title>{item.name}</ItemCard.Title><Chip variant="soft"><Chip.Label>{item.scope === "read" ? "只读" : "读写"}</Chip.Label></Chip></div>
-              <ItemCard.Description className="tabular-nums">到期 {formatTime(new Date(item.expiresAt).toISOString())}</ItemCard.Description>
+              <ItemCard.Description className="tabular-nums">{item.expiresAt === 0 ? "永不过期" : `到期 ${formatTime(new Date(item.expiresAt).toISOString())}`}</ItemCard.Description>
             </ItemCard.Content>
             <ItemCard.Action><Button variant="danger-soft" isDisabled={busy !== null} onPress={() => setRevocation({ id: item.id, kind: "token", name: item.name })}>撤销凭据</Button></ItemCard.Action>
           </ItemCard>)}
@@ -97,7 +99,19 @@ export function SecurityManager() {
                 <Field label="凭据名称" value={name} onChange={(event) => setName(event.target.value)} maxLength={80} required />
                 <div className="grid grid-cols-2 items-start gap-4">
                   <Pick label="凭据权限" value={scope} onChange={setScope} options={scopes} isDisabled={busy !== null} />
-                  <NumericField label="有效天数" value={days} onChange={setDays} minValue={1} maxValue={365} isRequired isDisabled={busy !== null} />
+                  <div className="grid content-start gap-1">
+                    <div className="flex min-h-11 items-center gap-1">
+                      <span className="label font-medium text-foreground">有效天数</span>
+                      <Tooltip delay={350} isOpen={expiryTooltipOpen} onOpenChange={setExpiryTooltipOpen}>
+                        <Button isIconOnly variant="ghost" aria-label="有效天数说明" className="size-11 shrink-0"
+                          onPointerEnter={() => setExpiryTooltipOpen(true)} onPointerLeave={() => setExpiryTooltipOpen(false)}>
+                          <Glyph name="info" />
+                        </Button>
+                        <Tooltip.Content>0 表示永不过期；1–365 表示有效天数。</Tooltip.Content>
+                      </Tooltip>
+                    </div>
+                    <NumericField label="有效天数" hideLabel value={days} onChange={setDays} minValue={0} maxValue={365} isRequired isDisabled={busy !== null} />
+                  </div>
                 </div>
               </Fieldset.Group>
               <Fieldset.Actions><Button type="submit" variant="outline" isPending={busy === "token"} isDisabled={busy !== null && busy !== "token"}>创建凭据</Button></Fieldset.Actions>

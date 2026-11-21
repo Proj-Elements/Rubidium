@@ -8,7 +8,7 @@ import { apiRoute, jsonError, requestBody, requireSameOriginMutation, validation
 export const runtime = "nodejs";
 const schema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("password"), current: z.string().max(300), next: z.string().min(16).max(300) }),
-  z.object({ action: z.literal("token"), name: z.string().trim().min(1).max(80), scope: z.enum(["read", "write"]), days: z.number().int().min(1).max(365) }),
+  z.object({ action: z.literal("token"), name: z.string().trim().min(1).max(80), scope: z.enum(["read", "write"]), days: z.number().int().min(0).max(365) }),
   z.object({ action: z.literal("revoke"), id: z.string().max(100), kind: z.enum(["session", "token"]) }),
 ]);
 

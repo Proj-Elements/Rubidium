@@ -1,7 +1,7 @@
 import { createHash, createHmac, randomBytes, randomUUID, scryptSync, timingSafeEqual } from "node:crypto";
 import { linkSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { apiTokenValid, auditEvent, passwordOverride, passwordRevision, persistSession, readSettings, removeSession, revokeOtherPasswordSessions, saveApiToken, saveInitialPasswordOverride, savePasswordOverride, sessionExists, transaction, writeSettings } from "./db";
+import { apiTokenValid, auditEvent, passwordOverride, passwordRevision, persistSession, readSettings, removeSession, revokeOtherPasswordSessions, saveApiToken, saveInitialPasswordOverride, savePasswordOverride, sessionExists, transaction, writeSettings, PERMANENT_CREDENTIAL_EXPIRY } from "./db";
 import { timeZoneSchema } from "./contracts";
 import { DomainError } from "./errors";
 import { initializeStorage, privateFile, runtimeDataDir } from "./storage";
@@ -292,7 +292,8 @@ export function changePassword(current: string, next: string, clientKey: string)
 
 export function createApiToken(name: string, scope: "read" | "write", days: number): string {
   const token = randomBytes(32).toString("base64url");
-  saveApiToken(randomUUID(), name, createHash("sha256").update(token).digest("hex"), scope, Date.now() + days * 86_400_000);
+  const expiresAt = days === 0 ? PERMANENT_CREDENTIAL_EXPIRY : Date.now() + days * 86_400_000;
+  saveApiToken(randomUUID(), name, createHash("sha256").update(token).digest("hex"), scope, expiresAt);
   return token;
 }
 

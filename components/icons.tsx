@@ -34,8 +34,9 @@ import moon from "@iconify-icons/gravity-ui/moon";
 import sun from "@iconify-icons/gravity-ui/sun";
 import display from "@iconify-icons/gravity-ui/display";
 import trash from "@iconify-icons/gravity-ui/trash-bin";
+import info from "@iconify-icons/gravity-ui/circle-info";
 
-const icons = { bell, squares, calendar, clock, gear, plus, arrow, chevron, check, circleCheck, shield, refresh, search, send, pause, play, edit, copy, archive, close, menu, logout, warning, lock, link, globe, chevronDown, inbox, more, moon, sun, display, trash };
+const icons = { bell, squares, calendar, clock, gear, plus, arrow, chevron, check, circleCheck, shield, refresh, search, send, pause, play, edit, copy, archive, close, menu, logout, warning, lock, link, globe, chevronDown, inbox, more, moon, sun, display, trash, info };
 export type IconName = keyof typeof icons;
 
 export function Glyph({ name, className = "", size = 18 }: { name: IconName; className?: string; size?: number }) {
