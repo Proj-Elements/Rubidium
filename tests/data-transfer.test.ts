@@ -9,6 +9,8 @@ const directory = mkdtempSync(join(tmpdir(), "rubidium-transfer-"));
 const snapshotPath = join(directory, "snapshot.sqlite");
 process.env.BARKER_DATA_DIR = join(directory, "data");
 delete process.env.BARKER_PASSWORD;
+process.env.BARKER_SETUP_TOKEN = "";
+process.env.BARKER_ALLOW_SETUP = "";
 
 let database: typeof import("../lib/db");
 let core: typeof import("../lib/db/core");

@@ -8,6 +8,8 @@ import { after, before, test } from "node:test";
 const directory = mkdtempSync(join(tmpdir(), "barker-auth-"));
 process.env.BARKER_DATA_DIR = directory;
 process.env.BARKER_PASSWORD = "test-access-password";
+process.env.BARKER_SETUP_TOKEN = "";
+process.env.BARKER_ALLOW_SETUP = "";
 after(() => rmSync(directory, { recursive: true, force: true }));
 
 let auth: typeof import("../lib/auth");

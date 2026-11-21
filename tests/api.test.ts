@@ -7,6 +7,8 @@ import { after, before, test } from "node:test";
 const directory = mkdtempSync(join(tmpdir(), "barker-api-"));
 process.env.BARKER_DATA_DIR = directory;
 process.env.BARKER_PASSWORD = "api-test-password-1234";
+process.env.BARKER_SETUP_TOKEN = "";
+process.env.BARKER_ALLOW_SETUP = "";
 let auth: typeof import("../lib/auth");
 let tasks: typeof import("../app/api/tasks/route");
 let task: typeof import("../app/api/tasks/[id]/route");

@@ -10,6 +10,8 @@ const directory = mkdtempSync(join(tmpdir(), "rubidium-password-reset-"));
 process.env.BARKER_DATA_DIR = directory;
 process.env.BARKER_SESSION_SECRET = "rubidium-password-reset-session";
 delete process.env.BARKER_PASSWORD;
+process.env.BARKER_SETUP_TOKEN = "";
+process.env.BARKER_ALLOW_SETUP = "";
 
 let auth: typeof import("../lib/auth");
 let database: typeof import("../lib/db");

@@ -42,9 +42,11 @@ try {
   const mockPort = mock.address().port;
   docker("volume", "create", "--label", `rubidium.smoke=${name}`, volume);
   volumeCreated = true;
+  const setupToken = `container-bootstrap-${randomBytes(24).toString("base64url")}`;
   docker("run", "-d", "--init", "--name", name, "--label", `rubidium.smoke=${name}`, "-p", "127.0.0.1::3000",
     ...(process.platform === "linux" ? ["--add-host", "host.docker.internal:host-gateway"] : []),
     "--mount", `type=volume,source=${volume},target=/app/data`,
+    "--env", `BARKER_SETUP_TOKEN=${setupToken}`,
     ...(process.env.BARKER_SMOKE_PLATFORM ? ["--platform", process.env.BARKER_SMOKE_PLATFORM] : []), image);
   created = true;
   const address = () => `http://127.0.0.1:${docker("port", name, "3000/tcp").split(":").at(-1)}`;
@@ -54,13 +56,14 @@ try {
   assert.equal((await fetch(`${base}/api/tasks`)).status, 401);
   const password = `container-smoke-${randomBytes(24).toString("base64url")}`;
   const initial = await fetch(`${base}/api/session`);
-  assert.deepEqual(await initial.json(), { authenticated: false, initialized: false });
+  assert.deepEqual(await initial.json(), { authenticated: false, initialized: false, setupEnabled: true, setupTokenRequired: true });
   const login = await fetch(`${base}/api/session`, {
-    method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ mode: "setup", password }),
+    method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ mode: "setup", password, setupToken }),
   });
   assert.equal(login.status, 200);
   const cookie = login.headers.get("set-cookie").split(";")[0];
   assert.equal(docker("logs", name).includes(password), false, "the configured password must never appear in container logs");
+  assert.equal(docker("logs", name).includes(setupToken), false, "the bootstrap token must never appear in container logs");
   const api = async (path, method = "GET", body) => {
     const response = await fetch(`${base}${path}`, {
       method, headers: { cookie, "content-type": "application/json" },

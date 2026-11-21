@@ -10,6 +10,8 @@ test("disabled scheduler initializes auth without generating or logging a passwo
   const directory = mkdtempSync(join(tmpdir(), "barker-disabled-scheduler-"));
   const env = { ...process.env, NEXT_RUNTIME: "nodejs", BARKER_DATA_DIR: directory, BARKER_DISABLE_SCHEDULER: "1" };
   delete env.BARKER_PASSWORD;
+  delete env.BARKER_SETUP_TOKEN;
+  delete env.BARKER_ALLOW_SETUP;
   delete env.BARKER_SESSION_SECRET;
   try {
     const result = spawnSync(process.execPath, ["--import", "tsx", "--eval", "import('./instrumentation.ts').then(({ register }) => register())"], {

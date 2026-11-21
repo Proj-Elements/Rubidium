@@ -9,7 +9,7 @@ test("first-visit setup stays usable in touch landscape and confirms the passwor
       await route.fulfill({ json: { authenticated: true, initialized: true } });
       return;
     }
-    await route.fulfill({ json: { authenticated: false, initialized: false } });
+    await route.fulfill({ json: { authenticated: false, initialized: false, setupEnabled: true, setupTokenRequired: true } });
   });
   await page.route("**/api/overview", (route) => route.fulfill({ json: {
     tasks: [], upcoming: [], upcomingDays: [], deviceKeyConfigured: false, endpoint: "https://api.day.app",
@@ -25,6 +25,7 @@ test("first-visit setup stays usable in touch landscape and confirms the passwor
     await expect(page.getByLabel("确认访问密码")).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     const controls = [
+      page.getByLabel("部署引导令牌"),
       page.getByLabel("设置访问密码"),
       page.getByLabel("确认访问密码"),
       page.getByRole("button", { name: /Asia\/Shanghai/ }),
@@ -53,6 +54,7 @@ test("first-visit setup stays usable in touch landscape and confirms the passwor
 
   await page.setViewportSize({ width: 844, height: 390 });
   await page.goto("/");
+  await page.getByLabel("部署引导令牌").fill("browser-bootstrap-token-secret-2030");
   await page.getByLabel("设置访问密码").fill("landscape-setup-password-2030");
   await page.getByLabel("确认访问密码").fill("different-password-value");
   await expect(page.getByText("两次输入的密码不一致")).toBeVisible();
@@ -64,5 +66,15 @@ test("first-visit setup stays usable in touch landscape and confirms the passwor
   await expect(page.getByRole("button", { name: /Europe\/Paris/ })).toBeVisible();
   await page.getByRole("button", { name: "完成初始化" }).click();
   await expect(page.getByRole("heading", { name: "提醒概览" })).toBeVisible();
-  expect(setupPayload).toEqual({ mode: "setup", password: "landscape-setup-password-2030", timeZone: "Europe/Paris" });
+  expect(setupPayload).toEqual({ mode: "setup", password: "landscape-setup-password-2030", timeZone: "Europe/Paris", setupToken: "browser-bootstrap-token-secret-2030" });
+});
+
+test("first-run setup stays closed without deployment authorization", async ({ page }) => {
+  await page.route("**/api/session", (route) => route.fulfill({ json: {
+    authenticated: false, initialized: false, setupEnabled: false, setupTokenRequired: false,
+  } }));
+  await page.goto("/");
+  await expect(page.getByText(/首次初始化未启用/)).toBeVisible();
+  await expect(page.getByLabel("设置访问密码")).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "完成初始化" })).toHaveCount(0);
 });

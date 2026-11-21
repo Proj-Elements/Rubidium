@@ -10,6 +10,9 @@ test("API clients reject HTML or structurally invalid success payloads", () => {
     deliveries: { pending: 0, retrying: 0, nextRetryAt: null }, endpoint: "https://api.day.app", deviceKeyConfigured: false, serverTime: "2030-01-01T00:00:00Z",
   }), true);
   assert.equal(validApiPayload("/api/tasks", {}), false);
+  assert.equal(validApiPayload("/api/session", { authenticated: false }), true);
+  assert.equal(validApiPayload("/api/session", { authenticated: false, initialized: false, setupEnabled: true, setupTokenRequired: true }), true);
+  assert.equal(validApiPayload("/api/session", { authenticated: false, initialized: false, setupEnabled: true }), false);
   assert.equal(validApiPayload("/api/deliveries", { deliveries: "not-an-array", total: 0 }), false);
   assert.equal(validApiPayload("/api/tasks/preview", { dates: ["not-a-date"] }), false);
   assert.equal(validApiPayload("/api/tasks/preview", { dates: ["2030-02-31T01:00:00Z"] }), false);

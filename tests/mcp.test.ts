@@ -7,6 +7,8 @@ import { after, before, test } from "node:test";
 const directory = mkdtempSync(join(tmpdir(), "rubidium-mcp-"));
 process.env.BARKER_DATA_DIR = directory;
 process.env.BARKER_PASSWORD = "mcp-test-password-1234";
+process.env.BARKER_SETUP_TOKEN = "";
+process.env.BARKER_ALLOW_SETUP = "";
 
 let auth: typeof import("../lib/auth");
 let database: typeof import("../lib/db");

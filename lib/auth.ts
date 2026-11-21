@@ -11,6 +11,7 @@ const AUTH_COOKIE = "barker_session";
 const SESSION_DURATION_SECONDS = 12 * 60 * 60;
 /** A shorter secret is guessable enough to forge session cookies / log in. */
 const MIN_SECRET_LENGTH = 16;
+const MIN_SETUP_TOKEN_LENGTH = 32;
 export const MAX_SECRET_LENGTH = 300;
 
 function readSecretFile(path: string): string | null {
@@ -96,6 +97,19 @@ function loadConfiguredPassword(): string | null {
   return existing;
 }
 
+function loadSetupToken(): string | null {
+  const configured = process.env.BARKER_SETUP_TOKEN?.trim();
+  if (!configured) return null;
+  if (configured.length < MIN_SETUP_TOKEN_LENGTH || configured.length > MAX_SECRET_LENGTH) {
+    throw new Error(`Rubidium secret BARKER_SETUP_TOKEN must be ${MIN_SETUP_TOKEN_LENGTH}-${MAX_SECRET_LENGTH} characters`);
+  }
+  return configured;
+}
+
+function enabledByEnvironment(value: string | undefined): boolean {
+  return ["1", "true", "yes"].includes(value?.trim().toLowerCase() ?? "");
+}
+
 export function initializeAuth(): void {
   if (!initialized) {
     initializeStorage();
@@ -103,6 +117,8 @@ export function initializeAuth(): void {
     registerLogSecret(sessionSecret);
     initialized = true;
   }
+  const setupToken = loadSetupToken();
+  if (setupToken) registerLogSecret(setupToken);
   runtimePassword = loadConfiguredPassword() ?? "";
   if (runtimePassword) registerLogSecret(runtimePassword);
   refreshCredential();
@@ -162,6 +178,25 @@ export function getAuthCookieName(): string {
 export function passwordIsConfigured(): boolean {
   initializeAuth();
   return Boolean(runtimePassword || passwordOverride());
+}
+
+export function setupConfiguration(): { enabled: boolean; tokenRequired: boolean } {
+  initializeAuth();
+  if (passwordIsConfigured()) return { enabled: false, tokenRequired: false };
+  const tokenRequired = loadSetupToken() !== null;
+  return {
+    enabled: tokenRequired || enabledByEnvironment(process.env.BARKER_ALLOW_SETUP),
+    tokenRequired,
+  };
+}
+
+export function verifySetupToken(candidate: unknown): boolean {
+  initializeAuth();
+  const configured = loadSetupToken();
+  if (!configured || typeof candidate !== "string" || candidate.length > MAX_SECRET_LENGTH) return false;
+  const expected = createHash("sha256").update(configured).digest();
+  const actual = createHash("sha256").update(candidate).digest();
+  return timingSafeEqual(actual, expected);
 }
 
 export function initializePassword(password: string, timeZone?: string): boolean {

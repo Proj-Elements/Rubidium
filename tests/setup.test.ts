@@ -9,6 +9,8 @@ const directory = mkdtempSync(join(tmpdir(), "rubidium-setup-"));
 process.env.BARKER_DATA_DIR = directory;
 process.env.BARKER_SESSION_SECRET = "rubidium-setup-session-secret";
 delete process.env.BARKER_PASSWORD;
+delete process.env.BARKER_SETUP_TOKEN;
+delete process.env.BARKER_ALLOW_SETUP;
 
 let auth: typeof import("../lib/auth");
 let session: typeof import("../app/api/session/route");
@@ -28,19 +30,28 @@ function request(body?: unknown, cookie?: string): Request {
 
 test("first boot requires one-time setup and persists only a password hash", async () => {
   const initial = await session.GET(request());
-  assert.deepEqual(await initial.json(), { authenticated: false, initialized: false });
+  assert.deepEqual(await initial.json(), { authenticated: false, initialized: false, setupEnabled: false, setupTokenRequired: false });
 
   const login = await session.POST(request({ password: "not-configured-password" }));
   assert.equal(login.status, 428);
+  assert.equal((await session.POST(request({ mode: "setup", password: "first-install-password-2030" }))).status, 403);
+  assert.equal(auth.passwordIsConfigured(), false);
 
-  const weak = await session.POST(request({ mode: "setup", password: "too-short" }));
+  const setupToken = "first-install-bootstrap-token-2030";
+  process.env.BARKER_SETUP_TOKEN = setupToken;
+  assert.deepEqual(await (await session.GET(request())).json(), { authenticated: false, initialized: false, setupEnabled: true, setupTokenRequired: true });
+  assert.equal((await session.POST(request({ mode: "setup", password: "first-install-password-2030" }))).status, 403);
+  assert.equal((await session.POST(request({ mode: "setup", password: "first-install-password-2030", setupToken: "wrong-bootstrap-token-2030" }))).status, 403);
+  assert.equal(auth.passwordIsConfigured(), false);
+
+  const weak = await session.POST(request({ mode: "setup", password: "too-short", setupToken }));
   assert.equal(weak.status, 400);
   assert.equal(auth.passwordIsConfigured(), false);
-  assert.equal((await session.POST(request({ mode: "setup", password: "first-install-password-2030", timeZone: "Invalid/Zone" }))).status, 400);
+  assert.equal((await session.POST(request({ mode: "setup", password: "first-install-password-2030", setupToken, timeZone: "Invalid/Zone" }))).status, 400);
   assert.equal(auth.passwordIsConfigured(), false);
 
   const password = "first-install-password-2030";
-  const setup = await session.POST(request({ mode: "setup", password, timeZone: "Europe/Paris" }));
+  const setup = await session.POST(request({ mode: "setup", password, setupToken, timeZone: "Europe/Paris" }));
   assert.equal(setup.status, 200);
   assert.match(setup.headers.get("set-cookie") ?? "", /HttpOnly; SameSite=Lax/);
   assert.equal(auth.verifyPassword(password), true);
@@ -52,7 +63,7 @@ test("first boot requires one-time setup and persists only a password hash", asy
   assert.equal(JSON.stringify(override).includes(password), false);
 
   const cookie = setup.headers.get("set-cookie")!.split(";")[0];
-  assert.deepEqual(await (await session.GET(request(undefined, cookie))).json(), { authenticated: true, initialized: true });
+  assert.deepEqual(await (await session.GET(request(undefined, cookie))).json(), { authenticated: true, initialized: true, setupEnabled: false, setupTokenRequired: false });
   const token = auth.getCookieValue(cookie);
   assert.ok(token);
   const restored = spawnSync(process.execPath, ["--import", "tsx", "--input-type=module", "--eval", `const auth = await import('./lib/auth.ts'); console.log(JSON.stringify({ configured: auth.passwordIsConfigured(), accepted: auth.verifyPassword(${JSON.stringify(password)}), session: auth.isValidSessionToken(${JSON.stringify(token)}) }));`], {
@@ -67,6 +78,27 @@ test("first boot requires one-time setup and persists only a password hash", asy
   assert.equal(auth.isValidSessionToken(token), false);
   assert.equal((await session.POST(request({ mode: "setup", password }))).status, 409);
   assert.equal((await session.POST(request({ password: changedPassword }))).status, 200);
+});
+
+test("explicit setup override enables initialization without a bootstrap token", () => {
+  const allowDirectory = mkdtempSync(join(tmpdir(), "rubidium-setup-allow-"));
+  const code = `
+    const session = await import('./app/api/session/route.ts');
+    const request = (body) => new Request('http://localhost:3000/api/session', { method: body ? 'POST' : 'GET', headers: { host: 'localhost:3000', ...(body ? { 'content-type': 'application/json' } : {}) }, ...(body ? { body: JSON.stringify(body) } : {}) });
+    const stateResponse = await session.GET(request());
+    const state = await stateResponse.json();
+    const result = await session.POST(request({ mode: 'setup', password: 'explicit-setup-override-password-2030' }));
+    console.log(JSON.stringify({ state, status: result.status }));
+  `;
+  try {
+    const result = spawnSync(process.execPath, ["--import", "tsx", "--input-type=module", "--eval", code], {
+      cwd: process.cwd(), env: { ...process.env, BARKER_DATA_DIR: allowDirectory, BARKER_PASSWORD: "", BARKER_SETUP_TOKEN: "", BARKER_ALLOW_SETUP: "1", BARKER_SESSION_SECRET: "rubidium-setup-allow-session" }, encoding: "utf8",
+    });
+    assert.equal(result.status, 0, result.stderr);
+    assert.deepEqual(JSON.parse(result.stdout.trim()), {
+      state: { authenticated: false, initialized: false, setupEnabled: true, setupTokenRequired: false }, status: 200,
+    });
+  } finally { rmSync(allowDirectory, { recursive: true, force: true }); }
 });
 
 test("existing generated password files remain valid for upgraded installs", () => {
@@ -110,5 +142,22 @@ test("simultaneous initial password writes have a single winner", async () => {
     ]);
     assert.equal(results.filter((result) => result.initialized).length, 1);
     assert.equal(results.filter((result) => result.accepted).length, 1);
+  } finally { rmSync(raceDirectory, { recursive: true, force: true }); }
+});
+
+test("concurrent setup requests with the bootstrap token have one winner", () => {
+  const raceDirectory = mkdtempSync(join(tmpdir(), "rubidium-setup-route-race-"));
+  const code = `
+    const session = await import('./app/api/session/route.ts');
+    const request = (password) => new Request('http://localhost:3000/api/session', { method: 'POST', headers: { host: 'localhost:3000', 'content-type': 'application/json' }, body: JSON.stringify({ mode: 'setup', password, setupToken: 'route-race-bootstrap-token-secret-2030' }) });
+    const responses = await Promise.all([session.POST(request('first-route-racing-password-2030')), session.POST(request('second-route-racing-password-2030'))]);
+    console.log(JSON.stringify(responses.map((response) => response.status).sort()));
+  `;
+  try {
+    const result = spawnSync(process.execPath, ["--import", "tsx", "--input-type=module", "--eval", code], {
+      cwd: process.cwd(), env: { ...process.env, BARKER_DATA_DIR: raceDirectory, BARKER_PASSWORD: "", BARKER_SETUP_TOKEN: "route-race-bootstrap-token-secret-2030", BARKER_ALLOW_SETUP: "", BARKER_SESSION_SECRET: "rubidium-setup-route-race-session" }, encoding: "utf8",
+    });
+    assert.equal(result.status, 0, result.stderr);
+    assert.deepEqual(JSON.parse(result.stdout.trim()), [200, 409]);
   } finally { rmSync(raceDirectory, { recursive: true, force: true }); }
 });

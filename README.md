@@ -4,7 +4,7 @@
 
 ## 工作流程
 
-1. 首次打开服务时创建访问密码；后续访问使用该密码登录。也可通过 `BARKER_PASSWORD` 在启动前预设访问密码并跳过初始化。
+1. 首次部署需由部署者提供 `BARKER_SETUP_TOKEN`，或在受限网络中显式启用 `BARKER_ALLOW_SETUP=1`，随后创建访问密码；后续访问使用该密码登录。也可通过 `BARKER_PASSWORD` 在启动前预设访问密码并跳过初始化。
 2. 在「推送设置」填写 Bark 服务地址与 Device Key，保存后发送测试通知。
 3. 创建提醒：名称、可选正文、开始时间、重复周期、任务时区，以及重复次数或截止日期。
 4. 在「工作概览」查看接下来七天的安排、待投递数量和最近活动。
@@ -14,7 +14,7 @@
 
 ## 首次部署与时区
 
-- 首次访问会进入初始化页，创建 16–300 个字符的访问密码并确认密码。密码以 scrypt 哈希保存在 SQLite，不写入启动日志；以后使用同一密码登录。也可在首次启动前通过 `BARKER_PASSWORD` 预设访问密码并跳过初始化。
+- 新数据目录默认关闭首次初始化。部署者可设置至少 32 个随机字符的 `BARKER_SETUP_TOKEN`，并在初始化页输入该令牌后创建访问密码；令牌不会保存到数据库或日志。也可仅在本机或受限网络中显式设置 `BARKER_ALLOW_SETUP=1`，不使用引导令牌。两者都未设置时，初始化页会保持关闭。访问密码以 scrypt 哈希保存在 SQLite；也可在首次启动前通过 `BARKER_PASSWORD` 预设访问密码并跳过初始化。初始化成功后建议移除部署引导令牌。
 - 初始化页会预选浏览器当前的 IANA 时区，可以搜索并改选其他时区。之后可在「设置」更改全局显示时区；新提醒默认使用全局时区，每个提醒也可以单独指定时区。日期和重复时间按该提醒自己的时区执行。
 - 若在浏览器或主机之间切换时区，请分别检查「设置」里的显示时区和提醒编辑器里的任务时区；它们控制不同的显示/排期行为。
 - 外观设置支持浅色、深色和跟随系统。
@@ -78,6 +78,8 @@ pending -> sending（2 分钟租约）-> sent
 
 ```bash
 cp .env.example .env
+# 编辑 .env：首次初始化需配置随机 BARKER_SETUP_TOKEN；也可仅在受限网络中设置 BARKER_ALLOW_SETUP=1
+chmod 600 .env
 # 可选：预设 16–300 字符的管理员访问密码并跳过首次初始化
 
 read -r -s -p "HeroUI Pro access key: " HEROUI_KEY
@@ -93,7 +95,7 @@ docker compose logs -f rubidium
 
 Compose 从当前代码构建 `rubidium:local`，服务和容器名为 `rubidium`。默认只绑定 `127.0.0.1`；跨设备访问时设置 `BARKER_BIND_ADDR`，并建议放在 HTTPS 反向代理后。`.env` 在运行时传入容器，不进入镜像。Compose 继续使用历史命名卷 `barker-data`，与仓库中的 `data/` 不同；保留该卷名是为了让现有部署升级后继续挂载原数据。迁移已有本地实例时，先按「备份与恢复」创建快照，并在首次启动容器前恢复到该卷。不要先用空数据卷启动新实例。
 
-正常启动后首次访问 `http://localhost:3000` 创建访问密码。预设 `BARKER_PASSWORD` 时应在首次访问前准备好该值；清空环境变量不会自动重置已经创建的密码。
+配置 `BARKER_SETUP_TOKEN` 后，首次访问 `http://localhost:3000` 输入引导令牌并创建访问密码。若两种初始化授权均未配置，页面会显示初始化未启用，且服务器不会接受初始化请求。预设 `BARKER_PASSWORD` 时应在首次访问前准备好该值；清空环境变量不会自动重置已经创建的密码。
 
 忘记访问密码时，可在运行中的容器内安全重置；密码交互输入时不回显，不会删除任务、队列或设置，会撤销所有会话和 API 凭据：
 
@@ -135,13 +137,14 @@ docker compose up -d --build
 
 `docker compose down -v` 会删除任务、队列、配置和密钥，除非明确希望清空数据，否则不要使用。
 
-正式发布后，多架构镜像按 SemVer 推送到 `ghcr.io/proj-elements/rubidium`。例如拉取指定版本：
+正式发布后，多架构镜像按 SemVer 推送到 `ghcr.io/proj-elements/rubidium`。首次使用空数据卷前，先安全设置 `BARKER_SETUP_TOKEN`；已有初始化数据卷无需该值。例如拉取指定版本：
 
 ```bash
 docker pull ghcr.io/proj-elements/rubidium:v1.0.0
 docker run -d --init --name rubidium \
   --stop-timeout 30 \
   -p 127.0.0.1:3000:3000 \
+  -e BARKER_SETUP_TOKEN \
   -v barker-data:/app/data \
   ghcr.io/proj-elements/rubidium:v1.0.0
 ```
@@ -152,7 +155,9 @@ docker run -d --init --name rubidium \
 
 | 变量 | 默认值 | 说明 |
 | --- | --- | --- |
-| `BARKER_PASSWORD` | 首次访问时设置 | 16–300 字符；设置后预先配置访问密码并跳过初始化；未设置时通过初始化页面创建 |
+| `BARKER_PASSWORD` | 未设置 | 16–300 字符；设置后预先配置访问密码并跳过初始化 |
+| `BARKER_SETUP_TOKEN` | 未设置 | 32–300 字符；允许首次初始化并要求在页面输入。令牌不保存，初始化完成后建议移除 |
+| `BARKER_ALLOW_SETUP` | 未启用 | `1/true/yes` 显式允许不带令牌初始化；仅在本机或受限网络临时使用。已设置 `BARKER_SETUP_TOKEN` 时仍要求令牌 |
 | `BARKER_SESSION_SECRET` | 自动生成并持久化 | 16–300 字符，用于 HMAC 会话签名 |
 | `BARKER_DATA_DIR` | `./data`；容器 `/app/data` | SQLite、密码和会话密钥目录 |
 | `BARKER_TRUST_PROXY` | 不信任 | 仅在可信反代后设置 `1/true/yes`，用于限流地址与 HTTPS Cookie 判断 |
@@ -166,7 +171,7 @@ docker run -d --init --name rubidium \
 
 会话有效期 12 小时，退出登录会撤销服务端会话，密码指纹变化会使旧会话失效。同一客户端键在 10 分钟内输错 5 次会被锁定 10 分钟。全服务在 10 分钟内累计 1000 次错误会暂停密码校验 30 秒。限流期间的登录和密码修改请求均返回 `429` 和 `Retry-After`，即使输入了正确密码。直接暴露服务时仍应使用足够长的随机密码。
 
-访问密码只在初始化页面输入，不会写入服务启动日志。旧安装可能仍通过 `access-password.txt` 兼容原有密码；新安装将初始化密码的 scrypt 哈希保存在 SQLite 中。
+访问密码只在初始化页面输入，不会写入服务启动日志。部署引导令牌也不会写入启动日志或数据库。旧安装可能仍通过 `access-password.txt` 兼容原有密码；新安装将初始化密码的 scrypt 哈希保存在 SQLite 中。
 
 ## 本地开发与验证
 
@@ -244,7 +249,7 @@ docker compose run --rm --no-deps --user 0 \
 
 这是管理员级原始快照，不等同于网页里的加密导出：快照目录可能包含访问密码兼容文件、会话签名密钥和明文 Bark Device Key。应写入受限权限的本地磁盘或加密存储，限制访问，并在需要时对备份介质本身加密。
 
-先从旧实例停机，再把 `BARKER_DATA_DIR` 指向恢复目录并启动。没有既有访问凭据且未设置 `BARKER_PASSWORD` 时，服务会进入初始化页面；缺少会话签名密钥时会生成新密钥，既有会话随之失效。
+先从旧实例停机，再把 `BARKER_DATA_DIR` 指向恢复目录并启动。没有既有访问凭据且未设置 `BARKER_PASSWORD` 时，服务只会在设置 `BARKER_SETUP_TOKEN` 或显式启用 `BARKER_ALLOW_SETUP=1` 后开放初始化；缺少会话签名密钥时会生成新密钥，既有会话随之失效。
 
 数据目录包含 `barker.sqlite`、WAL/SHM、`session-secret.txt`；升级中的旧安装还可能保留 `access-password.txt`。Device Key 保存在 SQLite 中，**没有静态加密**，数据目录和备份都应按秘密材料保护。不要把 SQLite 放在不支持文件锁和可靠写入的网络文件系统上，也不要让多个实例共同挂载同一数据目录。
 

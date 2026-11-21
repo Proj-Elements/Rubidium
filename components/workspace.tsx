@@ -19,17 +19,19 @@ import { FloatingScrollbar } from "./floating-scrollbar";
 export function Workspace({ children }: { children: ReactNode }) {
   const [authenticated, setAuthenticated] = useState<boolean | null>(null);
   const [initialized, setInitialized] = useState<boolean | null>(null);
+  const [setupEnabled, setSetupEnabled] = useState(false);
+  const [setupTokenRequired, setSetupTokenRequired] = useState(false);
   const [error, setError] = useState("");
   async function checkSession() {
     try {
-      const data = await api<{ authenticated: boolean; initialized: boolean }>("/api/session");
-      setError(""); setAuthenticated(data.authenticated); setInitialized(data.initialized);
+      const data = await api<{ authenticated: boolean; initialized: boolean; setupEnabled: boolean; setupTokenRequired: boolean }>("/api/session");
+      setError(""); setAuthenticated(data.authenticated); setInitialized(data.initialized); setSetupEnabled(data.setupEnabled); setSetupTokenRequired(data.setupTokenRequired);
     } catch (error) { setError(errorMessage(error)); }
   }
   useEffect(() => {
     let alive = true;
-    void api<{ authenticated: boolean; initialized: boolean }>("/api/session").then((data) => {
-      if (alive) { setAuthenticated(data.authenticated); setInitialized(data.initialized); }
+    void api<{ authenticated: boolean; initialized: boolean; setupEnabled: boolean; setupTokenRequired: boolean }>("/api/session").then((data) => {
+      if (alive) { setAuthenticated(data.authenticated); setInitialized(data.initialized); setSetupEnabled(data.setupEnabled); setSetupTokenRequired(data.setupTokenRequired); }
     }).catch((error) => { if (alive) setError(errorMessage(error)); });
     const expired = () => setAuthenticated(false);
     window.addEventListener("barker:unauthorized", expired);
@@ -40,7 +42,7 @@ export function Workspace({ children }: { children: ReactNode }) {
     {authenticated === null ? <main className="flex min-h-dvh flex-col items-center justify-center gap-4 px-4">
       <span className="brand-mark"><Glyph name="bell" size={22} /></span>
       {error ? <Notice action={<Button variant="ghost" onPress={() => void checkSession()}>重新连接</Button>}>{error}</Notice> : <Loading>正在打开工作空间</Loading>}
-    </main> : !authenticated ? <Gate setup={initialized === false} onAuthed={() => setAuthenticated(true)} /> : <AuthenticatedWorkspace logout={async () => { await api("/api/session", { method: "DELETE" }); setAuthenticated(false); }}>{children}</AuthenticatedWorkspace>}
+    </main> : !authenticated ? <Gate setup={initialized === false} setupEnabled={setupEnabled} setupTokenRequired={setupTokenRequired} onAuthed={() => setAuthenticated(true)} /> : <AuthenticatedWorkspace logout={async () => { await api("/api/session", { method: "DELETE" }); setAuthenticated(false); }}>{children}</AuthenticatedWorkspace>}
   </I18nProvider>;
 }
 

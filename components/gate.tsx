@@ -8,9 +8,10 @@ import { Notice, SourceLink } from "./primitives";
 import { ThemeToggle } from "./theme-toggle";
 import { TimeZonePicker, useBrowserTimeZone } from "./time-zone-picker";
 
-export function Gate({ onAuthed, setup }: { onAuthed: () => void; setup: boolean }) {
+export function Gate({ onAuthed, setup, setupEnabled, setupTokenRequired }: { onAuthed: () => void; setup: boolean; setupEnabled: boolean; setupTokenRequired: boolean }) {
   const [password, setPassword] = useState("");
   const [confirmation, setConfirmation] = useState("");
+  const [setupToken, setSetupToken] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const browserTimeZone = useBrowserTimeZone();
@@ -21,13 +22,15 @@ export function Gate({ onAuthed, setup }: { onAuthed: () => void; setup: boolean
   async function signIn(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (busy) return;
+    if (setup && (!setupEnabled || (setupTokenRequired && !setupToken))) return;
     if (setup && password !== confirmation) return;
     setBusy(true);
     setError("");
     try {
-      await api("/api/session", { method: "POST", body: JSON.stringify({ mode: setup ? "setup" : "login", password, ...(setup ? { timeZone } : {}) }) });
+      await api("/api/session", { method: "POST", body: JSON.stringify({ mode: setup ? "setup" : "login", password, ...(setup ? { timeZone, ...(setupTokenRequired ? { setupToken } : {}) } : {}) }) });
       setPassword("");
       setConfirmation("");
+      setSetupToken("");
       onAuthed();
     } catch (error) { setError(errorMessage(error)); }
     finally { setBusy(false); }
@@ -44,20 +47,24 @@ export function Gate({ onAuthed, setup }: { onAuthed: () => void; setup: boolean
           <Card.Title render={(props) => <h1 {...props} />} className="text-xl leading-tight font-bold">{setup ? "创建访问密码" : "登录工作空间"}</Card.Title>
         </Card.Header>
         <Card.Content>
-          <Form onSubmit={signIn} className="gate-form grid gap-4">
-            <TextField className="workspace-field" fullWidth name="password" type="password" isRequired isDisabled={busy}>
+          {setup && !setupEnabled ? <Notice>首次初始化未启用。请部署者配置 BARKER_SETUP_TOKEN，或显式设置 BARKER_ALLOW_SETUP=1。</Notice> : <Form onSubmit={signIn} className={`gate-form grid gap-4${setup && setupTokenRequired ? " gate-form-with-token" : ""}`}>
+            {setup && setupTokenRequired && <TextField className="workspace-field setup-token-field" fullWidth name="setupToken" type="password" isRequired isDisabled={busy}>
+              <Label>部署引导令牌</Label>
+              <Input variant="secondary" fullWidth className="h-11" autoComplete="off" value={setupToken} onChange={(event) => setSetupToken(event.target.value)} minLength={32} maxLength={300} />
+            </TextField>}
+            <TextField className={`workspace-field${setup && setupTokenRequired ? " setup-password-field" : ""}`} fullWidth name="password" type="password" isRequired isDisabled={busy}>
               <Label>{setup ? "设置访问密码" : "访问密码"}</Label>
               <Input variant="secondary" fullWidth className="h-11" autoComplete={setup ? "new-password" : "current-password"} value={password} onChange={(event) => setPassword(event.target.value)} minLength={setup ? 16 : undefined} maxLength={300} />
             </TextField>
-            {setup && <TextField className="workspace-field" fullWidth name="confirmation" type="password" isRequired isDisabled={busy} isInvalid={mismatch}>
+            {setup && <TextField className={`workspace-field${setupTokenRequired ? " setup-confirmation-field" : ""}`} fullWidth name="confirmation" type="password" isRequired isDisabled={busy} isInvalid={mismatch}>
               <Label>确认访问密码</Label>
               <Input variant="secondary" fullWidth className="h-11" autoComplete="new-password" value={confirmation} onChange={(event) => setConfirmation(event.target.value)} maxLength={300} />
               {mismatch && <FieldError>两次输入的密码不一致</FieldError>}
             </TextField>}
-            {setup && <TimeZonePicker value={timeZone} onChange={setSelectedTimeZone} isDisabled={busy} />}
+            {setup && (setupTokenRequired ? <div className="setup-time-zone"><TimeZonePicker value={timeZone} onChange={setSelectedTimeZone} isDisabled={busy} /></div> : <TimeZonePicker value={timeZone} onChange={setSelectedTimeZone} isDisabled={busy} />)}
             {error && <Notice>{error}</Notice>}
-            <Button fullWidth className="h-11" type="submit" isPending={busy} isDisabled={!password || (setup && (!confirmation || mismatch))}>{setup ? "完成初始化" : "进入工作空间"}</Button>
-          </Form>
+            <Button fullWidth className="setup-submit h-11" type="submit" isPending={busy} isDisabled={!password || (setup && (!setupEnabled || (setupTokenRequired && !setupToken) || !confirmation || mismatch))}>{setup ? "完成初始化" : "进入工作空间"}</Button>
+          </Form>}
         </Card.Content>
       </Card>
       <SourceLink className="gate-source mx-auto px-1" />

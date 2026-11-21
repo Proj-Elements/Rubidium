@@ -172,4 +172,12 @@
     .gate-form .label { font-size: 0.8125rem; line-height: 1rem; }
     .gate-card h1 { font-size: 1rem; line-height: 1.25rem; }
   }
+  @media (height <= 32rem) and (orientation: landscape) {
+    .gate-form-with-token { grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-areas: "token password" "confirmation time-zone" "submit submit"; gap: 0.375rem; align-items: end; }
+    .setup-token-field { grid-area: token; }
+    .setup-password-field { grid-area: password; }
+    .setup-confirmation-field { grid-area: confirmation; }
+    .setup-time-zone { grid-area: time-zone; min-width: 0; }
+    .setup-submit { grid-area: submit; }
+  }
 }

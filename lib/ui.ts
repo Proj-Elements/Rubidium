@@ -124,7 +124,11 @@ export function validApiPayload(url: string, data: unknown): boolean {
   if (!objectValue(data)) return false;
   const object = data;
   const path = url.split("?")[0];
-  if (path === "/api/session") return typeof object.authenticated === "boolean";
+  if (path === "/api/session") {
+    if (typeof object.authenticated !== "boolean") return false;
+    if (!("initialized" in object)) return true;
+    return typeof object.initialized === "boolean" && typeof object.setupEnabled === "boolean" && typeof object.setupTokenRequired === "boolean";
+  }
   if (path === "/api/overview") return Array.isArray(object.tasks) && object.tasks.every(taskValue)
     && Array.isArray(object.upcoming) && object.upcoming.every((item) => objectValue(item) && typeof item.taskId === "string" && timestampValue(item.occurrenceAt))
     && Array.isArray(object.upcomingDays) && object.upcomingDays.every((item) => objectValue(item) && dateValue(item.date) && nonNegativeInteger(item.total) && nonNegativeInteger(item.hidden))

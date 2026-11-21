@@ -1,22 +1,27 @@
 import { NextResponse } from "next/server";
-import { clearSessionCookie, clientKeyFor, createSessionToken, getCookieValue, initializePassword, loginRetryAfter, MAX_SECRET_LENGTH, passwordIsConfigured, revokeSessionToken, requestIsAuthorized, requestUsesHttps, setSessionCookie, verifyPassword } from "@/lib/auth";
+import { clearSessionCookie, clientKeyFor, createSessionToken, getCookieValue, initializePassword, loginRetryAfter, MAX_SECRET_LENGTH, passwordIsConfigured, revokeSessionToken, requestIsAuthorized, requestUsesHttps, setSessionCookie, setupConfiguration, verifyPassword, verifySetupToken } from "@/lib/auth";
 import { apiRoute, jsonError, jsonObjectBody, requestBody, requireSameOriginMutation } from "@/lib/http";
 
 export const runtime = "nodejs";
 
 export const GET = apiRoute(async (request: Request): Promise<NextResponse> => {
-  return NextResponse.json({ authenticated: requestIsAuthorized(request), initialized: passwordIsConfigured() });
+  const initialized = passwordIsConfigured();
+  const setup = setupConfiguration();
+  return NextResponse.json({ authenticated: requestIsAuthorized(request), initialized, setupEnabled: setup.enabled, setupTokenRequired: setup.tokenRequired });
 });
 
 export const POST = apiRoute(async (request: Request): Promise<NextResponse> => {
   const blocked = requireSameOriginMutation(request);
   if (blocked) return blocked;
-  const { password, mode, timeZone } = jsonObjectBody(await requestBody(request));
+  const { password, mode, timeZone, setupToken } = jsonObjectBody(await requestBody(request));
   if (typeof password !== "string") return jsonError("请输入访问密码", 400);
   if (password.length > MAX_SECRET_LENGTH) return jsonError("访问密码过长", 400);
   if (mode !== undefined && mode !== "login" && mode !== "setup") return jsonError("初始化请求无效", 400);
   if (mode === "setup") {
     if (passwordIsConfigured()) return jsonError("初始化已完成，请刷新页面后登录", 409);
+    const setup = setupConfiguration();
+    if (!setup.enabled) return jsonError("首次初始化未启用，请部署者配置引导令牌或显式启用初始化", 403);
+    if (setup.tokenRequired && !verifySetupToken(setupToken)) return jsonError("部署引导令牌无效", 403);
     if (timeZone !== undefined && typeof timeZone !== "string") return jsonError("时区无效", 400);
     if (!initializePassword(password, timeZone)) return jsonError("初始化已由其他请求完成，请刷新页面后登录", 409);
   } else {

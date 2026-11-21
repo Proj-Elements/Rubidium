@@ -12,6 +12,8 @@ import type { Task, TaskInput } from "../lib/types";
 const directory = mkdtempSync(join(tmpdir(), "barker-repairs-"));
 process.env.BARKER_DATA_DIR = directory;
 process.env.BARKER_PASSWORD = "regression-password-value";
+process.env.BARKER_SETUP_TOKEN = "";
+process.env.BARKER_ALLOW_SETUP = "";
 let db: typeof import("../lib/db");
 let scheduler: typeof import("../lib/scheduler");
 let auth: typeof import("../lib/auth");

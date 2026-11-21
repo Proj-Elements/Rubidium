@@ -15,9 +15,11 @@
 
 | 方法与路径 | 鉴权 | 输入 | 成功结果与常见错误 |
 | --- | --- | --- | --- |
-| `GET /api/session` | 无 | 无 | `{ authenticated, initialized }`。用于判断是否已设置密码及当前 Cookie 是否有效。 |
-| `POST /api/session` | 初始化或密码登录；JSON、同源 | `{ password, mode?, timeZone? }`。`mode` 为 `setup` 或 `login`；省略时按登录处理。初始化 `timeZone` 为可选 IANA 时区。 | `{ authenticated: true }` 并设置 HttpOnly Cookie。错误：`400` 输入无效，`401` 密码错误，`409` 初始化已完成/并发冲突，`428` 尚未初始化，`429` 登录限流（带 `retry-after`）。 |
+| `GET /api/session` | 无 | 无 | `{ authenticated, initialized, setupEnabled, setupTokenRequired }`。用于判断当前 Cookie、初始化状态及部署端是否开放初始化；不返回引导令牌。 |
+| `POST /api/session` | 初始化或密码登录；JSON、同源 | `{ password, mode?, timeZone?, setupToken? }`。`mode` 为 `setup` 或 `login`；省略时按登录处理。初始化 `timeZone` 为可选 IANA 时区。未设置 `BARKER_PASSWORD` 的全新实例需配置 32–300 字符的 `BARKER_SETUP_TOKEN` 并提交 `setupToken`，或由部署者显式设置 `BARKER_ALLOW_SETUP=1` 开放无令牌初始化。 | `{ authenticated: true }` 并设置 HttpOnly Cookie。错误：`400` 输入无效，`401` 密码错误，`403` 初始化未开放或引导令牌无效，`409` 初始化已完成/并发冲突，`428` 尚未初始化，`429` 登录限流（带 `retry-after`）。 |
 | `DELETE /api/session` | 同源；无效 Cookie 也可调用 | 无 | `{ authenticated: false }`，清除 Cookie 并撤销当前会话。 |
+
+`BARKER_SETUP_TOKEN` 在设置时始终优先于 `BARKER_ALLOW_SETUP`，并且仅在首次密码初始化时校验；初始化成功后不参与常规登录。
 
 ### 健康状态与概览
 
