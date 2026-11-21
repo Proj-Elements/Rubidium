@@ -1,12 +1,12 @@
 "use client";
 
-import { Avatar, Button, Dropdown, Label, Link, Sheet, Tooltip } from "@heroui/react";
+import { Button, Link, Sheet, Tooltip } from "@heroui/react";
 import { Sidebar, useSidebar } from "@heroui-pro/react";
 import { usePathname, useRouter } from "next/navigation";
-import type { Key, ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { Brand } from "./brand";
 import { Glyph, type IconName } from "./icons";
-import { IconButton, WorkspaceLink } from "./primitives";
+import { Confirm, IconButton, WorkspaceLink } from "./primitives";
 import { ThemeToggle } from "./theme-toggle";
 import { confirmUnsavedNavigation } from "./use-unsaved";
 import { useWorkspace } from "./workspace-context";
@@ -52,16 +52,10 @@ function WorkspaceToolbar() {
 
 function SidebarSections({ mobile = false }: { mobile?: boolean }) {
   const path = usePathname();
-  const router = useRouter();
   const { setMobileOpen } = useSidebar();
   const { dashboard, logout, notify } = useWorkspace();
+  const [confirmLogout, setConfirmLogout] = useState(false);
   const close = () => setMobileOpen(false);
-
-  function handleAccountAction(key: Key) {
-    close();
-    if (key === "settings") confirmUnsavedNavigation(() => router.push("/settings"));
-    if (key === "logout") confirmUnsavedNavigation(() => void logout().catch((error) => notify(errorMessage(error), "error")));
-  }
 
   return <>
     {mobile && <Sheet.Heading className="sr-only">工作空间导航</Sheet.Heading>}
@@ -84,19 +78,14 @@ function SidebarSections({ mobile = false }: { mobile?: boolean }) {
       {dashboard?.displayTimeZone && <p className="flex items-center gap-2 px-3 text-xs text-muted" aria-label={`显示时区：${dashboard.displayTimeZone}`}>
         <Glyph name="globe" size={15} />{dashboard.displayTimeZone}
       </p>}
-      <Dropdown>
-        <Button variant="ghost" fullWidth className="h-auto justify-start gap-3 p-2 text-start">
-          <Avatar size="sm" color="accent" aria-hidden="true"><Avatar.Fallback>B</Avatar.Fallback></Avatar>
-          <span className="flex-1">个人工作空间</span>
-          <Glyph name="chevronDown" size={14} className="text-muted" />
-        </Button>
-        <Dropdown.Popover placement="top start" className="account-popover">
-          <Dropdown.Menu aria-label="工作空间账户操作" onAction={handleAccountAction}>
-            <Dropdown.Item id="settings" textValue="推送设置"><Glyph name="gear" /><Label>推送设置</Label></Dropdown.Item>
-            <Dropdown.Item id="logout" textValue="退出工作空间"><Glyph name="logout" /><Label>退出工作空间</Label></Dropdown.Item>
-          </Dropdown.Menu>
-        </Dropdown.Popover>
-      </Dropdown>
+      <Button variant="danger-soft" fullWidth className="min-h-11 justify-start gap-2" onPress={() => setConfirmLogout(true)}>
+        <Glyph name="logout" />退出登录
+      </Button>
     </Sidebar.Footer>
+    {confirmLogout && <Confirm title="退出 Rubidium？" confirmLabel="退出登录" onClose={() => setConfirmLogout(false)} onConfirm={() => {
+      close();
+      setConfirmLogout(false);
+      void logout().catch((error) => notify(errorMessage(error), "error"));
+    }}><p>当前浏览器会话将结束，尚未保存的表单修改会丢失。其他已登录会话不会受到影响。</p></Confirm>}
   </>;
 }
