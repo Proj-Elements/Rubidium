@@ -20,10 +20,10 @@ interface Security {
 const scopes = [{ value: "read", label: "只读" }, { value: "write", label: "读写" }];
 const defaultDays = 30;
 
-export function SecurityManager() {
+export function SecurityManager({ active }: { active: boolean }) {
   const { formatTime } = useTime();
   const { notify } = useWorkspace();
-  const { data, error, refresh } = useResource<Security>("/api/security", 0);
+  const { data, error, refresh } = useResource<Security>("/api/security", 0, active);
   const [current, setCurrent] = useState("");
   const [next, setNext] = useState("");
   const [name, setName] = useState("");
@@ -156,10 +156,10 @@ const auditActions: Record<string, string> = {
 const auditPageSize = 8;
 type AuditEvent = { id: string; action: string; target: string; createdAt: string };
 
-export function AuditLog() {
+export function AuditLog({ active }: { active: boolean }) {
   const { formatTime } = useTime();
   const { notify } = useWorkspace();
-  const { data, error, refresh } = useResource<{ events: AuditEvent[] }>("/api/audit", 15_000);
+  const { data, error, refresh } = useResource<{ events: AuditEvent[] }>("/api/audit", 15_000, active);
   const [details, setDetails] = useState<AuditEvent | null>(null);
   const [page, setPage] = useState(1);
   const total = data?.events.length ?? 0;

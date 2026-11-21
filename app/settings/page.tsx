@@ -16,13 +16,14 @@ import { api, errorMessage } from "@/lib/ui";
 type SettingsPayload = { settings: Omit<BarkSettings, "deviceKey">; deviceKeyConfigured: boolean; revision: number };
 
 export default function SettingsPage() {
-  const { data, error, refresh } = useResource<SettingsPayload>("/api/settings", 15_000);
+  const [activePanel, setActivePanel] = useState("connection");
+  const { data, error, refresh } = useResource<SettingsPayload>("/api/settings", 15_000, activePanel === "connection");
   const panel = "grid min-w-0 gap-4 p-0 data-[inert]:hidden";
 
   return <div className="@container/settings grid gap-6">
     <PageHeading title="推送设置" />
     {error && <Notice action={<Button variant="ghost" onPress={() => void refresh()}>重试</Button>}>{error}</Notice>}
-    <Tabs className="settings-tabs min-w-0 gap-5" defaultSelectedKey="connection">
+    <Tabs className="settings-tabs min-w-0 gap-5" defaultSelectedKey="connection" onSelectionChange={(key) => setActivePanel(String(key))}>
       <Tabs.ListContainer className="w-full min-w-0 self-start sm:w-fit">
         <Tabs.List className="grid w-full grid-cols-2 whitespace-nowrap sm:flex [&>[role=tab]]:min-h-11" aria-label="工作空间设置分类">
           <Tabs.Tab id="connection">连接配置<Tabs.Indicator /></Tabs.Tab>
@@ -34,9 +35,9 @@ export default function SettingsPage() {
       <Tabs.Panel id="connection" shouldForceMount className={panel}>
         {data ? <SettingsForm initial={data} onSaved={refresh} /> : !error && <Loading>正在读取 Bark 配置</Loading>}
       </Tabs.Panel>
-      <Tabs.Panel id="devices" shouldForceMount className={panel}><DeviceManager /></Tabs.Panel>
-      <Tabs.Panel id="access" shouldForceMount className={panel}><SecurityManager /></Tabs.Panel>
-      <Tabs.Panel id="history" shouldForceMount className={panel}><DataTransfer /><HistorySettings /><AuditLog /></Tabs.Panel>
+      <Tabs.Panel id="devices" shouldForceMount className={panel}><DeviceManager active={activePanel === "devices"} /></Tabs.Panel>
+      <Tabs.Panel id="access" shouldForceMount className={panel}><SecurityManager active={activePanel === "access"} /></Tabs.Panel>
+      <Tabs.Panel id="history" shouldForceMount className={panel}><DataTransfer /><HistorySettings /><AuditLog active={activePanel === "history"} /></Tabs.Panel>
     </Tabs>
   </div>;
 }

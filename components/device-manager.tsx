@@ -13,8 +13,8 @@ type DeviceDraft = Pick<Device, "name" | "endpoint"> & Partial<Pick<Device, "id"
 
 const empty: DeviceDraft = { name: "", endpoint: "https://api.day.app", deviceKey: "" };
 
-export function DeviceManager() {
-  const { data, error, refresh } = useResource<{ devices: Device[] }>("/api/devices", 15_000);
+export function DeviceManager({ active }: { active: boolean }) {
+  const { data, error, refresh } = useResource<{ devices: Device[] }>("/api/devices", 15_000, active);
   const [form, setForm] = useState(empty);
   const [dirty, setDirty] = useState(false);
   const [feedback, setFeedback] = useState<{ message: string; kind: "success" | "error" } | null>(null);

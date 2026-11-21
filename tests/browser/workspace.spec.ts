@@ -96,6 +96,50 @@ test("browser Back preserves dirty settings when leaving is rejected", async ({ 
   await expect(page).toHaveURL(/\/tasks$/);
 });
 
+test("settings only poll the active panel and preserve connection drafts in landscape", async ({ page }) => {
+  test.setTimeout(60_000);
+  await page.setViewportSize({ width: 844, height: 390 });
+  await login(page);
+  const requests: string[] = [];
+  page.on("request", (request) => {
+    const path = new URL(request.url()).pathname;
+    if (["/api/settings", "/api/devices", "/api/security", "/api/audit"].includes(path) && request.method() === "GET") requests.push(path);
+  });
+
+  await page.goto("/settings");
+  await expect(page.getByLabel("API 服务地址", { exact: true })).toBeVisible();
+  const tab = (name: string) => page.getByRole("tab", { name, exact: true });
+  const count = (path: string) => requests.filter((requestPath) => requestPath === path).length;
+  expect(count("/api/devices")).toBe(0);
+  expect(count("/api/security")).toBe(0);
+  expect(count("/api/audit")).toBe(0);
+
+  const endpoint = page.getByLabel("API 服务地址", { exact: true });
+  await endpoint.fill("https://draft.example");
+  await tab("更多设备").click();
+  await expect.poll(() => count("/api/devices")).toBe(1);
+  await tab("访问安全").click();
+  await expect.poll(() => count("/api/security")).toBe(1);
+  await tab("记录维护").click();
+  await expect.poll(() => count("/api/audit")).toBe(1);
+  await tab("连接配置").click();
+  await expect(endpoint).toHaveValue("https://draft.example");
+
+  const deviceRequests = count("/api/devices");
+  const securityRequests = count("/api/security");
+  const auditRequests = count("/api/audit");
+  await page.waitForTimeout(15_500);
+  expect(count("/api/devices")).toBe(deviceRequests);
+  expect(count("/api/security")).toBe(securityRequests);
+  expect(count("/api/audit")).toBe(auditRequests);
+
+  await tab("更多设备").click();
+  await expect.poll(() => count("/api/devices")).toBe(deviceRequests + 1);
+  await tab("记录维护").click();
+  await expect.poll(() => count("/api/audit")).toBe(auditRequests + 1);
+  await page.screenshot({ path: test.info().outputPath("settings-history-landscape.png"), fullPage: true, animations: "disabled" });
+});
+
 test("a first-load API error replaces the loading state and offers retry", async ({ page }) => {
   await login(page);
   let fail = true;
