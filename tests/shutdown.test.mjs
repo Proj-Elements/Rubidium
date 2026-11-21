@@ -6,7 +6,7 @@ import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { test } from "node:test";
 
-test("disabled scheduler still initializes the generated runtime password", { timeout: 10_000 }, () => {
+test("disabled scheduler initializes auth without generating or logging a password", { timeout: 10_000 }, () => {
   const directory = mkdtempSync(join(tmpdir(), "barker-disabled-scheduler-"));
   const env = { ...process.env, NEXT_RUNTIME: "nodejs", BARKER_DATA_DIR: directory, BARKER_DISABLE_SCHEDULER: "1" };
   delete env.BARKER_PASSWORD;
@@ -16,7 +16,9 @@ test("disabled scheduler still initializes the generated runtime password", { ti
       cwd: process.cwd(), env, encoding: "utf8", timeout: 8_000,
     });
     assert.equal(result.status, 0, result.stderr);
-    assert.match(result.stdout, /Rubidium access password: \S+/);
+    assert.doesNotMatch(`${result.stdout}\n${result.stderr}`, /Rubidium access password|BARKER_PASSWORD/);
+    assert.equal(existsSync(join(directory, "session-secret.txt")), true);
+    assert.equal(existsSync(join(directory, "access-password.txt")), false);
   } finally { rmSync(directory, { recursive: true, force: true }); }
 });
 

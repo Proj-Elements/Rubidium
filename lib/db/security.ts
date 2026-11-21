@@ -2,9 +2,16 @@ import { randomUUID } from "node:crypto";
 import { DomainError } from "../errors";
 import { statement, transaction } from "./core";
 
-const authState = globalThis as typeof globalThis & { barkerPasswordRevision?: number };
+export function passwordRevision(): number {
+  const value = (statement("SELECT value FROM settings WHERE key = 'password_revision'").get() as { value: string } | undefined)?.value;
+  const revision = Number(value ?? 0);
+  return Number.isSafeInteger(revision) && revision >= 0 ? revision : 0;
+}
 
-export function passwordRevision(): number { return authState.barkerPasswordRevision ?? 0; }
+function incrementPasswordRevision(): void {
+  statement(`INSERT INTO settings (key, value) VALUES ('password_revision', '1')
+    ON CONFLICT(key) DO UPDATE SET value = CAST(value AS INTEGER) + 1`).run();
+}
 
 export function auditEvent(action: string, target: string): void {
   statement("INSERT INTO audit_events (id, action, target, created_at) VALUES (?, ?, ?, ?)").run(randomUUID(), action, target, new Date().toISOString());
@@ -46,11 +53,23 @@ export function passwordOverride(): string | null {
 export function savePasswordOverride(value: string): void {
   transaction(() => {
     statement("INSERT OR REPLACE INTO settings (key, value) VALUES ('password_override', ?)").run(value);
+    incrementPasswordRevision();
     statement("DELETE FROM sessions").run();
     statement("DELETE FROM api_tokens").run();
     auditEvent("security.password.change", "all-sessions-and-tokens");
   });
-  authState.barkerPasswordRevision = passwordRevision() + 1;
+}
+
+export function saveInitialPasswordOverride(value: string): boolean {
+  return transaction(() => {
+    if (statement("SELECT 1 FROM settings WHERE key = 'password_override'").get()) return false;
+    statement("INSERT INTO settings (key, value) VALUES ('password_override', ?)").run(value);
+    incrementPasswordRevision();
+    statement("DELETE FROM sessions").run();
+    statement("DELETE FROM api_tokens").run();
+    auditEvent("security.password.change", "initial-setup");
+    return true;
+  });
 }
 
 export function saveApiToken(id: string, name: string, digest: string, scope: string, expiresAt: number): void {

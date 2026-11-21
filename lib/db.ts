@@ -9,7 +9,7 @@ import { registerLogSecret } from "./logging";
 import { connection, databasePath, statement, transaction } from "./db/core";
 import { auditEvent } from "./db/security";
 export { dataDirectory, databasePath, initializeDatabase, transaction } from "./db/core";
-export { auditEvent, listAuditEvents, persistSession, sessionExists, revokeOtherPasswordSessions, removeSession, securityState, passwordOverride, passwordRevision, savePasswordOverride, saveApiToken, apiTokenValid, revokeCredential } from "./db/security";
+export { auditEvent, listAuditEvents, persistSession, sessionExists, revokeOtherPasswordSessions, removeSession, securityState, passwordOverride, passwordRevision, savePasswordOverride, saveInitialPasswordOverride, saveApiToken, apiTokenValid, revokeCredential } from "./db/security";
 
 type TaskRow = {
   id: string; name: string; description: string; starts_at: string; preset: Task["preset"];

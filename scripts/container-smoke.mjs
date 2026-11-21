@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
+import { randomBytes } from "node:crypto";
 import { createServer } from "node:http";
 import { setTimeout as delay } from "node:timers/promises";
 
@@ -51,13 +52,15 @@ try {
   await until(async () => (await fetch(`${base}/api/health`)).ok);
   assert.notEqual(docker("exec", name, "id", "-u"), "0", "runtime must be non-root");
   assert.equal((await fetch(`${base}/api/tasks`)).status, 401);
-  const password = docker("logs", name).match(/Rubidium access password: (\S+)/)?.[1];
-  assert.ok(password, "runtime must generate and print a password");
+  const password = `container-smoke-${randomBytes(24).toString("base64url")}`;
+  const initial = await fetch(`${base}/api/session`);
+  assert.deepEqual(await initial.json(), { authenticated: false, initialized: false });
   const login = await fetch(`${base}/api/session`, {
-    method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ password }),
+    method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ mode: "setup", password }),
   });
   assert.equal(login.status, 200);
   const cookie = login.headers.get("set-cookie").split(";")[0];
+  assert.equal(docker("logs", name).includes(password), false, "the configured password must never appear in container logs");
   const api = async (path, method = "GET", body) => {
     const response = await fetch(`${base}${path}`, {
       method, headers: { cookie, "content-type": "application/json" },
@@ -80,7 +83,7 @@ try {
     name: "Container restart reminder", description: "Immutable local smoke payload",
     startsAt, preset: "custom", cron: "* * * * *", repeatCount: 1, endDate: null,
   });
-  console.log("Non-root startup, generated password, auth and settings: passed.");
+  console.log("Non-root startup, first-run setup, auth and settings: passed.");
   console.log(`Waiting for real scheduler occurrence at ${startsAt}...`);
   const failed = await until(async () => {
     const { deliveries } = await api("/api/deliveries?status=retrying");
@@ -100,9 +103,10 @@ try {
   // Docker can allocate a new host port when restarting a random-port binding.
   base = address();
   await until(async () => (await fetch(`${base}/api/health`)).ok);
-  const { authenticated } = await api("/api/session");
+  const { authenticated, initialized } = await api("/api/session");
   assert.equal(authenticated, true, "persisted signing secret must preserve the session");
-  assert.equal((await api("/api/session", "POST", { password })).authenticated, true, "generated password must survive restart");
+  assert.equal(initialized, true, "setup must persist across restart");
+  assert.equal((await api("/api/session", "POST", { password })).authenticated, true, "configured password must survive restart");
   const sent = await until(async () => {
     const { deliveries } = await api("/api/deliveries?status=sent");
     return deliveries.find((item) => item.id === failed.id);
@@ -118,7 +122,7 @@ try {
 } catch (error) {
   if (created) {
     console.error(docker("inspect", name, "--format", "status={{.State.Status}} exit={{.State.ExitCode}} oom={{.State.OOMKilled}}"));
-    console.error(docker("logs", "--tail", "30", name).replace(/Rubidium access password: \S+/g, "Rubidium access password: [redacted]"));
+    console.error(docker("logs", "--tail", "30", name));
   }
   throw error;
 } finally {

@@ -4,7 +4,7 @@
 
 ## 工作流程
 
-1. 启动服务，从首次启动日志取得自动生成的访问密码，或通过 `BARKER_PASSWORD` 指定密码。
+1. 首次打开服务时创建访问密码；后续访问使用该密码登录。也可通过 `BARKER_PASSWORD` 在启动前预设访问密码并跳过初始化。
 2. 在「推送设置」填写 Bark 服务地址与 Device Key，保存后发送测试通知。
 3. 创建提醒：名称、可选正文、开始时间、重复周期、任务时区，以及重复次数或截止日期。
 4. 在「工作概览」查看接下来七天的安排、待投递数量和最近活动。
@@ -60,7 +60,7 @@ pending -> sending（2 分钟租约）-> sent
 
 ```bash
 cp .env.example .env
-# 可选：在 .env 设置 16–300 字符的 BARKER_PASSWORD
+# 可选：预设 16–300 字符的管理员访问密码并跳过首次初始化
 
 read -r -s -p "HeroUI Pro access key: " HEROUI_KEY
 printf '\n'
@@ -111,7 +111,7 @@ docker compose up -d --build
 
 | 变量 | 默认值 | 说明 |
 | --- | --- | --- |
-| `BARKER_PASSWORD` | 自动生成 | 16–300 字符；未设置时首次生成并写入数据目录，生成后的密码只在首次启动日志打印一次 |
+| `BARKER_PASSWORD` | 首次访问时设置 | 16–300 字符；设置后预先配置访问密码并跳过初始化；未设置时通过初始化页面创建 |
 | `BARKER_SESSION_SECRET` | 自动生成并持久化 | 16–300 字符，用于 HMAC 会话签名 |
 | `BARKER_DATA_DIR` | `./data`；容器 `/app/data` | SQLite、密码和会话密钥目录 |
 | `BARKER_TRUST_PROXY` | 不信任 | 仅在可信反代后设置 `1/true/yes`，用于限流地址与 HTTPS Cookie 判断 |
@@ -125,7 +125,7 @@ docker compose up -d --build
 
 会话有效期 12 小时，退出登录会撤销服务端会话，密码指纹变化会使旧会话失效。同一客户端键在 10 分钟内输错 5 次会被锁定 10 分钟。全服务在 10 分钟内累计 1000 次错误会暂停密码校验 30 秒。限流期间的登录和密码修改请求均返回 `429` 和 `Retry-After`，即使输入了正确密码。直接暴露服务时仍应使用足够长的随机密码。
 
-如果首次自动生成的密码日志已经丢失，可由数据目录所有者读取 `access-password.txt`，或显式设置 `BARKER_PASSWORD` 并重启服务。
+访问密码只在初始化页面输入，不会写入服务启动日志。旧安装可能仍通过 `access-password.txt` 兼容原有密码；新安装将初始化密码的 scrypt 哈希保存在 SQLite 中。
 
 ## 本地开发与验证
 
@@ -176,9 +176,9 @@ pnpm data:restore /srv/rubidium/data-restored /secure/backups/rubidium-20261112
 
 备份目录必须不存在；命令创建权限为 `0700` 的目录和 `0600` 的文件，并生成包含 SHA-256 校验和的 `manifest.json`。恢复同样拒绝覆盖任何已有目录，会验证完整性、外键和 schema 版本，并清除恢复副本中的会话与运行期调度状态。
 
-先从旧实例停机，再把 `BARKER_DATA_DIR` 指向恢复目录并启动。密码和会话密钥文件若不存在，需通过受控环境变量提供；否则服务会生成新密码和新会话密钥。
+先从旧实例停机，再把 `BARKER_DATA_DIR` 指向恢复目录并启动。没有既有访问凭据且未设置 `BARKER_PASSWORD` 时，服务会进入初始化页面；缺少会话签名密钥时会生成新密钥，既有会话随之失效。
 
-数据目录包含 `barker.sqlite`、WAL/SHM、`access-password.txt` 与 `session-secret.txt`。Device Key 保存在 SQLite 中，**没有静态加密**，数据目录和备份都应按秘密材料保护。不要把 SQLite 放在不支持文件锁和可靠写入的网络文件系统上，也不要让多个实例共同挂载同一数据目录。
+数据目录包含 `barker.sqlite`、WAL/SHM、`session-secret.txt`；升级中的旧安装还可能保留 `access-password.txt`。Device Key 保存在 SQLite 中，**没有静态加密**，数据目录和备份都应按秘密材料保护。不要把 SQLite 放在不支持文件锁和可靠写入的网络文件系统上，也不要让多个实例共同挂载同一数据目录。
 
 升级时自动执行事务式增量迁移，保留旧版任务和投递历史，并补齐旧版暂停任务的排期边界。升级前仍应先备份；升级后不要用旧版本继续写新数据库。
 

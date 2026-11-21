@@ -1,7 +1,7 @@
 import { createHash, createHmac, randomBytes, randomUUID, scryptSync, timingSafeEqual } from "node:crypto";
 import { linkSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { apiTokenValid, auditEvent, passwordOverride, passwordRevision, persistSession, removeSession, revokeOtherPasswordSessions, saveApiToken, savePasswordOverride, sessionExists } from "./db";
+import { apiTokenValid, auditEvent, passwordOverride, passwordRevision, persistSession, removeSession, revokeOtherPasswordSessions, saveApiToken, saveInitialPasswordOverride, savePasswordOverride, sessionExists } from "./db";
 import { DomainError } from "./errors";
 import { initializeStorage, privateFile, runtimeDataDir } from "./storage";
 import { registerLogSecret } from "./logging";
@@ -11,7 +11,6 @@ const SESSION_DURATION_SECONDS = 12 * 60 * 60;
 /** A shorter secret is guessable enough to forge session cookies / log in. */
 const MIN_SECRET_LENGTH = 16;
 export const MAX_SECRET_LENGTH = 300;
-let generatedPassword = false;
 
 function readSecretFile(path: string): string | null {
   try {
@@ -38,9 +37,7 @@ function loadOrCreateSecret(name: string, configuredValue?: string): string {
   if (existing !== null) {
     if (existing.length > MAX_SECRET_LENGTH) throw new Error(`Rubidium secret ${name} must be at most ${MAX_SECRET_LENGTH} characters`);
     if (existing.length >= MIN_SECRET_LENGTH) return existing;
-    // Fail fast instead of silently accepting an empty/truncated secret (an empty
-    // session secret lets anyone forge a valid cookie, an empty password lets
-    // anyone log in). A crash during first write is the realistic cause.
+    // Fail fast instead of silently accepting an empty or truncated session key.
     throw new Error(
       `Rubidium secret file ${path} is empty or too short. Delete it and restart to regenerate a fresh secret.`,
     );
@@ -53,7 +50,6 @@ function loadOrCreateSecret(name: string, configuredValue?: string): string {
     // link() is atomic create-if-absent: concurrent workers all agree on the
     // winner instead of each keeping its own secret.
     linkSync(temporary, path);
-    if (name === "access-password.txt") generatedPassword = true;
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
     const winner = readSecretFile(path);
@@ -77,34 +73,58 @@ let passwordFingerprint = "";
 let initialized = false;
 let credential: { hash: string; salt: string } | null = null;
 let credentialRevision: number | undefined;
+let credentialSource: string | undefined;
+
+function loadConfiguredPassword(): string | null {
+  const configured = process.env.BARKER_PASSWORD?.trim();
+  if (configured) {
+    if (configured.length < MIN_SECRET_LENGTH) {
+      throw new Error(`Rubidium secret BARKER_PASSWORD must be at least ${MIN_SECRET_LENGTH} characters`);
+    }
+    if (configured.length > MAX_SECRET_LENGTH) throw new Error(`Rubidium secret BARKER_PASSWORD must be at most ${MAX_SECRET_LENGTH} characters`);
+    return configured;
+  }
+
+  const path = join(/* turbopackIgnore: true */ runtimeDataDir, "access-password.txt");
+  privateFile(path);
+  const existing = readSecretFile(path);
+  if (existing === null) return null;
+  if (existing.length < MIN_SECRET_LENGTH || existing.length > MAX_SECRET_LENGTH) {
+    throw new Error(`Rubidium secret file ${path} is empty, too short, or too long`);
+  }
+  return existing;
+}
 
 export function initializeAuth(): void {
-  if (initialized) { refreshCredential(); return; }
-  initializeStorage();
-  runtimePassword = loadOrCreateSecret("access-password.txt", process.env.BARKER_PASSWORD);
-  sessionSecret = loadOrCreateSecret("session-secret.txt", process.env.BARKER_SESSION_SECRET);
-  registerLogSecret(runtimePassword);
-  registerLogSecret(sessionSecret);
+  if (!initialized) {
+    initializeStorage();
+    sessionSecret = loadOrCreateSecret("session-secret.txt", process.env.BARKER_SESSION_SECRET);
+    registerLogSecret(sessionSecret);
+    initialized = true;
+  }
+  runtimePassword = loadConfiguredPassword() ?? "";
+  if (runtimePassword) registerLogSecret(runtimePassword);
   refreshCredential();
-  initialized = true;
 }
 
 function refreshCredential(): void {
   const revision = passwordRevision();
-  if (credentialRevision === revision) return;
+  const source = runtimePassword
+    ? createHmac("sha256", sessionSecret).update(runtimePassword).digest("hex")
+    : "setup";
+  if (credentialRevision === revision && credentialSource === source) return;
   const raw = passwordOverride();
   const override = raw ? JSON.parse(raw) as { source: string; hash: string; salt: string } : null;
-  const source = createHmac("sha256", sessionSecret).update(runtimePassword).digest("hex");
   const nextCredential = override?.source === source ? override : null;
-  const nextFingerprint = createHmac("sha256", sessionSecret).update(nextCredential?.hash ?? runtimePassword).digest("hex");
+  const nextFingerprint = createHmac("sha256", sessionSecret).update(nextCredential?.hash ?? (runtimePassword || "unconfigured")).digest("hex");
   if (nextFingerprint !== passwordFingerprint) {
     revokeOtherPasswordSessions(nextFingerprint);
     passwordFingerprint = nextFingerprint;
   }
   credential = nextCredential;
   credentialRevision = revision;
+  credentialSource = source;
 }
-let passwordPrinted = false;
 const failedLogins = new Map<string, { count: number; firstFailureAt: number; lockedUntil: number }>();
 const FAILED_LOGIN_WINDOW_MS = 10 * 60_000;
 const FAILED_LOGIN_LOCKOUT_MS = 10 * 60_000;
@@ -138,21 +158,36 @@ export function getAuthCookieName(): string {
   return AUTH_COOKIE;
 }
 
-export function printRuntimePassword(): void {
+export function passwordIsConfigured(): boolean {
   initializeAuth();
-  if (passwordPrinted || !generatedPassword) return;
-  passwordPrinted = true;
-  console.info(`\n🔐 Rubidium access password: ${runtimePassword}\n`);
-  console.info("Set BARKER_PASSWORD to use your own password.\n");
+  return Boolean(runtimePassword || passwordOverride());
+}
+
+export function initializePassword(password: string): boolean {
+  initializeAuth();
+  if (passwordIsConfigured()) return false;
+  if (password.length < MIN_SECRET_LENGTH || password.length > MAX_SECRET_LENGTH || password.trim() !== password) {
+    throw new DomainError("新密码应为 16–300 字符且不能有首尾空格");
+  }
+  const salt = randomBytes(32).toString("hex");
+  const saved = saveInitialPasswordOverride(JSON.stringify({ source: "setup", salt, hash: scryptSync(password, salt, 32).toString("hex") }));
+  if (!saved) {
+    refreshCredential();
+    return false;
+  }
+  registerLogSecret(password);
+  refreshCredential();
+  return true;
 }
 
 export function authConfigurationReady(): boolean {
   initializeAuth();
-  return runtimePassword.length >= MIN_SECRET_LENGTH && sessionSecret.length >= MIN_SECRET_LENGTH;
+  return sessionSecret.length >= MIN_SECRET_LENGTH;
 }
 
 export function verifyPassword(candidate: string, now = Date.now(), clientKey = "local"): boolean {
   initializeAuth();
+  if (!runtimePassword && !credential) return false;
   if (loginRetryAfter(clientKey, now) > 0) return false;
   const state = failedLogins.get(clientKey);
   const candidateDigest = credential ? scryptSync(candidate, credential.salt, 32) : createHmac("sha256", sessionSecret).update(candidate).digest();
@@ -243,7 +278,8 @@ export function changePassword(current: string, next: string, clientKey: string)
   if (next.length < MIN_SECRET_LENGTH || next.length > MAX_SECRET_LENGTH || next.trim() !== next) throw new DomainError("新密码应为 16–300 字符且不能有首尾空格");
   if (!verifyPassword(current, Date.now(), clientKey)) throw new DomainError("当前密码错误或尝试次数过多", loginRetryAfter(clientKey) ? 429 : 403);
   const salt = randomBytes(32).toString("hex");
-  savePasswordOverride(JSON.stringify({ source: createHmac("sha256", sessionSecret).update(runtimePassword).digest("hex"), salt, hash: scryptSync(next, salt, 32).toString("hex") }));
+  const source = runtimePassword ? createHmac("sha256", sessionSecret).update(runtimePassword).digest("hex") : "setup";
+  savePasswordOverride(JSON.stringify({ source, salt, hash: scryptSync(next, salt, 32).toString("hex") }));
   registerLogSecret(next);
   refreshCredential();
 }
