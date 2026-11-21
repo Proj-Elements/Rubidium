@@ -50,6 +50,8 @@
 }
 
 @layer base {
+  html { scrollbar-width: none; }
+  html::-webkit-scrollbar { display: none; width: 0; }
   body { min-width: 0; background: var(--background); color: var(--foreground); font-family: var(--font-sans); font-size: 0.9375rem; }
   :where(code, time, input, textarea) { font-variant-numeric: tabular-nums; }
   ::selection { background: var(--accent-soft); color: var(--foreground); }
@@ -115,6 +117,10 @@
   .upcoming-row:hover { background: var(--surface-secondary); }
   .record-toolbar { display: grid; min-width: 0; grid-template-columns: minmax(0, 24rem) minmax(8rem, 12rem); align-items: center; gap: 0.75rem; }
   .record-filter .select__trigger { border: 1px solid var(--border); background: var(--surface); padding-inline: 0.75rem; }
+  .floating-scrollbar { position: fixed; inset-inline-end: 0; z-index: 45; width: 1.25rem; opacity: 0; touch-action: none; transition: opacity 180ms ease; }
+  .floating-scrollbar[data-visible], .floating-scrollbar:hover, .floating-scrollbar:focus-visible { opacity: 1; }
+  .floating-scrollbar-thumb { position: absolute; inset-inline: 0.5rem; min-height: 2.25rem; border-radius: 999px; background: color-mix(in oklab, var(--foreground) 36%, transparent); transition: inset-inline 120ms ease; }
+  .floating-scrollbar:hover .floating-scrollbar-thumb, .floating-scrollbar:focus-visible .floating-scrollbar-thumb { inset-inline: 0.375rem; background: color-mix(in oklab, var(--foreground) 52%, transparent); }
   .skip-link, :where(a, button, [role="button"]) { -webkit-tap-highlight-color: transparent; }
   @media (width < 40rem) {
     .topbar-inner { min-height: 3.75rem; }
@@ -144,6 +150,9 @@
     .workspace-actions { display: flex; width: max-content; max-width: 100%; align-items: center; gap: 0.25rem; padding-block: 0.375rem; }
     .workspace-actions .action-bar__prefix, .workspace-actions .action-bar__content, .workspace-actions .action-bar__suffix { grid-area: auto; }
     .workspace-actions .action-bar__content { display: flex; width: auto; grid-auto-flow: unset; grid-auto-columns: unset; justify-self: auto; gap: 0.125rem; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .floating-scrollbar, .floating-scrollbar-thumb { transition: none; }
   }
   .list-view__item:not(.delivery-selectable) .list-view__selection-cell { visibility: hidden; }
 }

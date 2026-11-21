@@ -14,6 +14,7 @@ import { WorkspaceContext } from "./workspace-context";
 import { TaskEditor } from "./task-editor";
 import { Glyph } from "./icons";
 import { UnsavedNavigationDialog } from "./unsaved-navigation-dialog";
+import { FloatingScrollbar } from "./floating-scrollbar";
 
 export function Workspace({ children }: { children: ReactNode }) {
   const [authenticated, setAuthenticated] = useState<boolean | null>(null);
@@ -48,6 +49,7 @@ function AuthenticatedWorkspace({ children, logout }: { children: ReactNode; log
   const { data: dashboard, error, refresh } = useResource<Dashboard>("/api/overview", path === "/" ? 15_000 : 60_000);
   const [editor, setEditor] = useState<{ task?: Task; duplicate?: boolean } | null>(null);
   return <WorkspaceContext.Provider value={{ dashboard, error, refresh, logout, openTask: (task, duplicate) => setEditor({ task, duplicate }), notify: (message, kind = "success") => { if (kind === "error") toast.danger(message); else toast.success(message); } }}>
+    <FloatingScrollbar />
     <Shell>
       {error && <div className="mb-6"><Notice action={<Button variant="ghost" onPress={() => void refresh()}>重试</Button>}>
         <p>{dashboard ? "暂时无法同步，当前显示上次数据。" : "暂时无法读取工作区。"}</p><p>{error}</p>
