@@ -64,12 +64,13 @@ export function SecurityManager({ active }: { active: boolean }) {
     if (await mutate("revoke", { kind, id }, kind === "token" ? "API 凭据已撤销。" : "会话已撤销。")) setRevocation(null);
   }
 
-  return <div className="grid items-start gap-5 @min-[52rem]/settings:grid-cols-[minmax(0,1fr)_minmax(0,1.25fr)]">
-    <Card className="min-w-0 gap-5 p-5 sm:p-6">
+  return <div className="grid items-start gap-5 @min-[52rem]/settings:grid-cols-2">
+    {error && <div className="@min-[52rem]/settings:col-span-2"><Notice action={<Button variant="ghost" onPress={() => void refresh()}>重试</Button>}>{error}</Notice></div>}
+    <Card className="min-w-0 gap-5 p-5 sm:p-6 @min-[52rem]/settings:col-span-2">
       <CardHeading title="访问密码" />
       <Form onSubmit={password}>
         <Fieldset className="min-w-0 gap-4" disabled={busy !== null}>
-          <Fieldset.Group>
+          <Fieldset.Group className="security-password-fields @min-[52rem]/settings:grid-cols-2">
             <Field label="当前访问密码" type="password" value={current} onChange={(event) => setCurrent(event.target.value)} maxLength={300} autoComplete="current-password" required />
             <Field label="新访问密码" type="password" value={next} onChange={(event) => setNext(event.target.value)} minLength={16} maxLength={300} autoComplete="new-password" required />
           </Fieldset.Group>
@@ -79,62 +80,59 @@ export function SecurityManager({ active }: { active: boolean }) {
     </Card>
 
     <Card className="min-w-0 gap-5 p-5 sm:p-6">
-      <CardHeading title="会话与凭据" />
-      {error && <Notice action={<Button variant="ghost" onPress={() => void refresh()}>重试</Button>}>{error}</Notice>}
-      <section className="grid min-w-0 gap-2">
-        <h3 className="text-sm font-semibold">API 凭据</h3>
-        {data && (data.tokens.length ? <ItemCardGroup variant="transparent" role="list" aria-label="API 凭据">
-          {data.tokens.map((item) => <ItemCard key={item.id} role="listitem" variant="transparent" className="flex-wrap px-0">
-            <ItemCard.Content className="min-w-36">
-              <div className="flex flex-wrap items-center gap-2"><ItemCard.Title>{item.name}</ItemCard.Title><Chip variant="soft"><Chip.Label>{item.scope === "read" ? "只读" : "读写"}</Chip.Label></Chip></div>
-              <ItemCard.Description className="tabular-nums">{item.expiresAt === 0 ? "永不过期" : `到期 ${formatTime(new Date(item.expiresAt).toISOString())}`}</ItemCard.Description>
-            </ItemCard.Content>
-            <ItemCard.Action><Button variant="danger-soft" isDisabled={busy !== null} onPress={() => setRevocation({ id: item.id, kind: "token", name: item.name })}>撤销凭据</Button></ItemCard.Action>
-          </ItemCard>)}
-        </ItemCardGroup> : <p className="text-sm text-muted">尚未创建 API 凭据。</p>)}
-        <Details title="创建 API 凭据">
-          <Form onSubmit={credential}>
-            <Fieldset className="min-w-0 gap-3" disabled={busy !== null}>
-              <Fieldset.Group>
-                <Field label="凭据名称" value={name} onChange={(event) => setName(event.target.value)} maxLength={80} required />
-                <div className="grid grid-cols-2 items-start gap-4">
-                  <Pick label="凭据权限" value={scope} onChange={setScope} options={scopes} isDisabled={busy !== null} />
-                  <div className="grid content-start gap-1">
-                    <div className="flex min-h-11 items-center gap-1">
-                      <span className="label font-medium text-foreground">有效天数</span>
-                      <Tooltip delay={350} isOpen={expiryTooltipOpen} onOpenChange={setExpiryTooltipOpen}>
-                        <Button isIconOnly variant="ghost" aria-label="有效天数说明" className="size-11 shrink-0"
-                          onPointerEnter={() => setExpiryTooltipOpen(true)} onPointerLeave={() => setExpiryTooltipOpen(false)}>
-                          <Glyph name="info" />
-                        </Button>
-                        <Tooltip.Content>0 表示永不过期；1–365 表示有效天数。</Tooltip.Content>
-                      </Tooltip>
-                    </div>
-                    <NumericField label="有效天数" hideLabel value={days} onChange={setDays} minValue={0} maxValue={365} isRequired isDisabled={busy !== null} />
+      <CardHeading title="API 凭据" />
+      {data ? (data.tokens.length ? <ItemCardGroup variant="transparent" role="list" aria-label="API 凭据">
+        {data.tokens.map((item) => <ItemCard key={item.id} role="listitem" variant="transparent" className="flex-wrap px-0">
+          <ItemCard.Content className="min-w-36">
+            <div className="flex flex-wrap items-center gap-2"><ItemCard.Title>{item.name}</ItemCard.Title><Chip variant="soft"><Chip.Label>{item.scope === "read" ? "只读" : "读写"}</Chip.Label></Chip></div>
+            <ItemCard.Description className="tabular-nums">{item.expiresAt === 0 ? "永不过期" : `到期 ${formatTime(new Date(item.expiresAt).toISOString())}`}</ItemCard.Description>
+          </ItemCard.Content>
+          <ItemCard.Action><Button variant="danger-soft" isDisabled={busy !== null} onPress={() => setRevocation({ id: item.id, kind: "token", name: item.name })}>撤销凭据</Button></ItemCard.Action>
+        </ItemCard>)}
+      </ItemCardGroup> : <p className="text-sm text-muted">尚未创建 API 凭据。</p>) : !error && <Loading>正在读取 API 凭据</Loading>}
+      <Details title="创建 API 凭据">
+        <Form onSubmit={credential}>
+          <Fieldset className="min-w-0 gap-3" disabled={busy !== null}>
+            <Fieldset.Group>
+              <Field label="凭据名称" value={name} onChange={(event) => setName(event.target.value)} maxLength={80} required />
+              <div className="grid grid-cols-2 items-start gap-4">
+                <Pick label="凭据权限" value={scope} onChange={setScope} options={scopes} isDisabled={busy !== null} />
+                <div className="grid content-start gap-1">
+                  <div className="flex min-h-11 items-center gap-1">
+                    <span className="label font-medium text-foreground">有效天数</span>
+                    <Tooltip delay={350} isOpen={expiryTooltipOpen} onOpenChange={setExpiryTooltipOpen}>
+                      <Button isIconOnly variant="ghost" aria-label="有效天数说明" className="size-11 shrink-0"
+                        onPointerEnter={() => setExpiryTooltipOpen(true)} onPointerLeave={() => setExpiryTooltipOpen(false)}>
+                        <Glyph name="info" />
+                      </Button>
+                      <Tooltip.Content>0 表示永不过期；1–365 表示有效天数。</Tooltip.Content>
+                    </Tooltip>
                   </div>
+                  <NumericField label="有效天数" hideLabel value={days} onChange={setDays} minValue={0} maxValue={365} isRequired isDisabled={busy !== null} />
                 </div>
-              </Fieldset.Group>
-              <Fieldset.Actions><Button type="submit" variant="outline" isPending={busy === "token"} isDisabled={busy !== null && busy !== "token"}>创建凭据</Button></Fieldset.Actions>
-            </Fieldset>
-          </Form>
-        </Details>
-        {token && <Notice kind="info" action={<Button variant="ghost" onPress={() => setToken("")}>关闭提示</Button>}>
-          <p>凭据只显示这一次。请复制保存，在请求头中使用 <code>Authorization: Bearer</code>。</p>
-          <div className="workspace-field"><Input aria-label="新 API 凭据" className="font-mono" fullWidth value={token} readOnly onFocus={(event) => event.currentTarget.select()} /></div>
-        </Notice>}
-      </section>
-      <section className="grid gap-2">
-        <h3 className="text-sm font-semibold">有效会话</h3>
-        {data ? (data.sessions.length ? <ItemCardGroup variant="transparent" role="list" aria-label="有效会话">
-          {data.sessions.map((item) => <ItemCard key={item.id} role="listitem" variant="transparent" className="flex-wrap px-0">
-            <ItemCard.Content className="min-w-36">
-              <ItemCard.Title>会话 <code className="tabular-nums">{item.id.slice(0, 8)}</code></ItemCard.Title>
-              <ItemCard.Description className="tabular-nums">到期 {formatTime(new Date(item.expiresAt).toISOString())}</ItemCard.Description>
-            </ItemCard.Content>
-            <ItemCard.Action><Button variant="danger-soft" isDisabled={busy !== null} onPress={() => setRevocation({ id: item.id, kind: "session", name: `会话 ${item.id.slice(0, 8)}` })}>撤销会话</Button></ItemCard.Action>
-          </ItemCard>)}
-        </ItemCardGroup> : <p className="text-sm text-muted">暂无有效会话。</p>) : !error && <Loading>正在读取访问记录</Loading>}
-      </section>
+              </div>
+            </Fieldset.Group>
+            <Fieldset.Actions><Button type="submit" variant="outline" isPending={busy === "token"} isDisabled={busy !== null && busy !== "token"}>创建凭据</Button></Fieldset.Actions>
+          </Fieldset>
+        </Form>
+      </Details>
+      {token && <Notice kind="info" action={<Button variant="ghost" onPress={() => setToken("")}>关闭提示</Button>}>
+        <p>凭据只显示这一次。请复制保存，在请求头中使用 <code>Authorization: Bearer</code>。</p>
+        <div className="workspace-field"><Input aria-label="新 API 凭据" className="font-mono" fullWidth value={token} readOnly onFocus={(event) => event.currentTarget.select()} /></div>
+      </Notice>}
+    </Card>
+
+    <Card className="min-w-0 gap-5 p-5 sm:p-6">
+      <CardHeading title="有效会话" />
+      {data ? (data.sessions.length ? <ItemCardGroup variant="transparent" role="list" aria-label="有效会话">
+        {data.sessions.map((item) => <ItemCard key={item.id} role="listitem" variant="transparent" className="flex-wrap px-0">
+          <ItemCard.Content className="min-w-36">
+            <ItemCard.Title>会话 <code className="tabular-nums">{item.id.slice(0, 8)}</code></ItemCard.Title>
+            <ItemCard.Description className="tabular-nums">到期 {formatTime(new Date(item.expiresAt).toISOString())}</ItemCard.Description>
+          </ItemCard.Content>
+          <ItemCard.Action><Button variant="danger-soft" isDisabled={busy !== null} onPress={() => setRevocation({ id: item.id, kind: "session", name: `会话 ${item.id.slice(0, 8)}` })}>撤销会话</Button></ItemCard.Action>
+        </ItemCard>)}
+      </ItemCardGroup> : <p className="text-sm text-muted">暂无有效会话。</p>) : !error && <Loading>正在读取访问记录</Loading>}
     </Card>
 
     {revocation && <Confirm title={`撤销「${revocation.name}」？`} confirmLabel="确认撤销" onClose={() => setRevocation(null)} onConfirm={() => void revoke()} busy={busy === "revoke"}>

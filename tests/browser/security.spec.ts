@@ -10,6 +10,26 @@ test("API credentials can remain valid indefinitely and display the selected exp
 
   await page.goto("/settings");
   await page.getByRole("tab", { name: "访问安全", exact: true }).click();
+  const apiHeading = page.getByRole("heading", { name: "API 凭据", exact: true });
+  const sessionsHeading = page.getByRole("heading", { name: "有效会话", exact: true });
+  await expect(apiHeading).toBeVisible();
+  await expect(sessionsHeading).toBeVisible();
+  const apiCard = page.locator(".card").filter({ has: apiHeading });
+  const sessionsCard = page.locator(".card").filter({ has: sessionsHeading });
+  await expect(apiCard).toHaveCount(1);
+  await expect(sessionsCard).toHaveCount(1);
+  await expect(page.getByRole("list", { name: "有效会话" })).toBeVisible();
+  await page.screenshot({ path: test.info().outputPath("security-sections-landscape.png"), fullPage: true, animations: "disabled" });
+
+  await page.setViewportSize({ width: 1440, height: 900 });
+  const apiBounds = await apiCard.boundingBox();
+  const sessionsBounds = await sessionsCard.boundingBox();
+  expect(apiBounds).not.toBeNull();
+  expect(sessionsBounds).not.toBeNull();
+  expect(apiBounds!.x).not.toBe(sessionsBounds!.x);
+  await page.screenshot({ path: test.info().outputPath("security-sections-wide.png"), fullPage: true, animations: "disabled" });
+
+  await page.setViewportSize({ width: 844, height: 390 });
   await page.getByRole("button", { name: "创建 API 凭据", exact: true }).click();
   const credentialName = `永久有效的 API 凭据-${test.info().project.name}`;
   await page.getByLabel("凭据名称").fill(credentialName);
