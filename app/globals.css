@@ -95,6 +95,12 @@
   .page-context { color: var(--muted); font-size: 0.8rem; }
   .overview-next-content { align-items: center; }
   .card-header { min-width: 0; }
+  @media (height <= 20rem) and (orientation: landscape) {
+    .data-transfer-dialog { padding: 0.875rem; }
+    .data-transfer-dialog .modal__header + .modal__body { margin-top: 0.375rem; }
+    .data-transfer-body { gap: 0.5rem; }
+    .data-transfer-dialog .modal__body + .modal__footer { margin-top: 0.5rem; }
+  }
   .workspace-field { --workspace-field-size: 0.875rem; --workspace-hint-size: 0.8125rem; }
   .workspace-field :is(.label, .input, .textarea, .select__trigger, .select__value, .number-field__input, .date-input-group__input, .date-input-group__segment, .search-field__input, .inline-select__trigger, .inline-select__value) { font-size: var(--workspace-field-size); line-height: 1.5rem; }
   .workspace-field :is(.input, .select__trigger, .number-field__group, .date-input-group, .search-field__group, .inline-select__trigger) { height: 2.75rem; min-height: 2.75rem; }
