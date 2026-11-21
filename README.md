@@ -75,6 +75,12 @@ docker compose logs -f rubidium
 
 Compose 从当前代码构建 `rubidium:local`，服务和容器名为 `rubidium`。默认只绑定 `127.0.0.1`；跨设备访问时设置 `BARKER_BIND_ADDR`，并建议放在 HTTPS 反向代理后。`.env` 在运行时传入容器，不进入镜像。Compose 继续使用历史命名卷 `barker-data`，与仓库中的 `data/` 不同；保留该卷名是为了让现有部署升级后继续挂载原数据。迁移已有本地实例时，先按「备份与恢复」创建快照，并在首次启动容器前恢复到该卷。不要先用空数据卷启动新实例。
 
+忘记访问密码时，可在运行中的容器内安全重置；密码交互输入时不回显，不会删除任务、队列或设置，会撤销所有会话和 API 凭据：
+
+```bash
+docker compose exec -it rubidium node /app/scripts/password-reset.mjs
+```
+
 从旧版 Compose 升级时，旧容器名为 `barker`。首次切换前移除旧容器（不会删除 `barker-data` 卷），再启动新服务：
 
 ```bash

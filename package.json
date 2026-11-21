@@ -21,7 +21,8 @@
     "typecheck": "tsc --noEmit",
     "ui:setup": "node scripts/setup-heroui.mjs",
     "data:backup": "node scripts/data-tools.mjs backup",
-    "data:restore": "node scripts/data-tools.mjs restore"
+    "data:restore": "node scripts/data-tools.mjs restore",
+    "password:reset": "node scripts/password-reset.mjs"
   },
   "dependencies": {
     "@fontsource-variable/manrope": "5.3.0",
