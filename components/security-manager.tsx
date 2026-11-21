@@ -137,7 +137,7 @@ const auditActions: Record<string, string> = {
   "delivery.retry": "重试投递", "delivery.cancel": "取消投递", "delivery.edit": "编辑投递",
   "device.create": "添加设备", "device.update": "编辑设备", "device.delete": "删除设备",
   "security.password.change": "修改访问密码", "security.token.create": "创建 API 凭据",
-  "security.token.revoke": "撤销 API 凭据", "security.session.revoke": "撤销会话",
+  "security.token.revoke": "撤销 API 凭据", "security.session.revoke": "撤销会话", "data.import": "导入加密数据",
 };
 const auditPageSize = 8;
 type AuditEvent = { id: string; action: string; target: string; createdAt: string };

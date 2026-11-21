@@ -5,6 +5,7 @@ import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "nod
 import { loadRuntimeEnvironment, runtimeDirectory } from "./runtime-paths.mjs";
 
 const names = ["barker.sqlite", "access-password.txt", "session-secret.txt"];
+const MAX_SUPPORTED_SCHEMA_VERSION = 4;
 async function digest(path) {
   const hash = createHash("sha256");
   for await (const chunk of createReadStream(path)) hash.update(chunk);
@@ -31,7 +32,7 @@ function verifyDatabase(path) {
     if (integrity.integrity_check !== "ok") throw new Error("Database integrity check failed");
     if (database.prepare("PRAGMA foreign_key_check").all().length) throw new Error("Database foreign keys are invalid");
     const version = database.prepare("PRAGMA user_version").get().user_version;
-    if (version > 3) throw new Error(`Unsupported schema version ${version}`);
+    if (version > MAX_SUPPORTED_SCHEMA_VERSION) throw new Error(`Unsupported schema version ${version}`);
     for (const table of ["tasks", "deliveries", "settings"]) database.prepare(`SELECT 1 FROM ${table} LIMIT 1`).get();
     return version;
   } finally { database.close(); }

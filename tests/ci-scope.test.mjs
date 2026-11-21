@@ -15,6 +15,7 @@ test("missing push baselines fall back to the current main merge base", () => {
 
 test("database changes verify backups and new server modules receive owning checks", () => {
   assert.ok(selectChecks(["lib/db.ts"]).tests.includes("tests/data-tools.test.mjs"));
+  assert.ok(selectChecks(["app/api/data/import/route.ts"]).tests.includes("tests/data-transfer.test.ts"));
   assert.ok(selectChecks(["lib/new-module.ts"]).tests.includes("tests/api.test.ts"));
 });
 

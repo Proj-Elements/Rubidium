@@ -6,7 +6,7 @@ const globalDb = globalThis as typeof globalThis & { barkerDb?: DatabaseSync };
 const databaseFile = Buffer.from(`${runtimeDataDir}/barker.sqlite`);
 const statements = new Map<string, ReturnType<DatabaseSync["prepare"]>>();
 const retryWait = new Int32Array(new SharedArrayBuffer(4));
-const CURRENT_SCHEMA_VERSION = 4;
+export const CURRENT_SCHEMA_VERSION = 4;
 const INITIALIZATION_ATTEMPTS = 3;
 let db: DatabaseSync;
 let initialized = false;

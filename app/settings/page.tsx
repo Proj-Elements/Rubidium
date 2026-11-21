@@ -9,10 +9,11 @@ import { useWorkspace } from "@/components/workspace-context";
 import { DeviceManager } from "@/components/device-manager";
 import { AuditLog, SecurityManager } from "@/components/security-manager";
 import { TimeZonePicker } from "@/components/time-zone-picker";
+import { DataTransfer } from "@/components/data-transfer";
 import type { BarkSettings } from "@/lib/types";
 import { api, errorMessage } from "@/lib/ui";
 
-type SettingsPayload = { settings: Omit<BarkSettings, "deviceKey">; deviceKeyConfigured: boolean; dataDir: string; revision: number };
+type SettingsPayload = { settings: Omit<BarkSettings, "deviceKey">; deviceKeyConfigured: boolean; revision: number };
 
 export default function SettingsPage() {
   const { data, error, refresh } = useResource<SettingsPayload>("/api/settings", 15_000);
@@ -35,7 +36,7 @@ export default function SettingsPage() {
       </Tabs.Panel>
       <Tabs.Panel id="devices" shouldForceMount className={panel}><DeviceManager /></Tabs.Panel>
       <Tabs.Panel id="access" shouldForceMount className={panel}><SecurityManager /></Tabs.Panel>
-      <Tabs.Panel id="history" shouldForceMount className={panel}><HistorySettings dataDir={data?.dataDir} /><AuditLog /></Tabs.Panel>
+      <Tabs.Panel id="history" shouldForceMount className={panel}><DataTransfer /><HistorySettings /><AuditLog /></Tabs.Panel>
     </Tabs>
   </div>;
 }
@@ -153,7 +154,7 @@ function SettingsForm({ initial, onSaved }: { initial: SettingsPayload; onSaved:
   </div>;
 }
 
-function HistorySettings({ dataDir }: { dataDir?: string }) {
+function HistorySettings() {
   const { refresh, notify } = useWorkspace();
   const [pruning, setPruning] = useState(false);
   const [confirmPrune, setConfirmPrune] = useState(false);
@@ -170,12 +171,6 @@ function HistorySettings({ dataDir }: { dataDir?: string }) {
 
   return <Card className="gap-4 p-5 sm:p-6">
     <CardHeading title="历史记录维护" description="清理 30 天前已结束的投递记录并回收空间。累计排期与接收次数不变。" />
-    <Card.Content className="gap-3">
-      <Details title="存储与备份">
-        <p className="text-sm leading-relaxed text-muted">任务、队列和配置保存在本机 SQLite 中。请使用服务端快照工具备份，或在停止服务后复制整个数据目录。</p>
-        {dataDir && <code className="text-xs text-muted [overflow-wrap:anywhere]">{dataDir}/barker.sqlite</code>}
-      </Details>
-    </Card.Content>
     <Card.Footer><Button variant="danger-soft" onPress={() => setConfirmPrune(true)}>清理旧记录</Button></Card.Footer>
     {confirmPrune && <Confirm title="清理 30 天前的结束记录？" confirmLabel="清理记录" onClose={() => setConfirmPrune(false)} onConfirm={() => void prune()} busy={pruning}>
       <p>相应消息正文和尝试历史将永久删除。待投递和发送中的消息不会被清理。</p>

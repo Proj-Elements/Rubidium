@@ -8,6 +8,31 @@ export const MAX_REQUEST_BYTES = 64 * 1024;
 
 export class HttpError extends DomainError {}
 
+export async function requestBytes(request: Request, maximumBytes = MAX_REQUEST_BYTES): Promise<Buffer> {
+  const declared = Number(request.headers.get("content-length") ?? "0");
+  if (Number.isFinite(declared) && declared > maximumBytes) throw new HttpError("请求体过大", 413);
+  try {
+    const reader = request.body?.getReader();
+    if (!reader) throw new HttpError("请求必须包含有效 JSON", 400);
+    const chunks: Uint8Array[] = [];
+    let bytes = 0;
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      bytes += value.byteLength;
+      if (bytes > maximumBytes) {
+        await reader.cancel();
+        throw new HttpError("请求体过大", 413);
+      }
+      chunks.push(value);
+    }
+    return Buffer.concat(chunks);
+  } catch (error) {
+    if (error instanceof HttpError) throw error;
+    throw new HttpError("无法读取请求体", 400);
+  }
+}
+
 export function jsonError(message: string, status: number): NextResponse {
   return NextResponse.json({ error: message }, { status });
 }
@@ -46,31 +71,7 @@ export function expectedRevision(value: unknown): number {
 }
 
 export async function requestBody(request: Request): Promise<unknown> {
-  const declared = Number(request.headers.get("content-length") ?? "0");
-  if (Number.isFinite(declared) && declared > MAX_REQUEST_BYTES) {
-    throw new HttpError("请求体过大", 413);
-  }
-  let text: string;
-  try {
-    const reader = request.body?.getReader();
-    if (!reader) throw new HttpError("请求必须包含有效 JSON", 400);
-    const chunks: Uint8Array[] = [];
-    let bytes = 0;
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      bytes += value.byteLength;
-      if (bytes > MAX_REQUEST_BYTES) {
-        await reader.cancel();
-        throw new HttpError("请求体过大", 413);
-      }
-      chunks.push(value);
-    }
-    text = new TextDecoder().decode(Buffer.concat(chunks));
-  } catch (error) {
-    if (error instanceof HttpError) throw error;
-    throw new HttpError("无法读取请求体", 400);
-  }
+  const text = new TextDecoder().decode(await requestBytes(request));
   if (Buffer.byteLength(text, "utf8") > MAX_REQUEST_BYTES) throw new HttpError("请求体过大", 413);
   try {
     return JSON.parse(text) as unknown;
@@ -92,11 +93,11 @@ export function jsonObjectBody(value: unknown): Record<string, unknown> {
  * SameSite=Lax already blocks classic cross-site form posts; this also covers
  * same-site siblings and non-browser clients that forget the JSON header.
  */
-export function requireSameOriginMutation(request: Request): NextResponse | null {
+export function requireSameOriginMutation(request: Request, maximumBytes = MAX_REQUEST_BYTES): NextResponse | null {
   const method = request.method.toUpperCase();
   if (method === "GET" || method === "HEAD") return null;
   const declared = Number(request.headers.get("content-length") ?? "0");
-  if (Number.isFinite(declared) && declared > MAX_REQUEST_BYTES) return jsonError("请求体过大", 413);
+  if (Number.isFinite(declared) && declared > maximumBytes) return jsonError("请求体过大", 413);
   const contentType = (request.headers.get("content-type") ?? "").split(";", 1)[0].trim().toLowerCase();
   const expectsJsonBody = method === "POST" || method === "PUT" || method === "PATCH";
   if (expectsJsonBody && contentType !== "application/json") {

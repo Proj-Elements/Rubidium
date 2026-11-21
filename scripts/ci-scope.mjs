@@ -19,6 +19,7 @@ const rules = [
   [/^scripts\/ci-scope\.mjs$|^\.github\/workflows\/ci\.yml$/, ["ci-scope", "release"]],
   [/^scripts\/release-guard\.mjs$|^\.github\/workflows\/release\.yml$/, ["release", "ci-scope"]],
   [/^scripts\/data-tools\.mjs$/, ["data-tools"]],
+  [/^lib\/data-transfer\.ts$|^app\/api\/data\/|^tests\/data-transfer\.test\.ts$/, ["data-transfer"]],
   [/^scripts\/(runtime-paths|build-preflight)\.mjs$/, ["data-tools", "artifact", "shutdown", "db-init"]],
   [/^scripts\/start-server\.mjs$/, ["scheduler", "workflow", "persistence", "shutdown"]],
   [/^scripts\/browser-server\.mjs$/, ["shutdown"]],

@@ -158,6 +158,8 @@ export function validApiPayload(url: string, data: unknown): boolean {
   if (/^\/api\/deliveries\/[^/]+$/.test(path)) return object.saved === true;
   if (path === "/api/devices") return (Array.isArray(object.devices) && object.devices.every((device) => objectValue(device) && typeof device.id === "string" && typeof device.endpoint === "string" && typeof device.deviceKeyConfigured === "boolean")) || objectValue(object.device) || object.deleted === true;
   if (path === "/api/security") return object.saved === true || object.revoked === true || typeof object.token === "string" || (Array.isArray(object.sessions) && Array.isArray(object.tokens));
+  if (path === "/api/data/export") return object.format === "rubidium-encrypted-export" && object.version === 1 && typeof object.payload === "string";
+  if (path === "/api/data/import") return object.imported === true;
   if (path === "/api/audit") return Array.isArray(object.events);
   if (path === "/api/upcoming") return Array.isArray(object.items) && nonNegativeInteger(object.total);
   return false;

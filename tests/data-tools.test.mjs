@@ -16,7 +16,7 @@ function fixture() {
   mkdirSync(source);
   const database = new DatabaseSync(join(source, "barker.sqlite"));
   database.exec(`
-    PRAGMA user_version = 2;
+    PRAGMA user_version = 4;
     CREATE TABLE settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);
     CREATE TABLE tasks (id TEXT PRIMARY KEY);
     CREATE TABLE deliveries (id TEXT PRIMARY KEY, task_id TEXT NOT NULL REFERENCES tasks(id));
@@ -40,7 +40,7 @@ test("backup and restore are checksummed, private, and never overwrite data", as
   const restored = join(root, "restored");
   try {
     const result = await backupData(source, backup);
-    assert.equal(result.schemaVersion, 2);
+    assert.equal(result.schemaVersion, 4);
     assert.deepEqual(result.files, ["barker.sqlite", "access-password.txt", "session-secret.txt"]);
     assert.equal(statSync(backup).mode & 0o777, 0o700);
     for (const file of ["barker.sqlite", "access-password.txt", "session-secret.txt", "manifest.json"]) assert.equal(statSync(join(backup, file)).mode & 0o777, 0o600);
@@ -49,7 +49,7 @@ test("backup and restore are checksummed, private, and never overwrite data", as
     assert.equal(statSync(restored).mode & 0o777, 0o700);
     for (const file of ["barker.sqlite", "access-password.txt", "session-secret.txt", "manifest.json"]) assert.equal(statSync(join(restored, file)).mode & 0o777, 0o600);
     const manifest = JSON.parse(readFileSync(join(restored, "manifest.json"), "utf8"));
-    assert.equal(manifest.schemaVersion, 2);
+    assert.equal(manifest.schemaVersion, 4);
     for (const [name, checksum] of Object.entries(manifest.files)) assert.equal(checksum, digest(join(restored, name)));
     const database = new DatabaseSync(join(restored, "barker.sqlite"), { readOnly: true });
     assert.equal(database.prepare("SELECT COUNT(*) count FROM tasks").get().count, 1);
