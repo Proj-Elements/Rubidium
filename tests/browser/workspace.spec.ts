@@ -50,6 +50,28 @@ test("mobile overview prioritizes the next reminder and unsaved settings protect
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
   await page.screenshot({ path: test.info().outputPath("mobile-overview.png"), fullPage: true, animations: "disabled" });
 
+  for (const viewport of [{ width: 844, height: 390 }, { width: 568, height: 320 }]) {
+    await page.setViewportSize(viewport);
+    await page.goto("/");
+    const nextCard = page.locator(".overview-next");
+    const metrics = page.getByRole("region", { name: "提醒指标" });
+    const warning = page.locator(".overview-device-warning");
+    await expect(nextCard.getByRole("heading", { name: "下一条提醒", exact: true })).toBeInViewport();
+    await expect(page.getByRole("heading", { name: "喝杯水，休息一下", exact: true })).toBeInViewport();
+    const nextBounds = await nextCard.boundingBox();
+    const metricsBounds = await metrics.boundingBox();
+    const warningBounds = await warning.boundingBox();
+    expect(nextBounds).not.toBeNull();
+    expect(metricsBounds).not.toBeNull();
+    expect(warningBounds).not.toBeNull();
+    expect(metricsBounds!.y).toBeGreaterThanOrEqual(nextBounds!.y + nextBounds!.height);
+    expect(warningBounds!.y).toBeGreaterThanOrEqual(metricsBounds!.y + metricsBounds!.height);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    await page.screenshot({ path: test.info().outputPath(`landscape-overview-${viewport.width}x${viewport.height}.png`), animations: "disabled" });
+  }
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/");
+
   await page.getByRole("button", { name: "打开导航", exact: true }).click();
   await expect(page.getByRole("dialog", { name: "工作空间导航" })).toBeInViewport({ ratio: 1 });
   await page.getByRole("treegrid", { name: "主导航" }).getByRole("row", { name: "推送设置", exact: true }).click();

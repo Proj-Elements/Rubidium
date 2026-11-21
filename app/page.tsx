@@ -43,29 +43,12 @@ export default function OverviewPage() {
     { label: "自动重试中", value: dashboard?.deliveries.retrying },
   ] as const;
 
-  return <div className="grid gap-6 sm:gap-8">
+  return <div className="overview-page grid gap-6 sm:gap-8">
     <PageHeading title="提醒概览" context={<span className="page-context">显示时区 · {timeZone}</span>} />
 
-    <section aria-label="提醒指标">
-      <KPIGroup className="grid grid-cols-2 gap-px bg-separator shadow-none md:grid-cols-4">
-        {metrics.map(({ label, value }) => <KPI key={label} className="sm:p-5">
-          <KPI.Header><KPI.Title className="text-xs sm:text-sm">{label}</KPI.Title></KPI.Header>
-          <KPI.Content>{value === undefined ? <span className="text-2xl text-muted">—</span> : <KPI.Value value={value} maximumFractionDigits={0} className="tabular-nums" />}</KPI.Content>
-        </KPI>)}
-      </KPIGroup>
-    </section>
-
-    {dashboard && !dashboard.deviceKeyConfigured && <Alert status="warning" className="items-start" role="status">
-      <Alert.Indicator />
-      <Alert.Content className="gap-2">
-        <Alert.Title>默认设备尚未连接</Alert.Title>
-        <WorkspaceLink className="workspace-link" href="/settings">连接设备<Glyph name="arrow" size={14} /></WorkspaceLink>
-      </Alert.Content>
-    </Alert>}
-
-    <Card className="min-w-0 gap-4 p-5 sm:p-6">
+    <Card className="overview-next min-w-0 gap-4 p-5 sm:p-6">
       <CardHeading title="下一条提醒" />
-      {next?.nextRunAt ? <Card.Content className="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-x-4 gap-y-3 sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:gap-x-6">
+      {next?.nextRunAt ? <Card.Content className="overview-next-content grid grid-cols-[auto_minmax(0,1fr)] items-center gap-x-4 gap-y-3 sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:gap-x-6">
         <time dateTime={next.nextRunAt} className="flex min-w-0 flex-col gap-1.5 tabular-nums">
           <span className="text-3xl leading-none font-semibold text-accent">{clockTime(next.nextRunAt)}</span>
           <span className="text-xs text-muted">{nextDay ?? formatTime(next.nextRunAt, { year: nextDate?.slice(0, 4) === days[0]?.date.slice(0, 4) ? undefined : "numeric", hour: undefined, minute: undefined })}</span>
@@ -77,6 +60,23 @@ export default function OverviewPage() {
         <Button variant="outline" className="col-start-2 w-fit max-sm:min-h-11 sm:col-start-auto" onPress={() => openTask(next)}>编辑提醒</Button>
       </Card.Content> : dashboard ? <Card.Content className="text-sm text-muted">暂无下一次排期</Card.Content> : error ? null : <Loading>正在同步</Loading>}
     </Card>
+
+    <section className="overview-metrics" aria-label="提醒指标">
+      <KPIGroup className="grid grid-cols-2 gap-px bg-separator shadow-none md:grid-cols-4">
+        {metrics.map(({ label, value }) => <KPI key={label} className="sm:p-5">
+          <KPI.Header><KPI.Title className="text-xs sm:text-sm">{label}</KPI.Title></KPI.Header>
+          <KPI.Content>{value === undefined ? <span className="text-2xl text-muted">—</span> : <KPI.Value value={value} maximumFractionDigits={0} className="tabular-nums" />}</KPI.Content>
+        </KPI>)}
+      </KPIGroup>
+    </section>
+
+    {dashboard && !dashboard.deviceKeyConfigured && <Alert status="warning" className="overview-device-warning items-start" role="status">
+      <Alert.Indicator />
+      <Alert.Content className="gap-2">
+        <Alert.Title>默认设备尚未连接</Alert.Title>
+        <WorkspaceLink className="workspace-link" href="/settings">连接设备<Glyph name="arrow" size={14} /></WorkspaceLink>
+      </Alert.Content>
+    </Alert>}
 
     <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1.4fr)_minmax(20rem,0.9fr)]">
       <Card role="region" aria-labelledby="upcoming-heading" className="grid min-w-0 gap-4 p-5 sm:p-6">
