@@ -43,3 +43,9 @@ next-env.d.ts
 
 # runtime data: SQLite database (WAL) + generated password/session secret
 /data/
+
+# local-only development notes
+/docs/todo-roadmap.md
+/docs/repair-review.md
+/docs/heroui-pro-upgrade.md
+/docs/local/
