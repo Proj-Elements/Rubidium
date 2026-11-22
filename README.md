@@ -26,11 +26,7 @@ GHCR Compose 文件默认固定使用 `1.0.2`。升级时将 `RUBIDIUM_IMAGE` �
 
 也可在 `.env` 设置 `RUBIDIUM_PASSWORD` 预置访问密码并跳过初始化。其他环境变量见[环境配置](docs/configuration.md)；源码构建、升级与密码重置见[部署指南](docs/deployment.md)。
 
-## 数据与使用
-
-- 提醒时区、重复规则和投递行为见[提醒与投递](docs/reminders-and-delivery.md)。
-- 网页加密导入导出、运维备份与恢复见[数据管理](docs/data-management.md)。
-- HTTP API 与 MCP 使用方式见[API/MCP 文档](docs/api-mcp.md)。
+其他配置、升级、数据管理与 API/MCP 使用说明见 [`docs/`](docs/)。
 
 ## 许可
 
