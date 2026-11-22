@@ -21,10 +21,10 @@ docker compose -f docker-compose.ghcr.yml up -d
 docker compose -f docker-compose.ghcr.yml ps
 ```
 
-浏览器访问 `http://localhost:3000`，输入引导令牌创建访问密码。镜像默认固定到 `1.0.2`；选择其他发布版本时，在 `.env` 中设置：
+浏览器访问 `http://localhost:3000`，输入引导令牌创建访问密码。镜像默认固定到 `1.0.3`；选择其他发布版本时，在 `.env` 中设置：
 
 ```dotenv
-RUBIDIUM_IMAGE=ghcr.io/proj-elements/rubidium:1.0.2
+RUBIDIUM_IMAGE=ghcr.io/proj-elements/rubidium:1.0.3
 ```
 
 生产环境应固定明确版本或镜像摘要，不要依赖可变的 `latest` 标签。公开镜像不需要 GHCR 登录，也不需要 HeroUI Pro 构建凭据。

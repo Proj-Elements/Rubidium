@@ -13,7 +13,7 @@ Rubidium 使用以下环境变量。新部署请使用 `RUBIDIUM_` 前缀，并�
 | `RUBIDIUM_COOKIE_SECURE` | 跟随可信代理协议 | 设为 `1`、`true` 或 `yes` 强制 Secure Cookie；纯 HTTP 环境不要开启。 |
 | `RUBIDIUM_BIND_ADDR` | `127.0.0.1` | Compose 宿主机绑定地址。只在有防护的代理网络环境中改为 `0.0.0.0`。 |
 | `RUBIDIUM_PORT` | `3000` | Compose 宿主机端口；容器内部端口固定为 `3000`。 |
-| `RUBIDIUM_IMAGE` | `ghcr.io/proj-elements/rubidium:1.0.2` | GHCR Compose 使用的镜像标签；生产环境固定到明确版本或摘要。 |
+| `RUBIDIUM_IMAGE` | `ghcr.io/proj-elements/rubidium:1.0.3` | GHCR Compose 使用的镜像标签；生产环境固定到明确版本或摘要。 |
 | `RUBIDIUM_BACKUP_KEY` | 未设置 | 运维加密备份命令使用的口令，16–1024 UTF-8 字节。不要将口令与备份放在同一位置。 |
 | `RUBIDIUM_BACKUP_KEY_FILE` | 未设置 | 运维备份命令从该文件读取口令；文件权限必须为 `0600`，设置后优先于口令变量。 |
 

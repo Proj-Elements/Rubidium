@@ -22,7 +22,7 @@ docker compose -f docker-compose.ghcr.yml up -d
 
 访问 `http://localhost:3000`，输入引导令牌并创建访问密码。默认只监听本机地址；通过反向代理对外提供服务时，按需调整 `RUBIDIUM_BIND_ADDR` 和代理配置。
 
-GHCR Compose 文件默认固定使用 `1.0.2`。升级时将 `RUBIDIUM_IMAGE` 改为目标版本，然后重新执行 `pull` 与 `up -d`。任务数据和设置保存在 `barker-data` 命名卷中；除非要永久删除数据，不要使用 `docker compose down -v`。
+GHCR Compose 文件默认固定使用 `1.0.3`。升级时将 `RUBIDIUM_IMAGE` 改为目标版本，然后重新执行 `pull` 与 `up -d`。任务数据和设置保存在 `barker-data` 命名卷中；除非要永久删除数据，不要使用 `docker compose down -v`。
 
 也可在 `.env` 设置 `RUBIDIUM_PASSWORD` 预置访问密码并跳过初始化。其他环境变量见[环境配置](docs/configuration.md)；源码构建、升级与密码重置见[部署指南](docs/deployment.md)。
 

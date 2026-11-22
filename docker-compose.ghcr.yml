@@ -1,6 +1,6 @@
 services:
   rubidium:
-    image: ${RUBIDIUM_IMAGE:-ghcr.io/proj-elements/rubidium:1.0.2}
+    image: ${RUBIDIUM_IMAGE:-ghcr.io/proj-elements/rubidium:1.0.3}
     pull_policy: always
     container_name: rubidium
     ports:
