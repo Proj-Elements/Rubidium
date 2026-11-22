@@ -13,9 +13,10 @@ cp .env.example .env
 chmod 600 .env
 ```
 
-编辑 `.env`，至少设置随机的 `RUBIDIUM_SETUP_TOKEN`（32 个字符以上）。随后拉取并启动固定版本镜像：
+编辑 `.env`，至少设置随机的 `RUBIDIUM_SETUP_TOKEN`（32 个字符以上）。当前 GHCR 包需要认证，请使用有 `read:packages` 权限的 GitHub Token 登录；`docker login` 会提示输入 Token，不要将它写在命令行参数中。随后拉取并启动固定版本镜像：
 
 ```sh
+docker login ghcr.io --username YOUR_GITHUB_USERNAME
 docker compose -f docker-compose.ghcr.yml pull
 docker compose -f docker-compose.ghcr.yml up -d
 docker compose -f docker-compose.ghcr.yml ps
@@ -27,7 +28,7 @@ docker compose -f docker-compose.ghcr.yml ps
 RUBIDIUM_IMAGE=ghcr.io/proj-elements/rubidium:1.1.0
 ```
 
-生产环境应固定明确版本或镜像摘要，不要依赖可变的 `latest` 标签。公开镜像不需要 GHCR 登录，也不需要 HeroUI Pro 构建凭据。
+生产环境应固定明确版本或镜像摘要，不要依赖可变的 `latest` 标签。预构建镜像无需 HeroUI Pro 构建凭据。
 
 默认只绑定 `127.0.0.1:3000`。经 HTTPS 反向代理提供访问时，可将 `RUBIDIUM_BIND_ADDR` 设为 `0.0.0.0`，并在[环境配置](configuration.md)中配置可信代理。不要直接把未受保护的 HTTP 服务暴露到公网。
 

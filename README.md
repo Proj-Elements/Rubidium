@@ -16,9 +16,12 @@ chmod 600 .env
 打开 `.env`，给 `RUBIDIUM_SETUP_TOKEN` 填一串随机字符（至少 32 位），它是首次初始化时用的引导令牌。接着拉取预构建镜像并启动：
 
 ```sh
+docker login ghcr.io --username YOUR_GITHUB_USERNAME
 docker compose -f docker-compose.ghcr.yml pull
 docker compose -f docker-compose.ghcr.yml up -d
 ```
+
+GHCR 镜像需要有 `read:packages` 权限的 GitHub Token；`docker login` 会安全地提示输入 Token。
 
 在浏览器里打开 `http://localhost:3000`，输入刚才的引导令牌，再设置一个访问密码，就可以开始用了。
 
