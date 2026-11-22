@@ -1,15 +1,16 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { chmodSync, cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { test } from "node:test";
 import { CURRENT_SCHEMA_VERSION } from "../lib/db/core.ts";
-import { backupData, MAX_SUPPORTED_SCHEMA_VERSION, restoreData } from "../scripts/data-tools.mjs";
+import { backupData, backupDataEncrypted, MAX_SUPPORTED_SCHEMA_VERSION, restoreData, restoreDataEncrypted } from "../scripts/data-tools.mjs";
 
 const digest = (path) => createHash("sha256").update(readFileSync(path)).digest("hex");
+const backupKey = "test-data-tools-encryption-key-2030";
 
 function fixture() {
   const root = mkdtempSync(join(tmpdir(), "barker-data-tools-"));
@@ -156,6 +157,86 @@ test("backup and restore are checksummed, private, and never overwrite data", as
     assert.equal(database.prepare("SELECT COUNT(*) count FROM runtime_state").get().count, 0);
     database.close();
     await assert.rejects(restoreData(backup, restored), /new data directory/);
+  } finally { rmSync(root, { recursive: true, force: true }); }
+});
+
+test("encrypted operations backups protect secrets and reject bad keys or damaged files", async () => {
+  const { root, source } = fixture();
+  const backup = join(root, "encrypted-backup");
+  const restored = join(root, "restored");
+  const damaged = join(root, "damaged-backup");
+  const damagedTarget = join(root, "damaged-target");
+  const wrongKeyTarget = join(root, "wrong-key-target");
+  const existingTarget = join(root, "existing-target");
+  try {
+    const result = await backupDataEncrypted(source, backup, backupKey);
+    assert.deepEqual(result.files, ["access-password.txt.enc", "barker.sqlite.enc", "manifest.json.enc", "session-secret.txt.enc"]);
+    assert.equal(statSync(backup).mode & 0o777, 0o700);
+    for (const file of result.files) {
+      assert.equal(statSync(join(backup, file)).mode & 0o777, 0o600);
+      const encrypted = readFileSync(join(backup, file)).toString("utf8");
+      assert.doesNotMatch(encrypted, /test-data-tools-password|test-data-tools-session-secret/);
+    }
+
+    await restoreDataEncrypted(backup, restored, backupKey);
+    assert.equal(readFileSync(join(restored, "access-password.txt"), "utf8"), "test-data-tools-password");
+    assert.equal(readFileSync(join(restored, "session-secret.txt"), "utf8"), "test-data-tools-session-secret");
+    const database = new DatabaseSync(join(restored, "barker.sqlite"), { readOnly: true });
+    assert.equal(database.prepare("SELECT COUNT(*) count FROM tasks").get().count, 1);
+    assert.equal(database.prepare("SELECT COUNT(*) count FROM sessions").get().count, 0);
+    database.close();
+
+    await assert.rejects(restoreDataEncrypted(backup, wrongKeyTarget, "wrong-backup-encryption-key"), /incorrect or encrypted file is damaged/);
+    assert.equal(existsSync(wrongKeyTarget), false);
+
+    cpSync(backup, damaged, { recursive: true });
+    const damagedDatabase = readFileSync(join(damaged, "barker.sqlite.enc"));
+    damagedDatabase[damagedDatabase.length - 1] ^= 1;
+    writeFileSync(join(damaged, "barker.sqlite.enc"), damagedDatabase);
+    await assert.rejects(restoreDataEncrypted(damaged, damagedTarget, backupKey), /incorrect or encrypted file is damaged/);
+    assert.equal(existsSync(damagedTarget), false);
+
+    mkdirSync(existingTarget);
+    writeFileSync(join(existingTarget, "keep.txt"), "existing data");
+    await assert.rejects(restoreDataEncrypted(backup, existingTarget, backupKey), /never overwritten/);
+    assert.equal(readFileSync(join(existingTarget, "keep.txt"), "utf8"), "existing data");
+    await assert.rejects(backupDataEncrypted(source, join(root, "short-key-backup"), "short"), /16 to 1024 UTF-8 bytes/);
+    assert.equal(existsSync(join(root, "short-key-backup")), false);
+  } finally { rmSync(root, { recursive: true, force: true }); }
+});
+
+test("encrypted backup CLI reads passphrases from the environment or a private key file", () => {
+  const { root, source } = fixture();
+  const backup = join(root, "encrypted-cli-backup");
+  const restored = join(root, "encrypted-cli-restored");
+  const environment = { ...process.env, BARKER_BACKUP_KEY: backupKey };
+  try {
+    const backedUp = spawnSync(process.execPath, ["scripts/data-tools.mjs", "backup-encrypted", backup, source], { cwd: process.cwd(), env: environment, encoding: "utf8" });
+    assert.equal(backedUp.status, 0, backedUp.stderr);
+    assert.equal(JSON.parse(backedUp.stdout).schemaVersion, 4);
+    assert.doesNotMatch(backedUp.stdout, new RegExp(backupKey));
+    const restoredResult = spawnSync(process.execPath, ["scripts/data-tools.mjs", "restore-encrypted", restored, backup], { cwd: process.cwd(), env: environment, encoding: "utf8" });
+    assert.equal(restoredResult.status, 0, restoredResult.stderr);
+    assert.deepEqual(JSON.parse(restoredResult.stdout), { restored: true });
+
+    const keyFile = join(root, "backup-key");
+    const fileBackup = join(root, "encrypted-file-key-backup");
+    const fileRestored = join(root, "encrypted-file-key-restored");
+    writeFileSync(keyFile, backupKey, { mode: 0o600 });
+    const fileEnvironment = { ...process.env, BARKER_BACKUP_KEY_FILE: keyFile };
+    delete fileEnvironment.BARKER_BACKUP_KEY;
+    const fileBackupResult = spawnSync(process.execPath, ["scripts/data-tools.mjs", "backup-encrypted", fileBackup, source], { cwd: process.cwd(), env: fileEnvironment, encoding: "utf8" });
+    assert.equal(fileBackupResult.status, 0, fileBackupResult.stderr);
+    assert.doesNotMatch(fileBackupResult.stdout, new RegExp(backupKey));
+    const fileRestoreResult = spawnSync(process.execPath, ["scripts/data-tools.mjs", "restore-encrypted", fileRestored, fileBackup], { cwd: process.cwd(), env: fileEnvironment, encoding: "utf8" });
+    assert.equal(fileRestoreResult.status, 0, fileRestoreResult.stderr);
+
+    chmodSync(keyFile, 0o644);
+    const insecureBackup = join(root, "insecure-key-backup");
+    const insecureResult = spawnSync(process.execPath, ["scripts/data-tools.mjs", "backup-encrypted", insecureBackup, source], { cwd: process.cwd(), env: fileEnvironment, encoding: "utf8" });
+    assert.notEqual(insecureResult.status, 0);
+    assert.match(insecureResult.stderr, /must not be accessible/);
+    assert.equal(existsSync(insecureBackup), false);
   } finally { rmSync(root, { recursive: true, force: true }); }
 });
 

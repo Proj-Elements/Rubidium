@@ -22,6 +22,8 @@
     "ui:setup": "node scripts/setup-heroui.mjs",
     "data:backup": "node scripts/data-tools.mjs backup",
     "data:restore": "node scripts/data-tools.mjs restore",
+    "data:backup:encrypted": "node scripts/data-tools.mjs backup-encrypted",
+    "data:restore:encrypted": "node scripts/data-tools.mjs restore-encrypted",
     "password:reset": "node scripts/password-reset.mjs"
   },
   "dependencies": {

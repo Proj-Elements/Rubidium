@@ -159,6 +159,8 @@ docker run -d --init --name rubidium \
 | `BARKER_SETUP_TOKEN` | 未设置 | 32–300 字符；允许首次初始化并要求在页面输入。令牌不保存，初始化完成后建议移除 |
 | `BARKER_ALLOW_SETUP` | 未启用 | `1/true/yes` 显式允许不带令牌初始化；仅在本机或受限网络临时使用。已设置 `BARKER_SETUP_TOKEN` 时仍要求令牌 |
 | `BARKER_SESSION_SECRET` | 自动生成并持久化 | 16–300 字符，用于 HMAC 会话签名 |
+| `BARKER_BACKUP_KEY` | 未设置 | 仅用于 `data:backup:encrypted` / `data:restore:encrypted`；16–1024 UTF-8 字节，不要与备份存放在同一位置 |
+| `BARKER_BACKUP_KEY_FILE` | 未设置 | 仅用于加密备份 CLI；从权限为 `0600` 的密钥文件读取，设置时优先于 `BARKER_BACKUP_KEY` |
 | `BARKER_DATA_DIR` | `./data`；容器 `/app/data` | SQLite、密码和会话密钥目录 |
 | `BARKER_TRUST_PROXY` | 不信任 | 仅在可信反代后设置 `1/true/yes`，用于限流地址与 HTTPS Cookie 判断 |
 | `BARKER_COOKIE_SECURE` | 不强制 | `1/true/yes` 强制 Secure Cookie；纯 HTTP 环境不要开启 |
@@ -222,32 +224,74 @@ pnpm data:restore /srv/rubidium/data-restored /secure/backups/rubidium-20261112
 
 备份目录必须不存在；命令创建权限为 `0700` 的目录和 `0600` 的文件，并生成包含 SHA-256 校验和的 `manifest.json`。恢复同样拒绝覆盖任何已有目录，会验证校验和、完整性、外键和当前工具支持的 schema 版本；遇到更新或不兼容的版本时会拒绝恢复、清理临时目标并保留源备份。成功恢复后会清除副本中的会话与运行期调度状态。
 
+完整运维快照含 SQLite 中的 Bark Device Key，以及可能存在的访问密码兼容文件和会话签名密钥。建议使用加密模式；它对快照中的每个文件使用随机盐、随机 nonce、scrypt（N=32768）和 AES-256-GCM，输出目录不含明文 manifest。恢复时必须提供同一密钥；错误密钥、认证标签错误或文件损坏都会中止，已有目标目录不会被覆盖。密钥长度为 16–1024 UTF-8 字节，可通过 `BARKER_BACKUP_KEY` 环境变量或权限为 `0600` 的 `BARKER_BACKUP_KEY_FILE` 文件传递；密钥值不会放在 `data-tools` 命令参数或程序输出中：
+
+```bash
+printf '备份加密密钥：'
+IFS= read -r -s BARKER_BACKUP_KEY
+printf '\n'
+export BARKER_BACKUP_KEY
+pnpm data:backup:encrypted /secure/backups/rubidium-20261122.enc
+unset BARKER_BACKUP_KEY
+
+printf '恢复加密密钥：'
+IFS= read -r -s BARKER_BACKUP_KEY
+printf '\n'
+export BARKER_BACKUP_KEY
+pnpm data:restore:encrypted /srv/rubidium/data-restored /secure/backups/rubidium-20261122.enc
+unset BARKER_BACKUP_KEY
+```
+
+加密命令会在权限为 `0700` 的系统临时目录短暂准备明文快照，完成后清理暂存目录；若本机临时目录不属于可信的本地用户边界，应确保该目录位于加密存储或内存文件系统。加密密钥应单独保管，不能与备份放在同一位置；遗失密钥无法恢复数据。普通 `data:backup` / `data:restore` 仍生成明文快照，只应写入权限受控的加密存储。
+
 Compose 使用命名卷，宿主机上的 `./data` 与容器数据不是同一目录。使用 Compose 时，可通过容器内备份命令创建快照，再复制到受限的宿主机目录：
 
 ```bash
+set -e
+KEY_FILE="$(mktemp)"
+chmod 600 "$KEY_FILE"
+trap 'rm -f "$KEY_FILE"; docker compose exec -u 0 rubidium rm -f /tmp/rubidium-backup-key >/dev/null 2>&1 || true' EXIT
+printf '备份加密密钥：'
+IFS= read -r -s BARKER_BACKUP_KEY
+printf '\n'
+printf '%s' "$BARKER_BACKUP_KEY" > "$KEY_FILE"
+unset BARKER_BACKUP_KEY
 mkdir -p /secure/backups
-docker compose exec -u 0 rubidium node /app/scripts/data-tools.mjs backup /tmp/rubidium-backup-20261121
-docker cp rubidium:/tmp/rubidium-backup-20261121 /secure/backups/
-test -f /secure/backups/rubidium-backup-20261121/manifest.json
-docker compose exec -u 0 rubidium rm -r /tmp/rubidium-backup-20261121
+docker cp "$KEY_FILE" rubidium:/tmp/rubidium-backup-key
+docker compose exec -u 0 rubidium chmod 600 /tmp/rubidium-backup-key
+docker compose exec -e BARKER_BACKUP_KEY_FILE=/tmp/rubidium-backup-key -u 0 rubidium node /app/scripts/data-tools.mjs backup-encrypted /tmp/rubidium-backup-20261122.enc
+docker cp rubidium:/tmp/rubidium-backup-20261122.enc /secure/backups/
+test -f /secure/backups/rubidium-backup-20261122.enc/barker.sqlite.enc
+docker compose exec -u 0 rubidium rm -r /tmp/rubidium-backup-20261122.enc
+docker compose exec -u 0 rubidium rm -f /tmp/rubidium-backup-key
 ```
 
 Compose 恢复到同一卷中的新目录，不覆盖当前数据。先停止服务，将快照目录按只读方式挂入一次性容器；恢复目标必须不存在：
 
 ```bash
+KEY_FILE="$(mktemp)"
+chmod 600 "$KEY_FILE"
+trap 'rm -f "$KEY_FILE"' EXIT
+printf '恢复加密密钥：'
+IFS= read -r -s BARKER_BACKUP_KEY
+printf '\n'
+printf '%s' "$BARKER_BACKUP_KEY" > "$KEY_FILE"
+unset BARKER_BACKUP_KEY
 docker compose stop rubidium
 docker compose run --rm --no-deps --user 0 \
+  -e BARKER_BACKUP_KEY_FILE=/run/secrets/rubidium-backup-key \
+  -v "$KEY_FILE:/run/secrets/rubidium-backup-key:ro" \
   -v /secure/backups:/backups:ro \
   --entrypoint node rubidium \
-  /app/scripts/data-tools.mjs restore \
-  /app/data/restore-20261121 /backups/rubidium-backup-20261121
+  /app/scripts/data-tools.mjs restore-encrypted \
+  /app/data/restore-20261122 /backups/rubidium-backup-20261122.enc
 docker compose run --rm --no-deps --user 0 \
-  --entrypoint chown rubidium -R 1001:1001 /app/data/restore-20261121
+  --entrypoint chown rubidium -R 1001:1001 /app/data/restore-20261122
 ```
 
-确认恢复命令成功后，将 `.env` 中的 `BARKER_DATA_DIR` 设为 `/app/data/restore-20261121`，再运行 `docker compose up -d rubidium`。旧数据仍留在原卷的 `/app/data`，可在核对新实例前用于回退；不要运行 `docker compose down -v`。`/secure/backups` 必须替换为实际绝对路径，快照包含敏感凭据材料，需限制访问。
+确认恢复命令成功后，将 `.env` 中的 `BARKER_DATA_DIR` 设为 `/app/data/restore-20261122`，再运行 `docker compose up -d rubidium`。旧数据仍留在原卷的 `/app/data`，可在核对新实例前用于回退；不要运行 `docker compose down -v`。`/secure/backups` 必须替换为实际绝对路径，备份目录与加密密钥应分别限制访问。
 
-这是管理员级原始快照，不等同于网页里的加密导出：快照目录可能包含访问密码兼容文件、会话签名密钥和明文 Bark Device Key。应写入受限权限的本地磁盘或加密存储，限制访问，并在需要时对备份介质本身加密。
+运维快照恢复后仍是明文数据目录，不等同于网页里的加密导出。解密后的 SQLite 中包含 Bark Device Key；数据目录和运行时文件仍须限制访问。
 
 先从旧实例停机，再把 `BARKER_DATA_DIR` 指向恢复目录并启动。没有既有访问凭据且未设置 `BARKER_PASSWORD` 时，服务只会在设置 `BARKER_SETUP_TOKEN` 或显式启用 `BARKER_ALLOW_SETUP=1` 后开放初始化；缺少会话签名密钥时会生成新密钥，既有会话随之失效。
 
@@ -257,7 +301,7 @@ docker compose run --rm --no-deps --user 0 \
 
 升级建议：
 
-1. 使用 `pnpm data:backup` 创建一份新快照，并确认 `manifest.json` 存在。
+1. 使用 `pnpm data:backup:encrypted` 创建一份新快照，并确认 `.enc` 文件齐全；安全保管 `BARKER_BACKUP_KEY`。
 2. 拉取或检出目标版本。源码构建需提供有效 `HEROUI_KEY`；直接使用 GHCR 镜像则无需该构建密钥。
 3. 保持原有 `barker-data` 命名卷与 `.env`，仅重建/更新容器，不要执行 `docker compose down -v`。
 4. 检查 `docker compose ps`、`docker compose logs --tail=100 rubidium` 和 `/api/health`。
