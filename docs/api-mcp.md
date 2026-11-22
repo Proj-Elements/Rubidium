@@ -1,6 +1,6 @@
 # Rubidium API 与 MCP
 
-本文对应 Rubidium `1.x` 当前实现。HTTP API 使用 JSON；MCP 使用官方 `@modelcontextprotocol/sdk` 的无状态 Streamable HTTP。默认服务地址为 `http://localhost:3000`，部署时替换为自己的 HTTPS 地址。
+本文对应 Rubidium `1.1.0`。HTTP API 使用 JSON；MCP 使用官方 `@modelcontextprotocol/sdk` 的无状态 Streamable HTTP。默认服务地址为 `http://localhost:3000`，部署时替换为自己的 HTTPS 地址。
 
 ## 鉴权与通用约定
 

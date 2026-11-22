@@ -91,6 +91,15 @@ test("release and CI workflow YAML parse with the expected publication gates", (
   }
 });
 
+test("application version matches the pinned GHCR image and user deployment guides", () => {
+  const version = JSON.parse(readFileSync("package.json", "utf8")).version;
+  assert.equal(version, "1.1.0");
+  for (const path of [".env.example", "docker-compose.ghcr.yml", "README.md", "docs/api-mcp.md", "docs/configuration.md", "docs/deployment.md"]) {
+    assert.match(readFileSync(path, "utf8"), new RegExp(`rubidium:${version}|${version}`), path);
+  }
+  assert.match(readFileSync("docker-compose.ghcr.yml", "utf8"), new RegExp(`rubidium:${version}`));
+});
+
 test("third-party notices match pnpm production dependencies and preserve Pro licensing notes", () => {
   const check = spawnSync(process.execPath, ["scripts/generate-third-party-notices.mjs", "--check"], { encoding: "utf8" });
   assert.equal(check.status, 0, check.stderr || check.stdout);

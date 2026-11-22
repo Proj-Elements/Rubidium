@@ -13,10 +13,10 @@ Rubidium 使用以下环境变量。新部署请使用 `RUBIDIUM_` 前缀，并�
 | `RUBIDIUM_COOKIE_SECURE` | 跟随可信代理协议 | 设为 `1`、`true` 或 `yes` 强制 Secure Cookie；纯 HTTP 环境不要开启。 |
 | `RUBIDIUM_BIND_ADDR` | `127.0.0.1` | Compose 宿主机绑定地址。只在有防护的代理网络环境中改为 `0.0.0.0`。 |
 | `RUBIDIUM_PORT` | `3000` | Compose 宿主机端口；容器内部端口固定为 `3000`。 |
-| `RUBIDIUM_IMAGE` | `ghcr.io/proj-elements/rubidium:1.0.3` | GHCR Compose 使用的镜像标签；生产环境固定到明确版本或摘要。 |
+| `RUBIDIUM_IMAGE` | `ghcr.io/proj-elements/rubidium:1.1.0` | GHCR Compose 使用的镜像标签；生产环境固定到明确版本或摘要。 |
 | `RUBIDIUM_BACKUP_KEY` | 未设置 | 运维加密备份命令使用的口令，16–1024 UTF-8 字节。不要将口令与备份放在同一位置。 |
 | `RUBIDIUM_BACKUP_KEY_FILE` | 未设置 | 运维备份命令从该文件读取口令；文件权限必须为 `0600`，设置后优先于口令变量。 |
 
-首次初始化页面默认选择浏览器报告的 IANA 时区，之后可在设置页更改全局显示时区；每条提醒也可使用独立时区。初始化访问密码以 scrypt 哈希保存。
+首次访问默认按浏览器 `Accept-Language` 选择简体中文、繁體中文或英语；在可信代理后启用 `RUBIDIUM_TRUST_PROXY` 时，应用可读取 `X-Vercel-IP-Country`、`CF-IPCountry` 或 `Fly-Client-Country` 国家码用于首次推断语言，之后由浏览器保存的语言选择优先。语言可在登录页和工作区右上角的“文A”菜单更改。语言选择不会改变 IANA 时区：初始化页面默认选择浏览器报告的时区，之后可在设置页更改全局显示时区；每条提醒也可使用独立时区。初始化访问密码以 scrypt 哈希保存。
 
 网页加密导入导出与运维备份命令见[数据管理](data-management.md)。
