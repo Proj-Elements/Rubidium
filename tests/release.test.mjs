@@ -81,3 +81,12 @@ test("release and CI workflow YAML parse with the expected publication gates", (
     }
   }
 });
+
+test("third-party notices match pnpm production dependencies and preserve Pro licensing notes", () => {
+  const check = spawnSync(process.execPath, ["scripts/generate-third-party-notices.mjs", "--check"], { encoding: "utf8" });
+  assert.equal(check.status, 0, check.stderr || check.stdout);
+  const notices = readFileSync("THIRD_PARTY_NOTICES.md", "utf8");
+  assert.match(notices, /\| @heroui-pro\/react \| 1\.0\.0-beta\.11 \| Unknown \|/);
+  assert.match(notices, /\| heroui-pro \| 1\.0\.0-beta\.14 \| UNLICENSED \|/);
+  assert.match(notices, /separate HeroUI Pro commercial license/);
+});

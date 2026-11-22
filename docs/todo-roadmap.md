@@ -71,7 +71,7 @@
 - [x] 为包含数据库、访问密码和会话密钥的完整运维备份提供正式加密模式：`data:backup:encrypted` / `data:restore:encrypted` 对每个快照文件使用随机盐与 nonce、scrypt（N=32768）和 AES-256-GCM；密钥可从 `BARKER_BACKUP_KEY` 或权限严格校验的 `BARKER_BACKUP_KEY_FILE` 读取，密钥原文不进入应用 CLI 参数或程序输出。恢复先认证全部文件，再沿用校验和/schema/SQLite 完整性流程；错误密钥、损坏文件和已存在目标均不会覆盖数据。普通明文模式仍明确标注为仅适用于加密存储。README 补充本地与 Compose 操作、密钥管理和临时明文暂存边界；完整 `tests/data-tools.test.mjs` 11 项及新增 key-file 针对用例 2 项、定向 ESLint、语法、JSON 与差异检查通过。
 - [x] 将日志脱敏密钥改为按来源维护的当前有效凭据：密码、部署令牌、默认 Bark Key 和每个渠道 Key 在轮换、清除或删除时替换/移除；启动及加密数据导入后从当前渠道快照重建，重复凭据仍由其他有效来源保护。新增 1000 次注册槽位有界测试、密码初始化/轮换及重启、默认 Bark 和渠道轮换/删除、导入密钥同步回归；Auth/工作流/数据导入/日志四文件回归 33 项通过，追加边界用例 4 项通过，类型检查、定向 ESLint 与差异检查通过。
 - [x] 为已结束投递记录建立可配置的自动保留与分批清理策略：`0` 默认关闭，`1–36500` 天启用；调度器每 60 秒检查一次，每轮至多清理 100 条，积压时分轮续清。仅删除超过截止时间的 `sent`、`cancelled`、`expired` 记录，保留待投递/重试与发送中记录，不修改累计计数；手动清理也限制为每批 100 条并在批次间让出事件循环，自动清理不执行 `VACUUM`。API、校验与调度回归验证状态保护、计数和批次边界；生产构建与定向 ESLint 通过。Chromium/WebKit 在 844×390 验证配置读取/保存、单次鼠标点击提交和 44px 控件外框，并目视检查实际视口及页面截图。
-- [~] 将项目许可证改为 AGPL-3.0-only：替换为 GNU 官方完整版本文本、同步 package 元数据与 OCI 镜像标签、将许可证及第三方声明复制进运行镜像；增加第三方依赖许可证清单并标明 HeroUI Pro 独立许可。应用内不新增源码链接，README 保留仓库与许可信息；发布专项 5 项及许可证文本/元数据断言通过，最终镜像检查 `heroui-pro` CLI 未被分发。
+- [~] 将项目许可证改为 AGPL-3.0-only：`LICENSE` 与 GNU 官方文本逐字一致，package 元数据和发布 OCI 标签均为 `AGPL-3.0-only`；Docker runner 复制 `LICENSE` 与第三方声明。新增可重现的 `pnpm licenses:notice`，逐包列出当前 446 项生产依赖及版本/许可元数据，注明 HeroUI Pro 独立商业许可、pnpm 的 `Unknown`/`UNLICENSED` 分类；6 项发布测试和定向 ESLint 通过，当前 `.next/standalone` 不含 `heroui-pro` CLI。由于本机未配置 `HEROUI_KEY`，未重新构建实际 Docker image；实际镜像文件清单与启动 smoke 保留在最终容器发布门槛。
 - [x] 补全 README：初始化、访问密码设置与重置、时区、数据与加密导入导出、API/MCP、Docker Compose、命名卷备份恢复、升级和故障排查；不在 README 或示例中放真实凭据。Compose 可指定数据目录以恢复到现有命名卷的新子目录；修正旧 MIT 许可文案和误导性的密码重置排障命令。
 
 ## 仓库与发布门槛

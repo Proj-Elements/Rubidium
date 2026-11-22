@@ -24,7 +24,8 @@
     "data:restore": "node scripts/data-tools.mjs restore",
     "data:backup:encrypted": "node scripts/data-tools.mjs backup-encrypted",
     "data:restore:encrypted": "node scripts/data-tools.mjs restore-encrypted",
-    "password:reset": "node scripts/password-reset.mjs"
+    "password:reset": "node scripts/password-reset.mjs",
+    "licenses:notice": "node scripts/generate-third-party-notices.mjs"
   },
   "dependencies": {
     "@fontsource-variable/manrope": "5.3.0",

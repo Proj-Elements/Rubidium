@@ -49,7 +49,6 @@ COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 COPY --from=builder --chown=nextjs:nodejs /app/public ./public
 COPY --from=builder --chown=nextjs:nodejs /app/LICENSE /app/THIRD_PARTY_NOTICES.md ./
-COPY --from=builder --chown=nextjs:nodejs /app/LICENSE ./LICENSE
 COPY --from=builder --chown=nextjs:nodejs /app/scripts/start-server.mjs ./scripts/start-server.mjs
 COPY --from=builder --chown=nextjs:nodejs /app/scripts/runtime-paths.mjs ./scripts/runtime-paths.mjs
 COPY --from=builder --chown=nextjs:nodejs /app/scripts/data-tools.mjs ./scripts/data-tools.mjs
