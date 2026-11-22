@@ -53,7 +53,10 @@ test("release and CI workflow YAML parse with the expected publication gates", (
   assert.equal(release.jobs.image.if, "github.event_name == 'push' && github.ref_type == 'tag' && github.event.created && startsWith(github.ref, 'refs/tags/v')");
   assert.match(release.jobs.image.steps.find((step) => step.id === "publish").run, /sha-\$GITHUB_SHA-\$VERSION-\$architecture/);
   assert.match(release.jobs.verify.steps.find((step) => step.name === "Verify version syntax and package agreement").run, /git cat-file -t/);
-  assert.match(release.jobs.verify.steps.find((step) => step.name === "Verify version syntax and package agreement").run, /git merge-base --is-ancestor/);
+  const versionCheck = release.jobs.verify.steps.find((step) => step.name === "Verify version syntax and package agreement").run;
+  assert.ok(versionCheck.includes('git fetch --no-tags origin "refs/tags/$RELEASE_NAME:refs/verification/release-tag"'));
+  assert.ok(versionCheck.includes("refs/verification/release-tag^{commit}"));
+  assert.match(versionCheck, /git merge-base --is-ancestor "\$tag_commit" refs\/remotes\/origin\/main/);
   assert.equal(ci.concurrency["cancel-in-progress"], "${{ github.event_name == 'pull_request' }}");
   assert.deepEqual(candidate.permissions, { contents: "read" });
   assert.match(candidate.jobs.container.steps.find((step) => step.name === "Build and smoke each candidate platform").run, /for architecture in amd64 arm64/);

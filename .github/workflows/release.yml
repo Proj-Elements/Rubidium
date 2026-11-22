@@ -31,8 +31,11 @@ jobs:
           RELEASE_NAME: ${{ github.ref_name }}
         run: |
           if [[ "$RELEASE_REF" == refs/tags/* ]]; then
-            test "$(git cat-file -t "$RELEASE_REF")" = tag
-            git merge-base --is-ancestor "$GITHUB_SHA" origin/main
+            git fetch --no-tags origin "refs/tags/$RELEASE_NAME:refs/verification/release-tag"
+            test "$(git cat-file -t refs/verification/release-tag)" = tag
+            tag_commit="$(git rev-parse 'refs/verification/release-tag^{commit}')"
+            test "$tag_commit" = "$GITHUB_SHA"
+            git merge-base --is-ancestor "$tag_commit" refs/remotes/origin/main
           fi
           node --input-type=module <<'NODE'
           import { readFileSync } from 'node:fs';
