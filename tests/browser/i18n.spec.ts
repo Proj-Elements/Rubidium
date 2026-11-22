@@ -18,7 +18,7 @@ test("language choice updates page content, metadata and persists across navigat
   await expect(page.getByRole("heading", { name: "All reminders" })).toBeVisible();
   await expect(page).toHaveTitle("All reminders - Rubidium");
   await page.goto("/deliveries");
-  await expect(page.getByRole("heading", { name: "Delivery history" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Delivery history", exact: true })).toBeVisible();
   await expect(page).toHaveTitle("Delivery history - Rubidium");
   await page.goto("/settings");
   await expect(page.getByRole("heading", { name: "Settings", exact: true })).toBeVisible();
