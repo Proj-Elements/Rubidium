@@ -78,10 +78,10 @@
 
 - [x] 保留当前旧版源代码的非正式预发布 Tag：公开仓库 `Proj-Elements/Rubidium` 上的 `v0.4.2` 是 GitHub prerelease，解引用 SHA 为改造前的基线提交 `49b4ebf93374f3a2cf8c47fddf22926e5e360fd`；确认目标原先无同名 Tag/Release。
 - [x] 将 `origin` 重新绑定到 `git@github.com:Proj-Elements/Rubidium.git`；GitHub API 确认目标仓库为公开且当前为空，SSH over 443 已认证并验证不会访问 Barker 仓库。
-- [~] 按用户要求直接在 `main` 完成变更；每个独立实现步骤与文档步骤通过聚焦检查后及时提交，不堆积到最后。已完成的功能和文档均分步提交，剩余发布前置工作仍在 `main` 推进。
+- [x] 按用户要求直接在 `main` 完成变更；每个独立实现步骤与文档步骤通过聚焦检查后及时提交，不堆积到最后。所有功能和文档均分步提交，最终 README 镜像版本示例修正提交 `1d42a02` 已推送到 `origin/main`，当前本地与远端 `main` 同步。
 - [x] 完成发布前全量验收：提交 `a122229` 的远端预检 `44983604621` 通过授权安装、typecheck、Lint、生产构建；本机全量单测 `212/212`、Chromium/WebKit `72/72` 与 standalone 文件检查通过；候选运行 `44984806810` 在 `77881d4` 对 amd64 与 arm64 完成镜像构建及完整容器 smoke。日志未发现测试密码或初始化令牌泄漏，双平台构建均包含数据传输路由。
-- [~] 失败的注释 Tag `v1.0.0` 保留且不重打；首个发布运行 `44986122468` 因 checkout 覆盖 Tag ref 而在校验阶段失败。正式候选 Tag `v1.0.1` 已指向 `d1b4254`，完整发布验证 `44989706461` 的单测、类型检查、Lint、生产构建与 Chromium/WebKit 浏览器套件均通过；镜像作业仅推送了 amd64 平台标签，随后因无法从 `docker push --quiet` 输出提取 digest 而未发布 arm64 或多架构 manifest。已保留该失败 Tag 和不可变 amd64 标签，不重打或覆盖。工作流修复提交 `d2e2617` 改为 push 后从 GHCR 查询 digest；对应 CI `44991071514` 的受影响测试通过，浏览器与容器检查按变更范围跳过。正式版本因此升至 `1.0.2`，GitHub CLI/SSH 与 `HEROUI_KEY` Actions Secret 均已核实可用。
-- [ ] 为正式 `v1.0.2` 创建注释 Tag，并通过 Tag 工作流发布到 `ghcr.io/proj-elements/rubidium`；验证不可变版本标签、双架构 manifest、稳定通道摘要、匿名拉取及 Compose 启动。组织此前没有现存容器包，也未发现独立镜像同步仓库，发布目标采用 Rubidium 项目自身的 GHCR 容器包；失败的 `v1.0.1` amd64 标签保留。
+- [x] 保留失败的注释 Tag `v1.0.0` 和 `v1.0.1`，不重打、不覆盖。首个发布运行 `44986122468` 因 checkout 覆盖 Tag ref 而在校验阶段失败；`v1.0.1` 发布运行 `44989706461` 的单测、类型检查、Lint、生产构建与 Chromium/WebKit 浏览器套件通过，但镜像作业只推送 amd64 后因 digest 提取失败，未发布 arm64 manifest。修复提交 `d2e2617` 改为 push 后从 GHCR 查询平台 digest；对应 CI `44991071514` 通过。后续正式候选升至 `1.0.2`，不覆盖任何失败版本标签。
+- [x] 创建正式注释 Tag `v1.0.2`，指向提交 `ceefaa3`，并由发布运行 `44991595584` 成功完成版本校验、依赖安装、类型检查、Lint、单测、生产构建、Chromium/WebKit 浏览器回归及多架构镜像发布。镜像作业对 amd64/arm64 分别构建和 smoke，发布不可变版本及源码标签，随后按摘要拉取两个平台并再次 smoke，通过后才提升稳定通道。`ghcr.io/proj-elements/rubidium:1.0.2`、`:1.0`、`:latest` 与 `:sha-ceefaa309e4aa8670934fc4b350b5cdcf6fef9a7` 的 OCI index 均为 `sha256:0070aade233f16ffe082ddff32366de73c3516bc34cab6de53bbb18abf15215e`；amd64 manifest 为 `sha256:dcc338aa1374421e9ad7c39a18596a990bca88f6ab5110cb579464fa852ab3b2`，arm64 为 `sha256:7fbc2664acc428c673dda7e32c636134213d8223bc18c40fa0d9eb0c7767df33`。本机已检查多架构 manifest、Compose 合并配置（单独项目、回环端口 `3301`、独立卷），但下载层在 `9.437MB` 后持续停滞，故中止本机最终镜像的 Compose 启动尝试；远端发布作业对精确发布摘要的两平台拉取与容器 smoke 均成功，本机现有 `barker` 服务及其数据卷未改动。
 
 ## 执行约定
 
