@@ -100,7 +100,7 @@ function SettingsForm({ initial, onSaved }: { initial: SettingsPayload; onSaved:
       {feedback && <Notice kind={feedback.kind}>{feedback.message}</Notice>}
       <div className="flex flex-wrap items-center justify-end gap-2">
         <Button type="button" variant="ghost" isDisabled={!dirty || busy} onPress={reload}>{t("common.discard")}</Button>
-        <Button type="submit" isPending={busy} isDisabled={!dirty || conflict}>{t("common.save")}</Button>
+        <Button type="submit" isPending={busy} isDisabled={!dirty || conflict}>{t("settings.savePreferences")}</Button>
       </div>
     </Form>
   </Card>;

@@ -171,7 +171,7 @@ export function SecurityManager({ active }: { active: boolean }) {
       </> : <p className="text-sm text-muted">{t("security.noSessions")}</p>) : !error && <Loading>{t("security.loadingSessions")}</Loading>}
     </Card>
 
-    {revocation && <Confirm title={t("security.revokeTitle", { name: revocation.name })} confirmLabel={t("common.confirm")} onClose={() => setRevocation(null)} onConfirm={() => void revoke()} busy={busy === "revoke"}>
+    {revocation && <Confirm title={t("security.revokeTitle", { name: revocation.name })} confirmLabel={t("security.confirmRevoke")} onClose={() => setRevocation(null)} onConfirm={() => void revoke()} busy={busy === "revoke"}>
       <p>{revocation.kind === "token" ? t("security.revokeTokenDescription") : t("security.revokeSessionDescription")}</p>
     </Confirm>}
   </div>;

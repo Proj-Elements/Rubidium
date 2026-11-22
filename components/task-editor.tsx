@@ -222,13 +222,13 @@ export function TaskEditor({ task, duplicate = false, onClose }: { task?: Task; 
             {error && <div className="max-h-28 overflow-y-auto"><Notice>{error}</Notice></div>}
             <div className="flex items-center justify-end gap-2">
               <Button type="button" variant="ghost" className="max-sm:min-h-11" isDisabled={busy} onPress={close}>{t("common.cancel")}</Button>
-              <Button type="submit" className="max-sm:min-h-11" isPending={busy}>{editing ? t("common.save") : t("reminder.create")}</Button>
+              <Button type="submit" className="max-sm:min-h-11" isPending={busy}>{editing ? t("reminder.saveChanges") : t("reminder.create")}</Button>
             </div>
           </Modal.Footer>
         </Form>
       </Modal.Dialog></Modal.Container>
     </Modal.Backdrop>
-    {discardChanges && <Confirm title={t("reminder.discardTitle")} confirmLabel={t("common.discard")} cancelLabel={t("common.continueEditing")} onClose={() => setDiscardChanges(false)} onConfirm={onClose}>
+    {discardChanges && <Confirm title={t("reminder.discardTitle")} confirmLabel={t("common.abandonChanges")} cancelLabel={t("common.continueEditing")} onClose={() => setDiscardChanges(false)} onConfirm={onClose}>
       <p>{t("reminder.discardDescription")}</p>
     </Confirm>}
   </>;

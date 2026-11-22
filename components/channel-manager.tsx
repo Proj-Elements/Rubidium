@@ -235,7 +235,7 @@ export function ChannelManager({ active, onChanged }: { active: boolean; onChang
     {confirmation && <Confirm title={t("channel.deleteTitle", { name: confirmation.name })} confirmLabel={t("channel.delete")} onClose={() => setConfirmation(null)} onConfirm={() => void deleteChannel(confirmation)} busy={busy === "delete"}>
       <p>{t("channel.deleteDescription")}</p>
     </Confirm>}
-    {discardConfirmation && <Confirm title={t("channel.discardTitle")} confirmLabel={t("common.discard")} cancelLabel={t("common.continueEditing")} onClose={() => setDiscardConfirmation(false)} onConfirm={finishDialog}>
+    {discardConfirmation && <Confirm title={t("channel.discardTitle")} confirmLabel={t("common.abandonChanges")} cancelLabel={t("common.continueEditing")} onClose={() => setDiscardConfirmation(false)} onConfirm={finishDialog}>
       <p>{t("channel.discardDescription")}</p>
     </Confirm>}
     </Card.Content>
