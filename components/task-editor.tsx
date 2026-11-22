@@ -89,7 +89,7 @@ export function TaskEditor({ task, duplicate = false, onClose }: { task?: Task; 
         .catch((error) => { if (!controller.signal.aborted) setPreview({ key: previewKey, dates: [], error: errorMessage(error, locale) }); });
     }, 350);
     return () => { clearTimeout(timer); controller.abort(); };
-  }, [previewKey, previewVersion]);
+  }, [previewKey, previewVersion, locale]);
 
   const currentPreview = previewKey && preview.key === previewKey ? preview : null;
   const nextPreview = currentPreview?.dates[0];
@@ -173,7 +173,7 @@ export function TaskEditor({ task, duplicate = false, onClose }: { task?: Task; 
             </Fieldset>
 
             <div className="grid gap-3">
-              <Pick label={t("reminder.channel")} value={deviceId} onChange={setDeviceId} options={(channels?.channels ?? [{ id: "default", name: t("channel.defaultName"), type: "bark" }]).map((channel) => ({
+              <Pick label={t("reminder.channel")} value={deviceId} onChange={setDeviceId} options={(channels?.channels ?? [{ id: "default", name: t("channel.defaultName"), type: "bark" as const, isDefault: true }]).map((channel) => ({
                 value: channel.id, label: `${channel.isDefault ? t("channel.defaultName") : channel.name} · ${channel.type === "ntfy" ? "Ntfy" : "Bark"}`,
               }))} />
               {dashboard?.defaultChannel.type === "bark" && !dashboard.defaultChannel.credentialConfigured && deviceId === "default" && <Notice kind="info" action={<WorkspaceLink href="/settings" className="workspace-link">{t("reminder.openSettings")}</WorkspaceLink>}>{t("reminder.barkMissing")}</Notice>}

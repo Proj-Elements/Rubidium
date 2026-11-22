@@ -1,4 +1,4 @@
-import { presetCronFromParts, SCHEDULE_TIME_ZONE } from "./types";
+import { presetCronFromParts, SCHEDULE_TIME_ZONE, type RecurrencePreset } from "./types";
 import { deliverySchema, SECURITY_SESSION_PAGE_SIZE, taskSchema, timestampSchema } from "./contracts";
 import { isMessageKey, localeTags, translate, type Locale, type MessageKey, type MessageValues } from "./i18n";
 

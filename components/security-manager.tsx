@@ -2,7 +2,7 @@
 
 import { Button, Card, Chip, FieldError, Fieldset, Form, Input, Label, Modal, TextField, Tooltip } from "@heroui/react";
 import { ItemCard, ItemCardGroup } from "@heroui-pro/react";
-import { useEffect, useState, type FormEvent } from "react";
+import { useState, useSyncExternalStore, type FormEvent } from "react";
 import { SECURITY_SESSION_PAGE_SIZE } from "@/lib/contracts";
 import { api, errorMessage } from "@/lib/ui";
 import { Glyph } from "./icons";
@@ -180,8 +180,7 @@ export function SecurityManager({ active }: { active: boolean }) {
 function McpAddress() {
   const { t } = useTranslations();
   const { notify } = useWorkspace();
-  const [address, setAddress] = useState("");
-  useEffect(() => setAddress(`${window.location.origin}/api/mcp`), []);
+  const address = useSyncExternalStore(subscribeMcpAddress, getMcpAddress, () => "");
   return <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-2">
     <Input aria-label={t("security.mcpAddressLabel")} className="min-w-0 font-mono" variant="secondary" value={address} readOnly />
     <IconButton icon="copy" label={t("security.copyMcpAddress")} isDisabled={!address} onPress={() => {
@@ -190,6 +189,9 @@ function McpAddress() {
     }} />
   </div>;
 }
+
+const subscribeMcpAddress = () => () => undefined;
+const getMcpAddress = () => typeof window === "undefined" ? "" : new URL("/api/mcp", window.location.origin).href;
 
 const auditActionKeys: Record<string, MessageKey> = {
   "session.create": "audit.sessionCreate", "session.logout": "audit.sessionLogout",
