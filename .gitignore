@@ -47,6 +47,7 @@ next-env.d.ts
 # local-only development notes
 /ROADMAP*.md
 /TODO*.md
+/skills/
 /docs/*roadmap*.md
 /docs/*todo*.md
 /docs/todo-roadmap.md
