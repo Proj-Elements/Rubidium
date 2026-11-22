@@ -80,8 +80,8 @@
 - [x] 将 `origin` 重新绑定到 `git@github.com:Proj-Elements/Rubidium.git`；GitHub API 确认目标仓库为公开且当前为空，SSH over 443 已认证并验证不会访问 Barker 仓库。
 - [~] 按用户要求直接在 `main` 完成变更；每个独立实现步骤与文档步骤通过聚焦检查后及时提交，不堆积到最后。已完成的功能和文档均分步提交，剩余发布前置工作仍在 `main` 推进。
 - [x] 完成发布前全量验收：提交 `a122229` 的远端预检 `44983604621` 通过授权安装、typecheck、Lint、生产构建；本机全量单测 `212/212`、Chromium/WebKit `72/72` 与 standalone 文件检查通过；候选运行 `44984806810` 在 `77881d4` 对 amd64 与 arm64 完成镜像构建及完整容器 smoke。日志未发现测试密码或初始化令牌泄漏，双平台构建均包含数据传输路由。
-- [~] 失败的注释 Tag `v1.0.0` 保留且不重打；首个发布运行 `44986122468` 因 checkout 覆盖 Tag ref 而在校验阶段失败。修复后的 release guard 已通过 CI，项目版本与 README 镜像示例为 `1.0.1`。GitHub CLI 登录和 SSH 已恢复，`HEROUI_KEY` Actions Secret 已存在，`v1.0.1` 尚未创建。提交 `e92a4e6` 的完整 CI 中单测、类型检查、Lint、构建和容器检查成功，浏览器套件 71/72 通过，唯一失败为 Chromium 悬浮滚动条用例超时 30 秒；本机针对该用例复测 1/1 通过。最新 `71428e0` 的 CI 为文档范围检查，未运行代码测试。创建新注释 Tag 前，发布工作流仍会运行完整单测、Chromium/WebKit 浏览器套件和双架构镜像验收。
-- [ ] 将正式 `v1.0.1` Tag 对应的镜像发布到 `ghcr.io/proj-elements/rubidium`；验证不可变版本标签、双架构 manifest、稳定通道摘要、镜像拉取及 Compose 启动。组织当前没有现存容器包，也未发现独立的镜像同步仓库，因此 GHCR 发布目标采用 Rubidium 项目自身的容器包。
+- [~] 失败的注释 Tag `v1.0.0` 保留且不重打；首个发布运行 `44986122468` 因 checkout 覆盖 Tag ref 而在校验阶段失败。正式候选 Tag `v1.0.1` 已指向 `d1b4254`，完整发布验证 `44989706461` 的单测、类型检查、Lint、生产构建与 Chromium/WebKit 浏览器套件均通过；镜像作业仅推送了 amd64 平台标签，随后因无法从 `docker push --quiet` 输出提取 digest 而未发布 arm64 或多架构 manifest。已保留该失败 Tag 和不可变 amd64 标签，不重打或覆盖。工作流修复提交 `d2e2617` 改为 push 后从 GHCR 查询 digest；对应 CI `44991071514` 的受影响测试通过，浏览器与容器检查按变更范围跳过。正式版本因此升至 `1.0.2`，GitHub CLI/SSH 与 `HEROUI_KEY` Actions Secret 均已核实可用。
+- [ ] 为正式 `v1.0.2` 创建注释 Tag，并通过 Tag 工作流发布到 `ghcr.io/proj-elements/rubidium`；验证不可变版本标签、双架构 manifest、稳定通道摘要、匿名拉取及 Compose 启动。组织此前没有现存容器包，也未发现独立镜像同步仓库，发布目标采用 Rubidium 项目自身的 GHCR 容器包；失败的 `v1.0.1` amd64 标签保留。
 
 ## 执行约定
 
