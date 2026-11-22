@@ -259,7 +259,7 @@ test("copying and editing a weekly task preserves its weekday and wall clock", a
   await page.getByRole("button", { name: /排期预览/ }).click();
   await expect(page.getByRole("dialog", { name: "接下来的提醒" }).locator("code")).toHaveText("30 9 * * 1");
   await page.keyboard.press("Escape");
-  await page.getByRole("button", { name: "新建提醒", exact: true }).click();
+  await page.getByRole("dialog", { name: "复制为新提醒", exact: true }).getByRole("button", { name: "新建提醒", exact: true }).click();
   await expect(page.getByRole("heading", { name: "复制为新提醒" })).toBeHidden();
   await page.getByRole("button", { name: "编辑 Monday review（副本）", exact: true }).click();
   await page.getByLabel(/^提醒内容/).fill("Edited content");

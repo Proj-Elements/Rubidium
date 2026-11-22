@@ -72,7 +72,7 @@ test("Bark and Ntfy channels are manageable and selectable in touch landscape", 
   await page.screenshot({ path: test.info().outputPath("channels-landscape-844x390.png"), animations: "disabled" });
 
   await page.getByRole("button", { name: "添加渠道", exact: true }).click();
-  let dialog = page.getByRole("dialog", { name: "添加通知渠道", exact: true });
+  let dialog = page.getByRole("dialog", { name: "添加渠道", exact: true });
   await expect(dialog).toBeVisible();
   const closeBounds = await dialog.getByRole("button", { name: "关闭渠道编辑", exact: true }).evaluate((button) => {
     const bounds = button.getBoundingClientRect();

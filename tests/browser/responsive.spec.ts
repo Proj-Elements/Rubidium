@@ -202,7 +202,7 @@ for (const theme of ["light", "dark"] as const) {
       expect(chipHeights.every((height) => height < 36)).toBe(true);
       await page.screenshot({ path: test.info().outputPath(`${theme}-${width}-deliveries.png`), fullPage: true, animations: "disabled" });
       const received = page.getByRole("row").filter({ hasText: "已经接收的提醒" });
-      await received.getByRole("button", { name: "投递详情", exact: true }).click();
+      await received.getByRole("button", { name: /投递详情|查看详情/ }).click();
       await expect(page.getByRole("dialog", { name: "投递详情" })).toBeVisible();
       await page.getByRole("button", { name: "关闭投递详情" }).click();
     }
