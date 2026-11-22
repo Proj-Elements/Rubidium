@@ -140,13 +140,13 @@ docker compose up -d --build
 正式发布后，多架构镜像按 SemVer 推送到 `ghcr.io/proj-elements/rubidium`。首次使用空数据卷前，先安全设置 `BARKER_SETUP_TOKEN`；已有初始化数据卷无需该值。例如拉取指定版本：
 
 ```bash
-docker pull ghcr.io/proj-elements/rubidium:v1.0.2
+docker pull ghcr.io/proj-elements/rubidium:1.0.2
 docker run -d --init --name rubidium \
   --stop-timeout 30 \
   -p 127.0.0.1:3000:3000 \
   -e BARKER_SETUP_TOKEN \
   -v barker-data:/app/data \
-  ghcr.io/proj-elements/rubidium:v1.0.2
+  ghcr.io/proj-elements/rubidium:1.0.2
 ```
 
 不要把 `:latest` 当作可复现版本；生产部署应固定明确版本或镜像摘要。若 GHCR 镜像尚未随对应 Tag 发布，先使用上面的 Compose 本地构建方式。
