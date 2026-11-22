@@ -152,7 +152,7 @@ export function TaskEditor({ task, duplicate = false, onClose }: { task?: Task; 
                 </div>
                 {preset === "custom" && <Field label="Cron 表达式" value={cron} onChange={(event) => setCron(event.target.value)} required maxLength={80} />}
                 {preset !== "once" && <section className="grid gap-2" aria-label="结束条件">
-                  <div className={`grid items-start gap-3 ${limit === "date" ? "@min-[26rem]/editor:grid-cols-[minmax(0,1fr)_11rem]" : limit === "count" ? "@min-[26rem]/editor:grid-cols-[minmax(0,1fr)_7rem]" : ""}`}>
+                  <div className="grid items-start gap-3 @min-[26rem]/editor:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]">
                     <div className="workspace-field grid gap-1">
                       <h3 className="label font-medium text-foreground">何时结束</h3>
                       <Segment aria-label="提醒结束方式" className="w-fit max-w-full" selectedKey={limit} onSelectionChange={(key) => setLimit(String(key))}>
