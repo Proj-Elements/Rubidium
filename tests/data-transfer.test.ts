@@ -118,6 +118,9 @@ test("export and import API require a browser session and restore only after aut
   });
 
   assert.equal((await exportRoute.POST(request("/api/data/export", { passphrase: "private-export-password-2035" }, false))).status, 401);
+  const crossOrigin = request("/api/data/export", { passphrase: "private-export-password-2035" });
+  crossOrigin.headers.set("origin", "http://attacker.example");
+  assert.equal((await exportRoute.POST(crossOrigin)).status, 403);
   const exported = await exportRoute.POST(request("/api/data/export", { passphrase: "private-export-password-2035" }));
   assert.equal(exported.status, 200);
   assert.equal(exported.headers.get("cache-control"), "no-store");
@@ -131,6 +134,13 @@ test("export and import API require a browser session and restore only after aut
   assert.equal(exportedDatabase.prepare("SELECT COUNT(*) count FROM api_tokens").get()?.count, 0);
   assert.equal(exportedDatabase.prepare("SELECT COUNT(*) count FROM settings WHERE key IN ('password_override', 'password_revision')").get()?.count, 0);
   exportedDatabase.close();
+
+  const apiToken = auth.createApiToken("export test", "write", 1);
+  const apiTokenRequest = new Request("http://localhost:3000/api/data/export", {
+    method: "POST", headers: { host: "localhost:3000", origin: "http://localhost:3000", "content-type": "application/json", authorization: `Bearer ${apiToken}` },
+    body: JSON.stringify({ passphrase: "private-export-password-2035" }),
+  });
+  assert.equal((await exportRoute.POST(apiTokenRequest)).status, 401);
 
   database.createTask({ name: "错误密码后应保留", startsAt: "2035-03-01T09:00:00+00:00", preset: "once", cron: "0 9 * * *", repeatCount: 1, endDate: null, timeZone: "UTC" }, new Date("2030-01-01T00:00:00Z"));
   const wrongPassword = await importRoute.POST(request("/api/data/import", { passphrase: "incorrect-export-password-2035", envelope }));

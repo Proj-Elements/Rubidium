@@ -70,9 +70,9 @@ export function expectedRevision(value: unknown): number {
   return Number(value);
 }
 
-export async function requestBody(request: Request): Promise<unknown> {
-  const text = new TextDecoder().decode(await requestBytes(request));
-  if (Buffer.byteLength(text, "utf8") > MAX_REQUEST_BYTES) throw new HttpError("请求体过大", 413);
+export async function requestBody(request: Request, maximumBytes = MAX_REQUEST_BYTES): Promise<unknown> {
+  const text = new TextDecoder().decode(await requestBytes(request, maximumBytes));
+  if (Buffer.byteLength(text, "utf8") > maximumBytes) throw new HttpError("请求体过大", 413);
   try {
     return JSON.parse(text) as unknown;
   } catch {

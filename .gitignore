@@ -42,4 +42,4 @@ node_modules
 next-env.d.ts
 
 # runtime data: SQLite database (WAL) + generated password/session secret
-data/
+/data/
