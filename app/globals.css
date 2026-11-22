@@ -183,7 +183,7 @@
     .workspace-main { padding-block-start: 1.5rem; }
   }
   @media (height <= 32rem) and (orientation: landscape) and (width >= 26rem) {
-    .workspace-actions { display: flex; width: max-content; max-width: 100%; align-items: center; gap: 0.25rem; padding-block: 0.375rem; }
+    .workspace-actions { display: flex; width: max-content; max-width: 100%; align-items: center; gap: 0.125rem; padding: 0.375rem 0.25rem; }
     .workspace-actions .action-bar__prefix, .workspace-actions .action-bar__content, .workspace-actions .action-bar__suffix { grid-area: auto; }
     .workspace-actions .action-bar__content { display: flex; width: auto; grid-auto-flow: unset; grid-auto-columns: unset; justify-self: auto; gap: 0.125rem; }
   }
