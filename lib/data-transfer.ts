@@ -5,7 +5,7 @@ import { DomainError } from "./errors";
 import { CURRENT_SCHEMA_VERSION, connection, transaction } from "./db/core";
 import { refreshChannelLogSecrets } from "./db";
 import { auditEvent } from "./db/security";
-import { deliverySchema, taskSchema, timestampSchema } from "./contracts";
+import { channelFields, deliverySchema, taskSchema, timestampSchema } from "./contracts";
 import { settingsSchema, taskInputSchema } from "./validation";
 
 export const MAX_TRANSFER_BYTES = 40 * 1024 * 1024;
@@ -163,12 +163,15 @@ function validateSnapshot(path: string): void {
     const revision = Number((source.prepare("SELECT value FROM settings WHERE key = 'revision'").get() as { value?: string } | undefined)?.value);
     if (!Number.isSafeInteger(revision) || revision < 1) throw new DomainError("导出设置数据无效");
 
-    const devices = source.prepare("SELECT id, name, endpoint, device_key, revision FROM devices");
+    const devices = source.prepare("SELECT id, name, type, endpoint, topic, device_key, revision FROM devices");
     for (const raw of devices.iterate()) {
       const row = raw as Record<string, unknown>;
-      if (typeof row.id !== "string" || row.id === "default" || typeof row.name !== "string" || row.name.trim().length < 1 || row.name.length > 80 ||
-        typeof row.device_key !== "string" || row.device_key.length < 1 || !Number.isSafeInteger(Number(row.revision)) || Number(row.revision) < 1 ||
-        !settingsSchema.safeParse({ ...(parsedSettings as object), endpoint: row.endpoint, deviceKey: row.device_key }).success) {
+      const channel = channelFields.safeParse({
+        name: row.name, type: row.type, endpoint: row.endpoint, topic: row.topic, credential: row.device_key,
+      });
+      if (typeof row.id !== "string" || !row.id.trim() || row.id.length > 100 || !channel.success ||
+        (row.id !== "default" && channel.data.type === "bark" && !channel.data.credential) ||
+        !Number.isSafeInteger(Number(row.revision)) || Number(row.revision) < 1) {
         throw new DomainError("导出设备数据无效");
       }
     }

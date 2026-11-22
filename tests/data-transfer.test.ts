@@ -8,10 +8,11 @@ import { logError } from "../lib/logging";
 
 const directory = mkdtempSync(join(tmpdir(), "rubidium-transfer-"));
 const snapshotPath = join(directory, "snapshot.sqlite");
-process.env.BARKER_DATA_DIR = join(directory, "data");
-delete process.env.BARKER_PASSWORD;
-process.env.BARKER_SETUP_TOKEN = "";
-process.env.BARKER_ALLOW_SETUP = "";
+const barkSnapshotPath = join(directory, "default-bark.sqlite");
+process.env.RUBIDIUM_DATA_DIR = join(directory, "data");
+delete process.env.RUBIDIUM_PASSWORD;
+process.env.RUBIDIUM_SETUP_TOKEN = "";
+process.env.RUBIDIUM_ALLOW_SETUP = "";
 
 let database: typeof import("../lib/db");
 let core: typeof import("../lib/db/core");
@@ -23,6 +24,11 @@ before(async () => {
   core = await import("../lib/db/core");
   transfer = await import("../lib/data-transfer");
   database.initializeDatabase();
+  const originalDefault = database.listChannels()[0];
+  database.saveChannel({
+    id: "default", name: "Snapshot Bark", type: "bark", endpoint: originalDefault.endpoint,
+    topic: "", credential: "", revision: originalDefault.revision,
+  });
   database.saveChannel({ name: "Snapshot Ntfy", type: "ntfy", endpoint: "https://ntfy.example", topic: "snapshot", credential: "imported-channel-credential-2035" });
   const task = database.createTask({ name: "导出提醒", startsAt: "2035-01-01T09:00:00+00:00", preset: "once", cron: "0 9 * * *", repeatCount: 1, endDate: null, timeZone: "UTC" }, new Date("2030-01-01T00:00:00Z"));
   snapshotTaskId = task.id;
@@ -30,6 +36,12 @@ before(async () => {
   core.statement("INSERT INTO settings (key, value) VALUES ('password_revision', '5')").run();
   core.statement("INSERT INTO sessions VALUES ('snapshot-session', ?, 'snapshot-fingerprint')").run(Date.now() + 86_400_000);
   core.statement("INSERT INTO api_tokens VALUES ('snapshot-token', 'old api', 'snapshot-digest', 'read', ?, ?)").run(Date.now() + 86_400_000, Date.now());
+  await backup(core.connection(), barkSnapshotPath);
+  const savedDefault = database.listChannels()[0];
+  database.saveChannel({
+    id: "default", name: "Snapshot Default Ntfy", type: "ntfy", endpoint: "https://ntfy.default.example",
+    topic: "default-snapshot", credential: "", revision: savedDefault.revision,
+  });
   await backup(core.connection(), snapshotPath);
 });
 
@@ -50,6 +62,13 @@ test("encrypted exports use authenticated encryption and reject wrong passwords 
   assert.throws(() => transfer.decryptExport({ ...encrypted, schemaVersion: 99 }, passphrase), /不兼容/);
 });
 
+test("imports an unconfigured default Bark channel", () => {
+  transfer.importDatabaseSnapshot(barkSnapshotPath);
+  const defaultChannel = database.listChannels()[0];
+  assert.equal(defaultChannel.type, "bark");
+  assert.equal(defaultChannel.credentialConfigured, false);
+});
+
 test("validated imports replace task data atomically and refresh active channel log secrets", async (context) => {
   const messages: string[] = [];
   context.mock.method(console, "error", (message: string) => messages.push(message));
@@ -68,6 +87,10 @@ test("validated imports replace task data atomically and refresh active channel 
 
   transfer.importDatabaseSnapshot(snapshotPath);
 
+  const importedDefaultChannel = database.listChannels()[0];
+  assert.equal(importedDefaultChannel.type, "ntfy");
+  assert.equal(importedDefaultChannel.name, "Snapshot Default Ntfy");
+  assert.equal(importedDefaultChannel.credentialConfigured, false);
   logError("test.imported-channel-secret", new Error(`active=${activeSecret}; imported=imported-channel-credential-2035`));
   const log = messages.pop() ?? "";
   assert.match(log, new RegExp(activeSecret));
@@ -103,7 +126,7 @@ test("validated imports replace task data atomically and refresh active channel 
 });
 
 test("export and import API require a browser session and restore only after authenticated decryption", async () => {
-  process.env.BARKER_PASSWORD = "data-transfer-api-password-2035";
+  process.env.RUBIDIUM_PASSWORD = "data-transfer-api-password-2035";
   core.statement("UPDATE settings SET value = ? WHERE key = 'password_override'").run(JSON.stringify({ source: "setup", salt: "current-salt", hash: "a".repeat(64) }));
   const auth = await import("../lib/auth");
   const exportRoute = await import("../app/api/data/export/route");
