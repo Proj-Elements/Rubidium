@@ -129,7 +129,7 @@ export function ChannelManager({ active, onChanged }: { active: boolean; onChang
     setTestingId(channel.id);
     try {
       await api(`/api/channels/${encodeURIComponent(channel.id)}/test`, { method: "POST", body: "{}" });
-      notify(t("channel.testSent", { name: channel.isDefault ? t("channel.defaultName") : channel.name }));
+      notify(t("channel.testSent", { name: channel.name }));
     } catch (error) { notify(errorMessage(error, locale), "error"); }
     finally { setBusy(null); setTestingId(null); }
   }
@@ -169,7 +169,7 @@ export function ChannelManager({ active, onChanged }: { active: boolean; onChang
             <ItemCard.Icon className="size-10 shrink-0 rounded-lg bg-surface-secondary text-muted"><Glyph name="bell" /></ItemCard.Icon>
             <ItemCard.Content className="min-w-0 flex-1">
               <ItemCard.Title className="flex min-w-0 flex-wrap items-center gap-2">
-                <span className="[overflow-wrap:anywhere]">{channel.isDefault ? t("channel.defaultName") : channel.name}</span>
+                <span className="[overflow-wrap:anywhere]">{channel.name}</span>
                 <Chip size="sm" variant="soft" color="accent"><Chip.Label>{channel.type === "bark" ? "Bark" : "Ntfy"}</Chip.Label></Chip>
                 {channel.isDefault && <Chip size="sm" variant="soft" color="accent"><Chip.Label>{t("channel.default")}</Chip.Label></Chip>}
                 <Chip size="sm" variant="soft" color={status.color}><Chip.Label>{t(status.label)}</Chip.Label></Chip>
@@ -183,7 +183,7 @@ export function ChannelManager({ active, onChanged }: { active: boolean; onChang
                 isDisabled={busy !== null || (channel.type === "bark" && !channel.credentialConfigured)} onPress={() => void testChannel(channel)}>
                 <Glyph name="send" />{t("channel.test")}
               </Button>
-              <IconButton icon="edit" label={t("taskStatus.editNamed", { name: channel.isDefault ? t("channel.defaultName") : channel.name })} variant="outline" className="min-h-11 min-w-11" isDisabled={busy !== null} onPress={() => openEdit(channel)} />
+              <IconButton icon="edit" label={t("taskStatus.editNamed", { name: channel.name })} variant="outline" className="min-h-11 min-w-11" isDisabled={busy !== null} onPress={() => openEdit(channel)} />
               {!channel.isDefault && <IconButton icon="trash" label={t("channel.deleteNamed", { name: channel.name })} variant="danger-soft" className="min-h-11 min-w-11" isDisabled={busy !== null} onPress={() => setConfirmation(channel)} />}
             </ItemCard.Action>
           </ItemCard>

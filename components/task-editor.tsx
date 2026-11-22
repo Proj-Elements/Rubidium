@@ -174,7 +174,7 @@ export function TaskEditor({ task, duplicate = false, onClose }: { task?: Task; 
 
             <div className="grid gap-3">
               <Pick label={t("reminder.channel")} value={deviceId} onChange={setDeviceId} options={(channels?.channels ?? [{ id: "default", name: t("channel.defaultName"), type: "bark" as const, isDefault: true }]).map((channel) => ({
-                value: channel.id, label: `${channel.isDefault ? t("channel.defaultName") : channel.name} · ${channel.type === "ntfy" ? "Ntfy" : "Bark"}`,
+                value: channel.id, label: `${channel.name} · ${channel.type === "ntfy" ? "Ntfy" : "Bark"}`,
               }))} />
               {dashboard?.defaultChannel.type === "bark" && !dashboard.defaultChannel.credentialConfigured && deviceId === "default" && <Notice kind="info" action={<WorkspaceLink href="/settings" className="workspace-link">{t("reminder.openSettings")}</WorkspaceLink>}>{t("reminder.barkMissing")}</Notice>}
             </div>
