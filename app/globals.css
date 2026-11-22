@@ -71,6 +71,14 @@
   .sidebar__menu-item-content { min-height: 2.75rem; }
   .sidebar__menu-item[data-current="true"] .sidebar__menu-item-content { background: var(--surface); box-shadow: var(--surface-shadow); }
   .sidebar__menu-item[data-current="true"] :is(.sidebar__menu-label, .sidebar__menu-icon) { color: var(--accent); }
+  .sidebar[data-state="collapsed"] .sidebar__content { padding-inline: 0.5rem; }
+  .sidebar[data-state="collapsed"] .sidebar__menu { align-items: center; }
+  .sidebar[data-state="collapsed"] .sidebar__menu-item { width: 3rem; min-width: 3rem; }
+  .sidebar[data-state="collapsed"] .sidebar__menu-item-content { width: 3rem; min-width: 3rem; height: 3rem; min-height: 3rem; margin-inline: 0; padding: 0; border-radius: 1rem; background: transparent; }
+  .sidebar[data-state="collapsed"] .sidebar__menu-item[data-current="true"] .sidebar__menu-item-content { background: var(--surface); }
+  @media (hover: hover) {
+    .sidebar[data-state="collapsed"] .sidebar__menu-item:not([data-current="true"]):hover .sidebar__menu-item-content { background: var(--surface-secondary); }
+  }
   .sidebar-compact-action { width: 2.75rem; min-width: 2.75rem; height: 2.75rem; min-height: 2.75rem; padding: 0; }
   .sidebar[data-state="collapsed"] .sidebar__footer.sidebar-footer-collapsed { align-items: center; gap: 0.25rem; padding: 0.25rem 0.125rem; }
   .desktop-toggle, .mobile-toggle { display: none; }
@@ -109,8 +117,15 @@
   .workspace-field .segment__item { height: calc(2.75rem - 2 * var(--spacing)); border-radius: var(--radius); }
   .workspace-field .segment__indicator { border-radius: var(--radius); box-shadow: none; }
   .settings-tabs > .tabs__list-container { border-radius: var(--field-radius); }
-  .settings-tabs > .tabs__list-container :is(.tabs__tab, .tabs__indicator) { border-radius: var(--radius); }
+  .settings-tabs > .tabs__list-container :is(.tabs__tab, .tabs__indicator) { border-radius: calc(var(--radius) + 0.125rem); }
   .settings-tabs > .tabs__list-container .tabs__indicator { box-shadow: none; }
+  .credential-scope .label { display: flex; min-height: 2.75rem; align-items: center; }
+  .history-settings-card { gap: 0.75rem; padding: 1rem; }
+  .history-settings-card .card-header { padding-block-end: 0; }
+  .history-settings-form { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 0.75rem; }
+  .history-settings-form > .number-field { width: fit-content; }
+  .history-settings-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; }
+  .history-prune-action { justify-self: start; }
   .textarea.textarea { min-height: 5.25rem; }
   .schedule-segments.date-input-group__input { gap: 0; font-variant-numeric: tabular-nums; }
   .schedule-segments .schedule-punctuation { padding-inline: 0.1rem; color: var(--muted); }

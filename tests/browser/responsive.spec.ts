@@ -47,6 +47,12 @@ test("landscape workspace sidebar collapses accessibly and releases list width",
     expect((await sidebar.boundingBox())!.width).toBe(48);
     expect((await page.locator(".sidebar__main").boundingBox())!.width - expandedMainWidth).toBe(192);
     expect(await expand.evaluate((button) => button.matches(":focus-visible"))).toBe(true);
+    for (const item of await sidebar.locator(".sidebar__menu-item").all()) {
+      const bounds = await item.locator(".sidebar__menu-item-content").boundingBox();
+      expect(bounds?.width).toBe(48);
+      expect(bounds?.height).toBe(48);
+    }
+    await expect(sidebar.getByText(/Asia\//)).toHaveCount(0);
 
     const selectPage = page.getByRole("checkbox", { name: "选择本页提醒" });
     await selectPage.locator("xpath=ancestor::label[1]").click();
@@ -182,7 +188,7 @@ for (const theme of ["light", "dark"] as const) {
       await page.goto("/deliveries");
       await expect(page.getByText("投递与重试规则", { exact: true })).toHaveCount(0);
       await expect(page.getByText("等待人工处理", { exact: true }).filter({ visible: true })).toBeVisible();
-      await expect(page.getByText("Bark 已接收", { exact: true }).filter({ visible: true })).toBeVisible();
+      await expect(page.getByText("已接收", { exact: true }).filter({ visible: true })).toBeVisible();
       await contained(page);
       const chipHeights = await page.locator(".chip:visible").evaluateAll((chips) => chips.map((chip) => chip.getBoundingClientRect().height));
       expect(chipHeights.every((height) => height < 36)).toBe(true);
