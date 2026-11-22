@@ -80,7 +80,7 @@
 - [x] 将 `origin` 重新绑定到 `git@github.com:Proj-Elements/Rubidium.git`；GitHub API 确认目标仓库为公开且当前为空，SSH over 443 已认证并验证不会访问 Barker 仓库。
 - [~] 按用户要求直接在 `main` 完成变更；每个独立实现步骤与文档步骤通过聚焦检查后及时提交，不堆积到最后。已完成的功能和文档均分步提交，剩余发布前置工作仍在 `main` 推进。
 - [x] 完成发布前全量验收：提交 `a122229` 的远端预检 `44983604621` 通过授权安装、typecheck、Lint、生产构建；本机全量单测 `212/212`、Chromium/WebKit `72/72` 与 standalone 文件检查通过；候选运行 `44984806810` 在 `77881d4` 对 amd64 与 arm64 完成镜像构建及完整容器 smoke。日志未发现测试密码或初始化令牌泄漏，双平台构建均包含数据传输路由。
-- [~] 失败的注释 Tag `v1.0.0` 保留且不重打；根因是 checkout 将本次 Tag ref 覆盖为提交 SHA，导致错误拒绝已注释且位于 main 上的版本。修复后的 release guard 已在 `ada0dfd` 的 CI 通过。项目版本与 README 镜像示例现提升到 `1.0.1`，待提交并推送后创建 `v1.0.1`，运行全量验证和正式 GHCR 发布。
+- [~] 失败的注释 Tag `v1.0.0` 保留且不重打；首个发布运行 `44986122468` 因 checkout 覆盖 Tag ref 而在校验阶段失败。修复后的 release guard 已在 `ada0dfd` 的 CI 通过；项目版本与 README 镜像示例提升到 `1.0.1`，提交 `e92a4e6` 已推送到 main。接下来创建新的 `v1.0.1` 注释 Tag，并观察全量验证及正式 GHCR 发布；当前 GitHub CLI 登录 Token 已过期且 GitHub HTTPS/SSH 连接重置，暂时无法创建或核验该 Tag。
 - [ ] 正式 Tag 对应的容器镜像发布到 GHCR，并同步到用户指定的同步项目；验证镜像标签、平台、摘要、拉取和 Compose 启动。
 
 ## 执行约定
