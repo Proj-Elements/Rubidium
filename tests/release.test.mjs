@@ -48,12 +48,18 @@ test("registry pagination follows only same-origin expected next links", async (
 
 test("release and CI workflow YAML parse with the expected publication gates", () => {
   const release = parse(readFileSync(".github/workflows/release.yml", "utf8"));
+  const candidate = parse(readFileSync(".github/workflows/release-candidate.yml", "utf8"));
   const ci = parse(readFileSync(".github/workflows/ci.yml", "utf8"));
   assert.equal(release.jobs.image.if, "github.event_name == 'push' && github.ref_type == 'tag' && github.event.created && startsWith(github.ref, 'refs/tags/v')");
   assert.match(release.jobs.image.steps.find((step) => step.id === "publish").run, /sha-\$GITHUB_SHA-\$VERSION-\$architecture/);
   assert.match(release.jobs.verify.steps.find((step) => step.name === "Verify version syntax and package agreement").run, /git cat-file -t/);
   assert.match(release.jobs.verify.steps.find((step) => step.name === "Verify version syntax and package agreement").run, /git merge-base --is-ancestor/);
   assert.equal(ci.concurrency["cancel-in-progress"], "${{ github.event_name == 'pull_request' }}");
+  assert.deepEqual(candidate.permissions, { contents: "read" });
+  assert.match(candidate.jobs.container.steps.find((step) => step.name === "Build and smoke each candidate platform").run, /for architecture in amd64 arm64/);
+  assert.match(candidate.jobs.container.steps.find((step) => step.name === "Build and smoke each candidate platform").run, /container-smoke\.mjs/);
+  assert.match(candidate.jobs.container.steps.find((step) => step.name === "Build and smoke each candidate platform").run, /--secret id=HEROUI_KEY,env=HEROUI_KEY/);
+  assert.doesNotMatch(candidate.jobs.container.steps.find((step) => step.name === "Build and smoke each candidate platform").run, /docker (?:login|push)\b/);
   const steps = release.jobs.image.steps;
   assert.equal(JSON.parse(readFileSync("package.json", "utf8")).license, "AGPL-3.0-only");
   assert.match(steps.find((step) => step.name === "Build and smoke each candidate platform").run, /org\.opencontainers\.image\.licenses=AGPL-3\.0-only/);
@@ -67,7 +73,7 @@ test("release and CI workflow YAML parse with the expected publication gates", (
     assert.match(step.run, /--format '\{\{json \.Manifest\.Digest\}\}' \|\s+jq -er/);
   }
   assert.equal(ci.jobs.checks.steps.some((step) => step.name === "Check affected browser interactions"), true);
-  for (const workflow of [ci, release]) {
+  for (const workflow of [ci, release, candidate]) {
     for (const job of Object.values(workflow.jobs)) {
       assert.ok(job["timeout-minutes"] > 0);
       for (const step of job.steps) {
