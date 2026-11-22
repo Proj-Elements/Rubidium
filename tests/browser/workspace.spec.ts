@@ -177,8 +177,7 @@ test("settings only poll the active panel and preserve notification preference d
   await retentionField.focus();
   await expect(saveRetention).toBeEnabled();
   await retentionField.fill("45");
-  const saveBounds = await saveRetention.boundingBox();
-  await page.mouse.click(saveBounds!.x + saveBounds!.width / 2, saveBounds!.y + saveBounds!.height / 2);
+  await saveRetention.click();
   await expect(page.getByText("保留策略已保存。", { exact: true })).toBeVisible();
   expect((await (await page.request.get("/api/settings")).json()).settings.historyRetentionDays).toBe(45);
   await page.screenshot({ path: test.info().outputPath("settings-history-landscape-viewport.png"), animations: "disabled" });
