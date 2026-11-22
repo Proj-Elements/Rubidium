@@ -45,7 +45,10 @@ next-env.d.ts
 /data/
 
 # local-only development notes
+/ROADMAP*.md
+/TODO*.md
+/docs/*roadmap*.md
+/docs/*todo*.md
 /docs/todo-roadmap.md
 /docs/repair-review.md
 /docs/heroui-pro-upgrade.md
-/docs/local/
