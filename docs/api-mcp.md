@@ -87,7 +87,7 @@ curl -sS https://rubidium.example/api/tasks \
 
 | 方法与路径 | 鉴权 | 输入 | 成功结果与常见错误 |
 | --- | --- | --- | --- |
-| `GET /api/security` | 浏览器会话 Cookie | 无 | `{ sessions, tokens }`，不返回 token 原文。 |
+| `GET /api/security?page=1` | 浏览器会话 Cookie | 可选正整数 `page`，默认 `1`，最大 `1000000`；每页固定 10 条。 | `{ sessions, sessionPagination: { page, pageSize, total }, tokens }`，不返回 token 原文。有效浏览器会话最多保留最近 100 个；读取时删除过期会话，页码超出末页时返回末页。 |
 | `POST /api/security` | 浏览器会话 Cookie、同源 | 三种动作：`{ action: "password", current, next }`；`{ action: "token", name, scope: "read" | "write", days: 0..365 }`；`{ action: "revoke", id, kind: "session" | "token" }`。 | 改密 `{ saved: true }` 并续发会话；创建凭据 `{ token }`（原文只返回一次）；撤销 `{ revoked: true }`。错误：`400` 输入无效，`401` 无浏览器会话，`403` 当前密码错误，`429` 登录限流。 |
 | `GET /api/audit` | 浏览器会话 Cookie | 无 | `{ events }`，最近最多 100 条。 |
 

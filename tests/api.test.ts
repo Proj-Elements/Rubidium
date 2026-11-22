@@ -285,6 +285,52 @@ test("API credentials support permanent validity without changing finite expiry"
   for (const days of [-1, 366, 1.5]) assert.equal((await create(`Invalid ${days}`, days)).status, 400);
 });
 
+test("browser sessions are capped, expired entries are cleaned, and listings are paginated", async () => {
+  const raw = database.__rawDatabaseForTests();
+  raw.exec("DELETE FROM sessions");
+  const tokens = Array.from({ length: 23 }, () => auth.createSessionToken());
+  const sessionId = (token: string) => JSON.parse(Buffer.from(token.split(".")[0], "base64url").toString("utf8")).id as string;
+  const cookie = `barker_session=${tokens.at(-1)}`;
+  raw.prepare("INSERT INTO sessions (id, expires_at, fingerprint) VALUES (?, ?, ?)").run("expired-session", Date.now() - 1, "expired-fingerprint");
+  const getPage = async (page: string) => security.GET(new Request(`http://localhost:3000/api/security?page=${page}`, {
+    headers: { host: "localhost:3000", cookie },
+  }));
+
+  const first = await getPage("1");
+  assert.equal(first.status, 200);
+  const firstPayload = await first.json();
+  assert.deepEqual(firstPayload.sessionPagination, { page: 1, pageSize: 10, total: 23 });
+  assert.equal(firstPayload.sessions.length, 10);
+  assert.equal(firstPayload.sessions[0].id, sessionId(tokens[22]));
+  assert.equal(raw.prepare("SELECT COUNT(*) count FROM sessions WHERE id = 'expired-session'").get()?.count, 0);
+
+  const secondPayload = await (await getPage("2")).json();
+  assert.equal(secondPayload.sessionPagination.page, 2);
+  assert.equal(secondPayload.sessions.length, 10);
+  assert.equal(firstPayload.sessions.some((item: { id: string }) => secondPayload.sessions.some((next: { id: string }) => next.id === item.id)), false);
+  const clamped = await (await getPage("999")).json();
+  assert.deepEqual(clamped.sessionPagination, { page: 3, pageSize: 10, total: 23 });
+  assert.equal(clamped.sessions.length, 3);
+  for (const value of ["0", "Infinity", "1.5"]) assert.equal((await getPage(value)).status, 400);
+
+  raw.exec("DELETE FROM sessions");
+  const recentTokens = Array.from({ length: 105 }, () => auth.createSessionToken());
+  assert.equal(raw.prepare("SELECT COUNT(*) count FROM sessions").get()?.count, 100);
+  assert.equal(raw.prepare("SELECT 1 FROM sessions WHERE id = ?").get(sessionId(recentTokens[0])), undefined);
+  assert.ok(raw.prepare("SELECT 1 FROM sessions WHERE id = ?").get(sessionId(recentTokens.at(-1)!)));
+
+  const insertLegacySession = raw.prepare("INSERT INTO sessions (id, expires_at, fingerprint) VALUES (?, ?, ?)");
+  for (let index = 0; index < 10; index += 1) insertLegacySession.run(`legacy-session-${index}`, Date.now() + 60_000, "legacy-fingerprint");
+  assert.equal(raw.prepare("SELECT COUNT(*) count FROM sessions").get()?.count, 110);
+  const bounded = await security.GET(new Request("http://localhost:3000/api/security?page=1", {
+    headers: { host: "localhost:3000", cookie: `barker_session=${recentTokens.at(-1)}` },
+  }));
+  assert.equal(bounded.status, 200);
+  assert.deepEqual((await bounded.json()).sessionPagination, { page: 1, pageSize: 10, total: 100 });
+  assert.equal(raw.prepare("SELECT COUNT(*) count FROM sessions").get()?.count, 100);
+  assert.equal(raw.prepare("SELECT 1 FROM sessions WHERE id = ?").get(sessionId(recentTokens[5])), undefined);
+});
+
 test("health requires a writable database and a fresh enabled scheduler", async () => {
   const previous = process.env.BARKER_DISABLE_SCHEDULER;
   const raw = database.__rawDatabaseForTests();

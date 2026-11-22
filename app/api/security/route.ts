@@ -14,8 +14,10 @@ const schema = z.discriminatedUnion("action", [
 
 export const GET = apiRoute(async (request: Request) => {
   if (!isValidSessionToken(getCookieValue(request.headers.get("cookie")))) return jsonError("请使用浏览器会话管理访问权限", 401);
-  const { sessions, tokens } = securityState();
-  return NextResponse.json({ sessions, tokens });
+  const pageValue = new URL(request.url).searchParams.get("page") ?? "1";
+  const page = Number(pageValue);
+  if (!/^\d+$/.test(pageValue) || !Number.isSafeInteger(page) || page < 1 || page > 1_000_000) return jsonError("无效的分页参数", 400);
+  return NextResponse.json(securityState(page));
 });
 
 export const POST = apiRoute(async (request: Request) => {

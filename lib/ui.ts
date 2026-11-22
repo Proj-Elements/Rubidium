@@ -1,5 +1,5 @@
 import { presetCronFromParts, SCHEDULE_TIME_ZONE, type RecurrencePreset } from "./types";
-import { deliverySchema, taskSchema, timestampSchema } from "./contracts";
+import { deliverySchema, SECURITY_SESSION_PAGE_SIZE, taskSchema, timestampSchema } from "./contracts";
 
 export { SCHEDULE_TIME_ZONE };
 
@@ -170,7 +170,10 @@ export function validApiPayload(url: string, data: unknown): boolean {
     return channelValue(object.channel) || object.deleted === true;
   }
   if (/^\/api\/channels\/[^/]+\/test$/.test(path)) return object.delivered === true;
-  if (path === "/api/security") return object.saved === true || object.revoked === true || typeof object.token === "string" || (Array.isArray(object.sessions) && Array.isArray(object.tokens));
+  if (path === "/api/security") return object.saved === true || object.revoked === true || typeof object.token === "string"
+    || (Array.isArray(object.sessions) && Array.isArray(object.tokens) && objectValue(object.sessionPagination)
+      && paginationValue(object.sessionPagination) && Number(object.sessionPagination.pageSize) === SECURITY_SESSION_PAGE_SIZE
+      && object.sessions.length <= Number(object.sessionPagination.pageSize));
   if (path === "/api/data/export") return object.format === "rubidium-encrypted-export" && object.version === 1 && typeof object.payload === "string";
   if (path === "/api/data/import") return object.imported === true;
   if (path === "/api/audit") return Array.isArray(object.events);

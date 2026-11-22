@@ -2,6 +2,7 @@ import { z } from "zod";
 
 export const DEFAULT_REMINDER_BODY = "计划提醒时间已到。";
 export const REMINDER_CONTENT_MAX_BYTES = 3000;
+export const SECURITY_SESSION_PAGE_SIZE = 10;
 
 export function reminderContentBytes(title: string, body: string): number {
   return new TextEncoder().encode(JSON.stringify({ title: title.trim(), body: body || DEFAULT_REMINDER_BODY })).byteLength;

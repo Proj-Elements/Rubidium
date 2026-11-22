@@ -3,6 +3,7 @@
 import { Button, Card, Chip, FieldError, Fieldset, Form, Input, Label, Modal, TextField, Tooltip } from "@heroui/react";
 import { ItemCard, ItemCardGroup } from "@heroui-pro/react";
 import { useState, type FormEvent } from "react";
+import { SECURITY_SESSION_PAGE_SIZE } from "@/lib/contracts";
 import { api, errorMessage } from "@/lib/ui";
 import { Glyph } from "./icons";
 import { Pagination } from "./pagination";
@@ -14,6 +15,7 @@ import { useWorkspace } from "./workspace-context";
 
 interface Security {
   sessions: Array<{ id: string; expiresAt: number }>;
+  sessionPagination: { page: number; pageSize: number; total: number };
   tokens: Array<{ id: string; name: string; scope: string; expiresAt: number }>;
 }
 
@@ -23,7 +25,8 @@ const defaultDays = 30;
 export function SecurityManager({ active }: { active: boolean }) {
   const { formatTime } = useTime();
   const { notify } = useWorkspace();
-  const { data, error, refresh } = useResource<Security>("/api/security", 0, active);
+  const [sessionPage, setSessionPage] = useState(1);
+  const { data, error, refresh } = useResource<Security>(`/api/security?page=${sessionPage}`, 0, active);
   const [current, setCurrent] = useState("");
   const [next, setNext] = useState("");
   const [confirmNext, setConfirmNext] = useState("");
@@ -64,7 +67,12 @@ export function SecurityManager({ active }: { active: boolean }) {
   async function revoke() {
     if (!revocation) return;
     const { kind, id } = revocation;
-    if (await mutate("revoke", { kind, id }, kind === "token" ? "API 凭据已撤销。" : "会话已撤销。")) setRevocation(null);
+    const previousPage = data?.sessionPagination.page;
+    const lastSessionOnPage = kind === "session" && data?.sessions.length === 1;
+    if (await mutate("revoke", { kind, id }, kind === "token" ? "API 凭据已撤销。" : "会话已撤销。")) {
+      if (lastSessionOnPage && previousPage && previousPage > 1) setSessionPage(previousPage - 1);
+      setRevocation(null);
+    }
   }
 
   return <div className="grid items-start gap-5 @min-[52rem]/settings:grid-cols-2">
@@ -132,15 +140,18 @@ export function SecurityManager({ active }: { active: boolean }) {
 
     <Card className="min-w-0 gap-5 p-5 sm:p-6">
       <CardHeading title="有效会话" />
-      {data ? (data.sessions.length ? <ItemCardGroup variant="transparent" role="list" aria-label="有效会话">
-        {data.sessions.map((item) => <ItemCard key={item.id} role="listitem" variant="transparent" className="flex-wrap px-0">
-          <ItemCard.Content className="min-w-36">
-            <ItemCard.Title>会话 <code className="tabular-nums">{item.id.slice(0, 8)}</code></ItemCard.Title>
-            <ItemCard.Description className="tabular-nums">到期 {formatTime(new Date(item.expiresAt).toISOString())}</ItemCard.Description>
-          </ItemCard.Content>
-          <ItemCard.Action><Button variant="danger-soft" isDisabled={busy !== null} onPress={() => setRevocation({ id: item.id, kind: "session", name: `会话 ${item.id.slice(0, 8)}` })}>撤销会话</Button></ItemCard.Action>
-        </ItemCard>)}
-      </ItemCardGroup> : <p className="text-sm text-muted">暂无有效会话。</p>) : !error && <Loading>正在读取访问记录</Loading>}
+      {data ? (data.sessions.length ? <>
+        <ItemCardGroup variant="transparent" role="list" aria-label="有效会话">
+          {data.sessions.map((item) => <ItemCard key={item.id} role="listitem" variant="transparent" className="flex-wrap px-0">
+            <ItemCard.Content className="min-w-36">
+              <ItemCard.Title>会话 <code className="tabular-nums">{item.id.slice(0, 8)}</code></ItemCard.Title>
+              <ItemCard.Description className="tabular-nums">到期 {formatTime(new Date(item.expiresAt).toISOString())}</ItemCard.Description>
+            </ItemCard.Content>
+            <ItemCard.Action><Button variant="danger-soft" isDisabled={busy !== null} onPress={() => setRevocation({ id: item.id, kind: "session", name: `会话 ${item.id.slice(0, 8)}` })}>撤销会话</Button></ItemCard.Action>
+          </ItemCard>)}
+        </ItemCardGroup>
+        <Pagination page={data.sessionPagination.page} total={data.sessionPagination.total} pageSize={SECURITY_SESSION_PAGE_SIZE} onChange={setSessionPage} />
+      </> : <p className="text-sm text-muted">暂无有效会话。</p>) : !error && <Loading>正在读取访问记录</Loading>}
     </Card>
 
     {revocation && <Confirm title={`撤销「${revocation.name}」？`} confirmLabel="确认撤销" onClose={() => setRevocation(null)} onConfirm={() => void revoke()} busy={busy === "revoke"}>

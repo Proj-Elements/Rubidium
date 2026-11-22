@@ -78,3 +78,64 @@ test("API credentials can remain valid indefinitely and display the selected exp
   expect(status).toBe(200);
   await page.screenshot({ path: test.info().outputPath("permanent-credential-landscape.png"), fullPage: true, animations: "disabled" });
 });
+
+test("sessions stay bounded and recover from last-page revocations in landscape", async ({ page }) => {
+  await page.setViewportSize({ width: 568, height: 320 });
+  await page.goto("/");
+  await page.getByLabel("访问密码").fill("browser-regression-password");
+  await page.getByRole("button", { name: "进入工作空间" }).click();
+
+  const currentSessionId = await page.evaluate(async () => {
+    const readState = async () => fetch("/api/security?page=1").then((response) => response.json()) as Promise<{
+      sessions: Array<{ id: string }>;
+      sessionPagination: { total: number };
+    }>;
+    let state = await readState();
+    const currentId = state.sessions[0]?.id;
+    if (!currentId) throw new Error("The current browser session was not returned");
+    while (state.sessionPagination.total > 1) {
+      const candidate = state.sessions.find((item) => item.id !== currentId);
+      if (!candidate) throw new Error("Could not find a non-current session to revoke");
+      const response = await fetch("/api/security", {
+        method: "POST", headers: { "content-type": "application/json" },
+        body: JSON.stringify({ action: "revoke", id: candidate.id, kind: "session" }),
+      });
+      if (!response.ok) throw new Error(`Could not clear prior sessions: ${response.status}`);
+      state = await readState();
+    }
+    return currentId;
+  });
+  expect(currentSessionId).toBeTruthy();
+
+  for (let index = 0; index < 11; index += 1) {
+    const status = await page.evaluate(async () => fetch("/api/session", {
+      method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ password: "browser-regression-password" }),
+    }).then((response) => response.status));
+    expect(status).toBe(200);
+  }
+
+  await page.goto("/settings");
+  await page.getByRole("tab", { name: "访问安全", exact: true }).click();
+  await expect(page.getByRole("list", { name: "有效会话" }).getByRole("listitem")).toHaveCount(10);
+  await expect(page.getByText("1–10 / 12 条", { exact: true })).toBeVisible();
+  const next = page.getByRole("button", { name: "下一页", exact: true });
+  expect((await next.boundingBox())?.height).toBeGreaterThanOrEqual(44);
+  await next.click();
+  await expect(page.getByText("11–12 / 12 条", { exact: true })).toBeVisible();
+  await expect(page.getByRole("list", { name: "有效会话" }).getByRole("listitem")).toHaveCount(2);
+  await page.screenshot({ path: test.info().outputPath("security-sessions-page-two-short-landscape.png"), fullPage: true, animations: "disabled" });
+
+  for (let index = 0; index < 2; index += 1) {
+    await page.getByRole("button", { name: "撤销会话", exact: true }).first().click();
+    await expect(page.getByRole("alertdialog", { name: /撤销「会话/ })).toBeVisible();
+    await page.getByRole("button", { name: "确认撤销", exact: true }).click();
+    if (index === 0) await expect(page.getByText("11–11 / 11 条", { exact: true })).toBeVisible();
+  }
+
+  await expect(page.getByText("1–10 / 10 条", { exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "上一页", exact: true })).toHaveCount(0);
+  await page.screenshot({ path: test.info().outputPath("security-sessions-after-last-revoke-short-landscape.png"), fullPage: true, animations: "disabled" });
+  await page.setViewportSize({ width: 844, height: 390 });
+  await page.screenshot({ path: test.info().outputPath("security-sessions-landscape.png"), fullPage: true, animations: "disabled" });
+});

@@ -1,8 +1,10 @@
 import { randomUUID } from "node:crypto";
+import { SECURITY_SESSION_PAGE_SIZE } from "../contracts";
 import { DomainError } from "../errors";
 import { statement, transaction } from "./core";
 
 export const PERMANENT_CREDENTIAL_EXPIRY = 0;
+export const MAX_BROWSER_SESSIONS = 100;
 
 export function passwordRevision(): number {
   const value = (statement("SELECT value FROM settings WHERE key = 'password_revision'").get() as { value: string } | undefined)?.value;
@@ -13,6 +15,10 @@ export function passwordRevision(): number {
 function incrementPasswordRevision(): void {
   statement(`INSERT INTO settings (key, value) VALUES ('password_revision', '1')
     ON CONFLICT(key) DO UPDATE SET value = CAST(value AS INTEGER) + 1`).run();
+}
+
+function trimBrowserSessions(): void {
+  statement("DELETE FROM sessions WHERE rowid NOT IN (SELECT rowid FROM sessions ORDER BY rowid DESC LIMIT ?)").run(MAX_BROWSER_SESSIONS);
 }
 
 export function auditEvent(action: string, target: string): void {
@@ -28,6 +34,7 @@ export function persistSession(id: string, expiresAt: number, fingerprint: strin
   transaction(() => {
     statement("DELETE FROM sessions WHERE expires_at <= ? OR fingerprint != ?").run(now, fingerprint);
     statement("INSERT INTO sessions (id, expires_at, fingerprint) VALUES (?, ?, ?)").run(id, expiresAt, fingerprint);
+    trimBrowserSessions();
   });
 }
 
@@ -41,12 +48,25 @@ export function revokeOtherPasswordSessions(fingerprint: string): void {
 
 export function removeSession(id: string): void { statement("DELETE FROM sessions WHERE id = ?").run(id); }
 
-export function securityState(): { sessions: Array<{ id: string; expiresAt: number }>; tokens: Array<{ id: string; name: string; scope: string; expiresAt: number; createdAt: number }> } {
-  return {
-    sessions: statement("SELECT id, expires_at expiresAt FROM sessions WHERE expires_at > ? ORDER BY expires_at DESC").all(Date.now()) as ReturnType<typeof securityState>["sessions"],
-    tokens: statement("SELECT id, name, scope, expires_at expiresAt, created_at createdAt FROM api_tokens WHERE expires_at = ? OR expires_at > ? ORDER BY created_at DESC")
-      .all(PERMANENT_CREDENTIAL_EXPIRY, Date.now()) as ReturnType<typeof securityState>["tokens"],
-  };
+export function securityState(requestedPage = 1): {
+  sessions: Array<{ id: string; expiresAt: number }>;
+  sessionPagination: { page: number; pageSize: number; total: number };
+  tokens: Array<{ id: string; name: string; scope: string; expiresAt: number; createdAt: number }>;
+} {
+  return transaction(() => {
+    const now = Date.now();
+    statement("DELETE FROM sessions WHERE expires_at <= ?").run(now);
+    trimBrowserSessions();
+    const total = Number((statement("SELECT COUNT(*) total FROM sessions").get() as { total: number }).total);
+    const page = Math.min(requestedPage, Math.max(1, Math.ceil(total / SECURITY_SESSION_PAGE_SIZE)));
+    return {
+      sessions: statement("SELECT id, expires_at expiresAt FROM sessions ORDER BY rowid DESC LIMIT ? OFFSET ?")
+        .all(SECURITY_SESSION_PAGE_SIZE, (page - 1) * SECURITY_SESSION_PAGE_SIZE) as ReturnType<typeof securityState>["sessions"],
+      sessionPagination: { page, pageSize: SECURITY_SESSION_PAGE_SIZE, total },
+      tokens: statement("SELECT id, name, scope, expires_at expiresAt, created_at createdAt FROM api_tokens WHERE expires_at = ? OR expires_at > ? ORDER BY created_at DESC")
+        .all(PERMANENT_CREDENTIAL_EXPIRY, now) as ReturnType<typeof securityState>["tokens"],
+    };
+  });
 }
 
 export function passwordOverride(): string | null {
