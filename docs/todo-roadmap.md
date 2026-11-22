@@ -80,8 +80,8 @@
 - [x] 将 `origin` 重新绑定到 `git@github.com:Proj-Elements/Rubidium.git`；GitHub API 确认目标仓库为公开且当前为空，SSH over 443 已认证并验证不会访问 Barker 仓库。
 - [~] 按用户要求直接在 `main` 完成变更；每个独立实现步骤与文档步骤通过聚焦检查后及时提交，不堆积到最后。已完成的功能和文档均分步提交，剩余发布前置工作仍在 `main` 推进。
 - [x] 完成发布前全量验收：提交 `a122229` 的远端预检 `44983604621` 通过授权安装、typecheck、Lint、生产构建；本机全量单测 `212/212`、Chromium/WebKit `72/72` 与 standalone 文件检查通过；候选运行 `44984806810` 在 `77881d4` 对 amd64 与 arm64 完成镜像构建及完整容器 smoke。日志未发现测试密码或初始化令牌泄漏，双平台构建均包含数据传输路由。
-- [~] 失败的注释 Tag `v1.0.0` 保留且不重打；首个发布运行 `44986122468` 因 checkout 覆盖 Tag ref 而在校验阶段失败。修复后的 release guard 已在 `ada0dfd` 的 CI 通过；项目版本与 README 镜像示例提升到 `1.0.1`，提交 `e92a4e6` 已推送到 main。接下来创建新的 `v1.0.1` 注释 Tag，并观察全量验证及正式 GHCR 发布；当前 GitHub CLI 登录 Token 已过期且 GitHub HTTPS/SSH 连接重置，暂时无法创建或核验该 Tag。
-- [ ] 正式 Tag 对应的容器镜像发布到 GHCR，并同步到用户指定的同步项目；验证镜像标签、平台、摘要、拉取和 Compose 启动。
+- [~] 失败的注释 Tag `v1.0.0` 保留且不重打；首个发布运行 `44986122468` 因 checkout 覆盖 Tag ref 而在校验阶段失败。修复后的 release guard 已通过 CI，项目版本与 README 镜像示例为 `1.0.1`。GitHub CLI 登录和 SSH 已恢复，`HEROUI_KEY` Actions Secret 已存在，`v1.0.1` 尚未创建。提交 `e92a4e6` 的完整 CI 中单测、类型检查、Lint、构建和容器检查成功，浏览器套件 71/72 通过，唯一失败为 Chromium 悬浮滚动条用例超时 30 秒；本机针对该用例复测 1/1 通过。最新 `71428e0` 的 CI 为文档范围检查，未运行代码测试。创建新注释 Tag 前，发布工作流仍会运行完整单测、Chromium/WebKit 浏览器套件和双架构镜像验收。
+- [ ] 将正式 `v1.0.1` Tag 对应的镜像发布到 `ghcr.io/proj-elements/rubidium`；验证不可变版本标签、双架构 manifest、稳定通道摘要、镜像拉取及 Compose 启动。组织当前没有现存容器包，也未发现独立的镜像同步仓库，因此 GHCR 发布目标采用 Rubidium 项目自身的容器包。
 
 ## 执行约定
 
