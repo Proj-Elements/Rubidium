@@ -66,7 +66,7 @@ test("landscape workspace sidebar collapses accessibly and releases list width",
     await selectPage.locator("xpath=ancestor::label[1]").click();
     const actionBar = page.getByRole("toolbar", { name: "批量操作" });
     await expect(actionBar).toBeVisible();
-    expect(Number.parseFloat(await page.locator(".action-bar:has(.workspace-actions)").evaluate((element) => getComputedStyle(element).insetInlineStart))).toBe(48);
+    expect(Number.parseFloat(await page.locator(".action-bar:has(.workspace-actions)").evaluate((element) => getComputedStyle(element).insetInlineStart))).toBe(56);
     await contained(page);
     await page.screenshot({ path: test.info().outputPath(`sidebar-collapsed-${width}x390.png`), animations: "disabled" });
     await page.getByRole("button", { name: "取消选择", exact: true }).click();
@@ -132,7 +132,7 @@ test("editor aligns schedule fields and keeps ending controls usable at every wi
     }));
     expect(sizes.length).toBeGreaterThan(0);
     expect(sizes.every(({ label, input }) => label === "14px" && input === "14px")).toBe(true);
-    const endMode = editor.getByRole("radiogroup", { name: "提醒结束方式" });
+    const endMode = editor.getByRole("radiogroup", { name: "结束条件" });
     const count = editor.locator(".number-field__group").first();
     if (width === 1440) expect(Math.abs((await endMode.boundingBox())!.y - (await count.boundingBox())!.y)).toBeLessThanOrEqual(2);
     await editor.getByRole("radio", { name: "按日期", exact: true }).click();
@@ -202,7 +202,7 @@ for (const theme of ["light", "dark"] as const) {
       expect(chipHeights.every((height) => height < 36)).toBe(true);
       await page.screenshot({ path: test.info().outputPath(`${theme}-${width}-deliveries.png`), fullPage: true, animations: "disabled" });
       const received = page.getByRole("row").filter({ hasText: "已经接收的提醒" });
-      await received.getByRole("button", { name: /查看详情/ }).click();
+      await received.getByRole("button", { name: "投递详情", exact: true }).click();
       await expect(page.getByRole("dialog", { name: "投递详情" })).toBeVisible();
       await page.getByRole("button", { name: "关闭投递详情" }).click();
     }
@@ -223,7 +223,7 @@ test("320px settings expose every category and audit identifiers remain accessib
   const audit = page.getByRole("list", { name: "操作审计" });
   await expect(audit).toBeVisible();
   expect((await audit.boundingBox())!.height).toBeLessThan(900);
-  await audit.getByRole("button", { name: /查看审计详情/ }).first().click();
+  await audit.getByRole("button", { name: /查看操作详情/ }).first().click();
   await expect(page.getByRole("dialog", { name: "操作详情" })).toBeVisible();
   await expect(page.getByText("完整目标标识", { exact: true })).toBeVisible();
   await contained(page);
@@ -289,7 +289,7 @@ test("touch layouts keep bulk actions reachable and hide selection on completed 
         expect(transform).toBe("none");
       }
       await page.screenshot({ path: test.info().outputPath(`task-actions-${viewport.width}x${viewport.height}.png`), animations: "disabled" });
-      await expect(bar.getByRole("button", { name: "归档", exact: true })).toHaveClass(/button--danger-soft/);
+      await expect(bar.getByRole("button", { name: "归档提醒", exact: true })).toHaveClass(/button--danger-soft/);
       const bounds = await bar.boundingBox();
       expect(bounds!.x).toBeGreaterThanOrEqual(12);
       expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(viewport.width - 12);
@@ -344,9 +344,9 @@ test("touch layouts keep bulk actions reachable and hide selection on completed 
         await route.fulfill({ json: { results: [{ success: true }] } });
       } else await route.continue();
     });
-    await busyBar.getByRole("button", { name: "暂停", exact: true }).click();
+    await busyBar.getByRole("button", { name: "暂停提醒", exact: true }).click();
     try {
-      await expect(busyBar.getByRole("button", { name: "暂停", exact: true })).toBeDisabled();
+      await expect(busyBar.getByRole("button", { name: "暂停提醒", exact: true })).toBeDisabled();
       await expect(busyBar.getByRole("button", { name: "取消选择", exact: true })).toBeDisabled();
       const busyTargets = await busyBar.locator("button").evaluateAll((buttons) => buttons.map((button) => {
         const { width, height } = button.getBoundingClientRect();

@@ -86,7 +86,7 @@ test("first-visit setup stays usable in touch landscape and confirms the passwor
   expect(await timeZones.evaluate((element) => element.scrollTop)).toBeGreaterThan(0);
   const search = page.getByRole("searchbox", { name: "搜索时区" });
   await search.fill("Europe/Paris");
-  const paris = page.getByRole("option", { name: "Europe/Paris", exact: true });
+  const paris = page.getByRole("option", { name: /^Europe\/Paris · UTC/ });
   await paris.focus();
   await page.keyboard.press("Enter");
   await expect(page.getByRole("button", { name: /Europe\/Paris/ })).toBeVisible();
