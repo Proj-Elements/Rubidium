@@ -1,7 +1,11 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
+import { getRequestLocale } from "@/lib/locale-server";
+import { translate } from "@/lib/i18n";
 
-export const metadata: Metadata = { title: "投递记录" };
+export async function generateMetadata(): Promise<Metadata> {
+  return { title: translate(await getRequestLocale(), "page.deliveries") };
+}
 
 export default function DeliveriesLayout({ children }: { children: ReactNode }) {
   return children;

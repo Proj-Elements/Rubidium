@@ -38,7 +38,7 @@ test("the API boundary converts authentication or storage failures into sanitize
   const response = await handler();
   assert.equal(response.status, 500);
   assert.match(response.headers.get("content-type") ?? "", /application\/json/);
-  assert.deepEqual(await response.json(), { error: "服务暂时无法完成请求，请稍后重试" });
+  assert.deepEqual(await response.json(), { error: "服务暂时无法完成请求，请稍后重试", errorKey: "common.operationFailed" });
 });
 
 test("literal and encoded secrets are redacted without rescanning replacement markers", () => {

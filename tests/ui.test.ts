@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { api, ApiError, clientPresetCron, createIdempotencyKey, duplicateStart, formatTime, localInputValue, toOffsetDateTime, validApiPayload } from "../lib/ui";
+import { api, ApiError, clientPresetCron, createIdempotencyKey, duplicateStart, errorMessage, formatTime, localInputValue, toOffsetDateTime, validApiPayload } from "../lib/ui";
 import { createResourcePoller } from "../lib/resource";
 
 test("API clients reject HTML or structurally invalid success payloads", () => {
@@ -42,6 +42,20 @@ test("the actual API client rejects HTML and malformed JSON success responses", 
   await assert.rejects(api("/api/tasks"), /损坏/);
   fetcher.mock.mockImplementation(async () => Response.json({}));
   await assert.rejects(api("/api/tasks"), /格式无效/);
+});
+
+test("API error keys and interpolation values are localized without inspecting server prose", async (context) => {
+  const fetcher = context.mock.method(globalThis, "fetch", async () => Response.json({
+    error: "密码长度不足（至少 8 个字符，当前 5 个）", errorKey: "password.tooShort", errorValues: { minimum: 8, count: 5 },
+  }, { status: 400 }));
+  await assert.rejects(api("/api/session"), (error: unknown) => {
+    assert.ok(error instanceof ApiError);
+    assert.equal(errorMessage(error, "en"), "Password is too short (minimum 8 characters; currently 5).");
+    assert.equal(errorMessage(error, "zh-TW"), "至少需要 8 個字元（目前 5 個）");
+    return true;
+  });
+  fetcher.mock.mockImplementation(async () => Response.json({ error: "server text", errorKey: "unknown.key" }, { status: 400 }));
+  await assert.rejects(api("/api/session"), (error: unknown) => error instanceof ApiError && !error.localized);
 });
 
 test("invalid task limits and calendar dates cannot reach rendering or the editor", () => {

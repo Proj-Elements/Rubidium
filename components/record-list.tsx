@@ -6,6 +6,7 @@ import { MotionConfig } from "motion/react";
 import { useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { IconButton } from "./primitives";
+import { useTranslations } from "./locale-provider";
 
 type RecordFilter = { value: string; label: string };
 
@@ -67,6 +68,7 @@ export function RecordList({ label, searchLabel, filters, filter, query, onFilte
   onSearch: (query: string, immediate?: boolean) => void;
   children: ReactNode;
 }) {
+  const { t } = useTranslations();
   const activeFilter = filters.find((item) => item.value === filter && item.value !== "all");
   return <div className="@container/records grid min-w-0 gap-5">
     <div className="record-toolbar workspace-field">
@@ -74,7 +76,7 @@ export function RecordList({ label, searchLabel, filters, filter, query, onFilte
         <SearchField.Group className="h-11">
           <SearchField.SearchIcon />
           <SearchField.Input className="min-w-0 placeholder:text-field-placeholder" placeholder={searchLabel} maxLength={200} autoComplete="off" enterKeyHint="search" />
-          <Tooltip delay={350}><SearchField.ClearButton className="me-0 size-11" aria-label="清空搜索" /><Tooltip.Content>清空搜索</Tooltip.Content></Tooltip>
+          <Tooltip delay={350}><SearchField.ClearButton className="me-0 size-11" aria-label={t("records.searchClear")} /><Tooltip.Content>{t("records.searchClear")}</Tooltip.Content></Tooltip>
         </SearchField.Group>
       </SearchField>
       <Select className="record-filter min-w-0" aria-label={label} variant="secondary" value={filter} onChange={(key) => { if (key !== null) onFilter(String(key)); }}>
@@ -84,8 +86,8 @@ export function RecordList({ label, searchLabel, filters, filter, query, onFilte
         </Select.Popover>
       </Select>
     </div>
-    {activeFilter && <div className="flex min-h-7 items-center gap-2" role="status" aria-label="已应用的筛选">
-      <span className="text-xs text-muted">筛选中</span>
+    {activeFilter && <div className="flex min-h-7 items-center gap-2" role="status" aria-label={t("records.appliedFilters")}>
+      <span className="text-xs text-muted">{t("records.filtered")}</span>
       <Chip variant="soft" color="accent"><Chip.Label>{activeFilter.label}</Chip.Label></Chip>
     </div>}
     <div className="grid min-w-0 gap-4">{children}</div>
@@ -93,11 +95,12 @@ export function RecordList({ label, searchLabel, filters, filter, query, onFilte
 }
 
 export function BulkActions({ count, disabled, onClear, children }: { count: number; disabled?: boolean; onClear: () => void; children: ReactNode }) {
+  const { t } = useTranslations();
   return <MotionConfig reducedMotion="user">
-    <ActionBar isOpen={count > 0} aria-label="批量操作" className="workspace-actions">
-      <ActionBar.Prefix><span role="status" className="whitespace-nowrap text-sm font-medium tabular-nums">已选 {count} 项</span></ActionBar.Prefix>
+    <ActionBar isOpen={count > 0} aria-label={t("records.bulk")} className="workspace-actions">
+      <ActionBar.Prefix><span role="status" className="whitespace-nowrap text-sm font-medium tabular-nums">{t("records.selected", { count })}</span></ActionBar.Prefix>
       <ActionBar.Content>{children}</ActionBar.Content>
-      <ActionBar.Suffix><IconButton icon="close" label="取消选择" size="sm" isDisabled={disabled} onPress={onClear} /></ActionBar.Suffix>
+      <ActionBar.Suffix><IconButton icon="close" label={t("records.clearSelection")} size="sm" isDisabled={disabled} onPress={onClear} /></ActionBar.Suffix>
     </ActionBar>
   </MotionConfig>;
 }

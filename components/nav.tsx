@@ -11,19 +11,23 @@ import { ThemeToggle } from "./theme-toggle";
 import { confirmUnsavedNavigation } from "./use-unsaved";
 import { useWorkspace } from "./workspace-context";
 import { errorMessage } from "@/lib/ui";
+import { useTranslations } from "./locale-provider";
+import { LanguageSwitcher } from "./language-switcher";
+import type { MessageKey } from "@/lib/i18n";
 
-const navigation: Array<{ href: string; label: string; icon: IconName }> = [
-  { href: "/", label: "工作概览", icon: "squares" },
-  { href: "/tasks", label: "所有提醒", icon: "calendar" },
-  { href: "/deliveries", label: "投递记录", icon: "send" },
-  { href: "/settings", label: "推送设置", icon: "gear" },
+const navigation: Array<{ href: string; label: MessageKey; icon: IconName }> = [
+  { href: "/", label: "nav.overview", icon: "squares" },
+  { href: "/tasks", label: "nav.reminders", icon: "calendar" },
+  { href: "/deliveries", label: "nav.deliveries", icon: "send" },
+  { href: "/settings", label: "nav.settings", icon: "gear" },
 ];
 
 export function Shell({ children }: { children: ReactNode }) {
   const router = useRouter();
+  const { t } = useTranslations();
   return <Sidebar.Provider className="app-layout" defaultOpen toggleShortcut="mod+b" reduceMotion
     navigate={(href) => confirmUnsavedNavigation(() => router.push(href))}>
-    <Link href="#main" className="skip-link">跳转到主要内容</Link>
+    <Link href="#main" className="skip-link">{t("nav.skipToMain")}</Link>
     <Sidebar><SidebarSections /></Sidebar>
     <Sidebar.Mobile><SidebarSections mobile /></Sidebar.Mobile>
     <Sidebar.Main className="min-w-0">
@@ -35,8 +39,9 @@ export function Shell({ children }: { children: ReactNode }) {
 
 function WorkspaceToolbar() {
   const { openTask, refresh } = useWorkspace();
+  const { t } = useTranslations();
   const { isMobile, isMobileOpen, isOpen } = useSidebar();
-  const toggleLabel = isMobile ? isMobileOpen ? "关闭导航" : "打开导航" : isOpen ? "收起侧栏" : "展开侧栏";
+  const toggleLabel = isMobile ? isMobileOpen ? t("nav.close") : t("nav.open") : isOpen ? t("nav.collapse") : t("nav.expand");
   return <header className="topbar">
     <div className="topbar-inner">
       <Tooltip delay={350}>
@@ -46,15 +51,17 @@ function WorkspaceToolbar() {
         <Tooltip.Content>{toggleLabel}</Tooltip.Content>
       </Tooltip>
       <div className="ms-auto flex shrink-0 items-center gap-2">
-        <IconButton className="topbar-refresh" icon="refresh" label="刷新工作空间" onPress={() => void refresh()} />
+        <IconButton className="topbar-refresh" icon="refresh" label={t("nav.refresh")} onPress={() => void refresh()} />
         <ThemeToggle />
-        <Button className="min-h-11 gap-2" onPress={() => openTask()}><Glyph name="plus" />新建提醒</Button>
+        <LanguageSwitcher />
+        <Button className="min-h-11 gap-2" onPress={() => openTask()}><Glyph name="plus" />{t("nav.newReminder")}</Button>
       </div>
     </div>
   </header>;
 }
 
 function SidebarSections({ mobile = false }: { mobile?: boolean }) {
+  const { t, locale } = useTranslations();
   const path = usePathname();
   const { isOpen, setMobileOpen } = useSidebar();
   const { logout, notify } = useWorkspace();
@@ -65,18 +72,18 @@ function SidebarSections({ mobile = false }: { mobile?: boolean }) {
   const requestLogout = () => setConfirmLogout(true);
 
   return <>
-    {mobile && <Sheet.Heading className="sr-only">工作空间导航</Sheet.Heading>}
+    {mobile && <Sheet.Heading className="sr-only">{t("nav.workspaceNavigation")}</Sheet.Heading>}
     <Sidebar.Header className={`flex-row items-center ${collapsed ? "justify-center px-0" : "justify-between px-5"} ${mobile ? "py-3" : "pt-6 pb-8"}`}>
-      <WorkspaceLink href="/" className="w-fit no-underline hover:no-underline" aria-label="Rubidium 工作概览" onNavigate={close}><Brand /></WorkspaceLink>
-      {mobile && <IconButton icon="close" label="关闭导航" onPress={close} />}
+      <WorkspaceLink href="/" className="w-fit no-underline hover:no-underline" aria-label={`Rubidium · ${t("nav.overview")}`} onNavigate={close}><Brand /></WorkspaceLink>
+      {mobile && <IconButton icon="close" label={t("nav.close")} onPress={close} />}
     </Sidebar.Header>
     <Sidebar.Content>
       <Sidebar.Group>
-        <Sidebar.GroupLabel>工作空间</Sidebar.GroupLabel>
-        <Sidebar.Menu aria-label="主导航">
-          {navigation.map((item) => <Sidebar.MenuItem key={item.href} id={item.href} href={item.href} isCurrent={path === item.href} textValue={item.label}>
+        <Sidebar.GroupLabel>{t("nav.workspace")}</Sidebar.GroupLabel>
+        <Sidebar.Menu aria-label={t("nav.main")}>
+          {navigation.map((item) => <Sidebar.MenuItem key={item.href} id={item.href} href={item.href} isCurrent={path === item.href} textValue={t(item.label)}>
             <Sidebar.MenuIcon><Glyph name={item.icon} /></Sidebar.MenuIcon>
-            <Sidebar.MenuLabel>{item.label}</Sidebar.MenuLabel>
+            <Sidebar.MenuLabel>{t(item.label)}</Sidebar.MenuLabel>
           </Sidebar.MenuItem>)}
         </Sidebar.Menu>
       </Sidebar.Group>
@@ -84,21 +91,21 @@ function SidebarSections({ mobile = false }: { mobile?: boolean }) {
     <Sidebar.Footer className={`${footerGap}${collapsed ? " sidebar-footer-collapsed" : ""}`}>
       {collapsed ? <>
         <Tooltip delay={350}>
-          <Button isIconOnly variant="danger-soft" aria-label="退出登录" className="sidebar-compact-action size-11" onPress={requestLogout}>
+          <Button isIconOnly variant="danger-soft" aria-label={t("common.signOut")} className="sidebar-compact-action size-11" onPress={requestLogout}>
             <Glyph name="logout" />
           </Button>
-          <Tooltip.Content>退出登录</Tooltip.Content>
+          <Tooltip.Content>{t("common.signOut")}</Tooltip.Content>
         </Tooltip>
       </> : <>
         <Button variant="danger-soft" fullWidth className="min-h-11 justify-start gap-2" onPress={requestLogout}>
-          <Glyph name="logout" />退出登录
+          <Glyph name="logout" />{t("common.signOut")}
         </Button>
       </>}
     </Sidebar.Footer>
-    {confirmLogout && <Confirm title="退出 Rubidium？" confirmLabel="退出登录" onClose={() => setConfirmLogout(false)} onConfirm={() => {
+    {confirmLogout && <Confirm title={t("common.signOutTitle")} confirmLabel={t("common.signOut")} onClose={() => setConfirmLogout(false)} onConfirm={() => {
       close();
       setConfirmLogout(false);
-      void logout().catch((error) => notify(errorMessage(error), "error"));
-    }}><p>当前浏览器会话将结束，尚未保存的表单修改会丢失。其他已登录会话不会受到影响。</p></Confirm>}
+      void logout().catch((error) => notify(errorMessage(error, locale), "error"));
+    }}><p>{t("common.signOutDescription")}</p></Confirm>}
   </>;
 }

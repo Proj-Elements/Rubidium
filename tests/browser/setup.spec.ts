@@ -21,6 +21,14 @@ test("first-visit setup stays usable in touch landscape and confirms the passwor
     await page.setViewportSize(viewport);
     await page.goto("/");
     await expect(page.getByRole("heading", { name: "创建访问密码" })).toBeVisible();
+    if (viewport.width === 844) {
+      await page.getByRole("button", { name: "选择语言" }).click();
+      await page.getByRole("menuitem", { name: "English", exact: true }).click();
+      await expect(page.getByRole("heading", { name: "Create an access password" })).toBeVisible();
+      await page.getByRole("button", { name: "Choose language" }).click();
+      await page.getByRole("menuitem", { name: "简体中文", exact: true }).click();
+      await expect(page.getByRole("heading", { name: "创建访问密码" })).toBeVisible();
+    }
     await expect(page.getByLabel("设置访问密码")).toBeVisible();
     await expect(page.getByLabel("确认访问密码")).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);

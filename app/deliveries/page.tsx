@@ -4,7 +4,7 @@ import { Button, Card, Chip, Drawer, Dropdown, Form, Label, Modal, ScrollShadow,
 import { DataGrid, ListView, type DataGridColumn } from "@heroui-pro/react";
 import { useState, type FormEvent } from "react";
 import { Glyph } from "@/components/icons";
-import { AreaField, Confirm, DeliveryBadge, deliveryLabels, Empty, Field, IconButton, Loading, Notice, PageHeading } from "@/components/primitives";
+import { AreaField, Confirm, DeliveryBadge, deliveryLabelKeys, Empty, Field, IconButton, Loading, Notice, PageHeading } from "@/components/primitives";
 import { Pagination } from "@/components/pagination";
 import { BulkActions, RecordList, useRecordQuery } from "@/components/record-list";
 import { Selection } from "@/components/selection";
@@ -13,15 +13,17 @@ import { useTime } from "@/components/use-time";
 import { useWorkspace } from "@/components/workspace-context";
 import type { Delivery, DeliveryAttempt } from "@/lib/types";
 import { api, errorMessage } from "@/lib/ui";
+import { useTranslations } from "@/components/locale-provider";
 
-const filters = [
-  { value: "all", label: "全部记录" },
-  ...Object.entries(deliveryLabels).map(([value, label]) => ({ value, label: value === "sent" ? "已接收" : label })),
-  { value: "retrying", label: "重试中" },
-];
 const PAGE_SIZE = 12;
 
 export default function DeliveriesPage() {
+  const { t, locale } = useTranslations();
+  const filters = [
+    { value: "all", label: t("delivery.filterAll") },
+    ...Object.entries(deliveryLabelKeys).map(([value, key]) => ({ value, label: t(key) })),
+    { value: "retrying", label: t("deliveryStatus.retrying") },
+  ];
   const { refresh: refreshDashboard, notify } = useWorkspace();
   const { filter, setFilter, setPage, query, setQuery, params, search, selected, setSelected, clearFilters } = useRecordQuery(PAGE_SIZE, filters);
   const [busy, setBusy] = useState("");
@@ -39,11 +41,11 @@ export default function DeliveriesPage() {
     try {
       await api(`/api/deliveries/${item.id}/${action}`, { method: "POST", body: "{}" });
       setCancel(null);
-      notify(action === "retry" ? "已提前加入投递队列；服务限流时仍会遵守等待时间。" : "已取消本条消息，记录已保留。未来排期不受影响。");
+      notify(action === "retry" ? t("delivery.retryQueued") : t("delivery.cancelledToast"));
       await Promise.allSettled([refresh(), refreshDashboard()]);
     } catch (error) {
       setCancel(null);
-      notify(errorMessage(error), "error");
+      notify(errorMessage(error, locale), "error");
     } finally { setBusy(""); }
   }
 
@@ -53,48 +55,48 @@ export default function DeliveriesPage() {
     try {
       const result = await api<{ results: Array<{ success: boolean }> }>("/api/deliveries", { method: "PATCH", body: JSON.stringify({ action, ids: selectedIds }) });
       const updated = result.results.filter((item) => item.success).length;
-      notify(`已处理 ${updated} 条消息${updated < selectedIds.length ? "，状态已变化的记录已跳过" : ""}。`, updated ? "success" : "error");
+      notify(t("delivery.processed", { count: updated, partial: updated < selectedIds.length ? t("delivery.skippedChanged") : "" }), updated ? "success" : "error");
       setSelected([]);
       await Promise.allSettled([refresh(), refreshDashboard()]);
-    } catch (error) { notify(errorMessage(error), "error"); }
+    } catch (error) { notify(errorMessage(error, locale), "error"); }
     finally { setBulkConfirm(false); setBusy(""); }
   }
 
-  const selectPage = <Selection label="选择本页待投递消息" selected={pending.length > 0 && selectedIds.length === pending.length}
+  const selectPage = <Selection label={t("delivery.selectPage")} selected={pending.length > 0 && selectedIds.length === pending.length}
     partial={selectedIds.length > 0 && selectedIds.length !== pending.length} disabled={Boolean(busy) || !pending.length}
     onChange={(value) => setSelected(value ? pending.map((item) => item.id) : [])} />;
   const columns: DataGridColumn<Delivery>[] = [
-    ...(pending.length ? [{ id: "selection", header: selectPage, width: 48, cell: (item: Delivery) => item.status === "pending" ? <Selection label={`选择投递 ${item.taskName}`}
+    ...(pending.length ? [{ id: "selection", header: selectPage, width: 48, cell: (item: Delivery) => item.status === "pending" ? <Selection label={t("delivery.selectNamed", { name: item.taskName })}
       selected={selectedIds.includes(item.id)} disabled={Boolean(busy)}
       onChange={(value) => setSelected((current) => value ? [...current, item.id] : current.filter((id) => id !== item.id))} /> : null }] : []),
-    { id: "name", header: "提醒", isRowHeader: true, minWidth: 190, cell: (item) => <div className="min-w-0 space-y-1">
+    { id: "name", header: t("delivery.reminder"), isRowHeader: true, minWidth: 190, cell: (item) => <div className="min-w-0 space-y-1">
       <p className="line-clamp-2 text-sm font-medium [overflow-wrap:anywhere]">{item.taskName}</p>
       {item.description && <p className="line-clamp-1 text-xs text-muted">{item.description}</p>}
     </div> },
-    { id: "time", header: "排期与状态时间", minWidth: 220, cell: (item) => <DeliveryTimes item={item} /> },
-    { id: "status", header: "投递状态", width: 145, cell: (item) => <DeliveryBadge item={item} /> },
-    { id: "attempts", header: "尝试次数", width: 90, accessorKey: "attempts", cellClassName: "tabular-nums" },
-    { id: "actions", header: <span className="sr-only">操作</span>, width: 100, pinned: "end", cell: (item) => <div className="flex items-center justify-end gap-1">
-      <IconButton icon="inbox" label={`查看详情 ${item.taskName}`} onPress={() => setDetails(item)} />
+    { id: "time", header: t("delivery.times"), minWidth: 220, cell: (item) => <DeliveryTimes item={item} /> },
+    { id: "status", header: t("delivery.status"), width: 145, cell: (item) => <DeliveryBadge item={item} /> },
+    { id: "attempts", header: t("delivery.attempts"), width: 90, accessorKey: "attempts", cellClassName: "tabular-nums" },
+    { id: "actions", header: <span className="sr-only">{t("common.actions")}</span>, width: 100, pinned: "end", cell: (item) => <div className="flex items-center justify-end gap-1">
+      <IconButton icon="inbox" label={t("delivery.detailsNamed", { name: item.taskName })} onPress={() => setDetails(item)} />
       {item.status === "pending" && <DeliveryActions item={item} busy={Boolean(busy)} onEdit={() => setEdit(item)} onCancel={() => setCancel(item)} />}
     </div> },
   ];
 
   return <div className="grid gap-6 pb-12">
-    <PageHeading title="投递记录" />
-    <RecordList label="投递状态" searchLabel="搜索记录" filters={filters} filter={filter} query={query} onFilter={setFilter} onSearch={setQuery}>
-      {error && <Notice action={<Button variant="ghost" onPress={() => void refresh()}>重试</Button>}>{error}</Notice>}
-      {!data ? !error && <Loading>正在读取投递记录</Loading> : !data.deliveries.length ? <Card>
-        <Empty title={filtered ? "没有匹配的记录" : "暂无投递记录"}
-          icon={filtered ? "search" : "inbox"} action={filtered && <Button variant="outline" className="max-sm:min-h-11" onPress={clearFilters}>清除筛选</Button>} />
+    <PageHeading title={t("page.deliveries")} />
+    <RecordList label={t("delivery.filter")} searchLabel={t("delivery.search")} filters={filters} filter={filter} query={query} onFilter={setFilter} onSearch={setQuery}>
+      {error && <Notice action={<Button variant="ghost" onPress={() => void refresh()}>{t("common.retry")}</Button>}>{error}</Notice>}
+      {!data ? !error && <Loading>{t("delivery.loading")}</Loading> : !data.deliveries.length ? <Card>
+        <Empty title={filtered ? t("delivery.noMatching") : t("delivery.empty")}
+          icon={filtered ? "search" : "inbox"} action={filtered && <Button variant="outline" className="max-sm:min-h-11" onPress={clearFilters}>{t("taskStatus.clearFilters")}</Button>} />
       </Card> : <>
         {pending.length > 0 && <div className="px-2 @min-[58rem]/records:hidden">
-          <Selection text="选择本页待投递消息" selected={selectedIds.length === pending.length} partial={selectedIds.length > 0 && selectedIds.length !== pending.length}
+          <Selection text={t("delivery.selectPage")} selected={selectedIds.length === pending.length} partial={selectedIds.length > 0 && selectedIds.length !== pending.length}
             disabled={Boolean(busy)} onChange={(value) => setSelected(value ? pending.map((item) => item.id) : [])} />
         </div>}
-        <DataGrid aria-label="投递记录列表" className="hidden @min-[58rem]/records:block" data={data.deliveries} columns={columns} getRowId={(item) => item.id} />
+        <DataGrid aria-label={t("delivery.list")} className="hidden @min-[58rem]/records:block" data={data.deliveries} columns={columns} getRowId={(item) => item.id} />
 
-        <ListView aria-label="投递记录列表" className="@min-[58rem]/records:hidden" items={data.deliveries}
+        <ListView aria-label={t("delivery.list")} className="@min-[58rem]/records:hidden" items={data.deliveries}
           selectionMode="multiple" selectedKeys={selectedIds} disabledBehavior="selection"
           disabledKeys={data.deliveries.filter((item) => Boolean(busy) || item.status !== "pending").map((item) => item.id)}
           onSelectionChange={(keys) => setSelected(keys === "all" ? pending.map((item) => item.id) : [...keys].map(String))}>
@@ -114,8 +116,8 @@ export default function DeliveriesPage() {
                   {item.lastError && item.status !== "sent" && <p className="line-clamp-2 text-xs leading-relaxed break-words text-warning-soft-foreground">{item.lastError}</p>}
                 </div>
                 <div className="flex flex-wrap gap-2">
-                  <Button variant="ghost" onPress={() => setDetails(item)}>查看详情</Button>
-                  {item.status === "pending" && item.attempts > 0 && <Button variant="outline" isPending={busy === item.id} isDisabled={Boolean(busy) && busy !== item.id} onPress={() => void mutate(item, "retry")}>立即重试</Button>}
+                  <Button variant="ghost" onPress={() => setDetails(item)}>{t("delivery.details")}</Button>
+                  {item.status === "pending" && item.attempts > 0 && <Button variant="outline" isPending={busy === item.id} isDisabled={Boolean(busy) && busy !== item.id} onPress={() => void mutate(item, "retry")}>{t("delivery.retry")}</Button>}
                 </div>
               </div>
             </ListView.ItemContent>
@@ -126,48 +128,51 @@ export default function DeliveriesPage() {
     </RecordList>
 
     <BulkActions count={selectedIds.length} disabled={Boolean(busy)} onClear={() => setSelected([])}>
-      <Button size="sm" variant="ghost" isDisabled={Boolean(busy)} onPress={() => void bulk("retry")}>批量重试</Button>
-      <Button size="sm" variant="danger-soft" isDisabled={Boolean(busy)} onPress={() => setBulkConfirm(true)}>批量取消</Button>
+      <Button size="sm" variant="ghost" isDisabled={Boolean(busy)} onPress={() => void bulk("retry")}>{t("delivery.retryMany")}</Button>
+      <Button size="sm" variant="danger-soft" isDisabled={Boolean(busy)} onPress={() => setBulkConfirm(true)}>{t("delivery.cancelMany")}</Button>
     </BulkActions>
 
-    {cancel && <Confirm title={`取消「${cancel.taskName}」这次投递？`} confirmLabel="取消投递" cancelLabel="保留投递" onClose={() => setCancel(null)} onConfirm={() => void mutate(cancel, "cancel")} busy={busy === cancel.id}>
-      <p>只取消这条等待中的消息。消息历史会保留，任务未来的排期不受影响。</p>
+    {cancel && <Confirm title={t("delivery.cancelTitle", { name: cancel.taskName })} confirmLabel={t("delivery.cancel")} cancelLabel={t("delivery.keep")} onClose={() => setCancel(null)} onConfirm={() => void mutate(cancel, "cancel")} busy={busy === cancel.id}>
+      <p>{t("delivery.cancelDescription")}</p>
     </Confirm>}
-    {bulkConfirm && <Confirm title="取消选中的待投递消息？" confirmLabel="批量取消" cancelLabel="保留投递" onClose={() => setBulkConfirm(false)} onConfirm={() => void bulk("cancel")} busy={busy === "bulk"}>
-      <p>只处理当前页选中的待投递消息。投递记录会保留。</p>
+    {bulkConfirm && <Confirm title={t("delivery.cancelSelectedTitle")} confirmLabel={t("delivery.cancelMany")} cancelLabel={t("delivery.keep")} onClose={() => setBulkConfirm(false)} onConfirm={() => void bulk("cancel")} busy={busy === "bulk"}>
+      <p>{t("delivery.cancelSelectedDescription")}</p>
     </Confirm>}
     {edit && <DeliveryEditor item={edit} onClose={() => setEdit(null)} onSaved={() => {
-      setEdit(null); notify("内容已修正，消息等待重试。"); void Promise.allSettled([refresh(), refreshDashboard()]);
+      setEdit(null); notify(t("delivery.editedToast")); void Promise.allSettled([refresh(), refreshDashboard()]);
     }} />}
     {details && <DeliveryDetails item={data?.deliveries.find((item) => item.id === details.id) ?? details} onClose={() => setDetails(null)} />}
   </div>;
 }
 
 function DeliveryActions({ item, busy, onEdit, onCancel }: { item: Delivery; busy: boolean; onEdit: () => void; onCancel: () => void }) {
+  const { t } = useTranslations();
   return <Dropdown>
-    <IconButton icon="more" label={`更多操作 ${item.taskName}`} isDisabled={busy} />
-    <Dropdown.Popover><Dropdown.Menu aria-label="投递操作" onAction={(key) => {
+    <IconButton icon="more" label={t("delivery.moreNamed", { name: item.taskName })} isDisabled={busy} />
+    <Dropdown.Popover><Dropdown.Menu aria-label={t("common.actions")} onAction={(key) => {
       if (key === "edit") onEdit();
       if (key === "cancel") onCancel();
     }}>
-      <Dropdown.Item id="edit" textValue="修正消息内容"><Glyph name="edit" /><Label>修正消息内容</Label></Dropdown.Item>
-      <Dropdown.Item id="cancel" variant="danger" textValue="取消投递"><Glyph name="close" /><Label>取消投递</Label></Dropdown.Item>
+      <Dropdown.Item id="edit" textValue={t("delivery.editContent")}><Glyph name="edit" /><Label>{t("delivery.editContent")}</Label></Dropdown.Item>
+      <Dropdown.Item id="cancel" variant="danger" textValue={t("delivery.cancel")}><Glyph name="close" /><Label>{t("delivery.cancel")}</Label></Dropdown.Item>
     </Dropdown.Menu></Dropdown.Popover>
   </Dropdown>;
 }
 
 function DeliveryTimes({ item }: { item: Delivery }) {
   const { formatTime } = useTime();
-  const timing = item.status === "sent" ? { label: "接收于", value: item.deliveredAt }
-    : item.status === "pending" && !item.manualOnly ? { label: "下次尝试", value: item.nextAttemptAt }
-    : item.status === "cancelled" || item.status === "expired" ? { label: "更新于", value: item.updatedAt } : null;
+  const { t } = useTranslations();
+  const timing = item.status === "sent" ? { label: "delivery.receivedAt" as const, value: item.deliveredAt }
+    : item.status === "pending" && !item.manualOnly ? { label: "delivery.nextAttempt" as const, value: item.nextAttemptAt }
+    : item.status === "cancelled" || item.status === "expired" ? { label: "delivery.updatedAt" as const, value: item.updatedAt } : null;
   return <p className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs leading-relaxed text-muted tabular-nums">
-    <span>计划于 <time dateTime={item.occurrenceAt}>{formatTime(item.occurrenceAt)}</time></span>
-    {timing?.value && <span>{timing.label} <time dateTime={timing.value}>{formatTime(timing.value)}</time></span>}
+    <span>{t("delivery.scheduledAt")}<time dateTime={item.occurrenceAt}>{formatTime(item.occurrenceAt)}</time></span>
+    {timing?.value && <span>{t(timing.label)} <time dateTime={timing.value}>{formatTime(timing.value)}</time></span>}
   </p>;
 }
 
 function DeliveryEditor({ item, onClose, onSaved }: { item: Delivery; onClose: () => void; onSaved: () => void }) {
+  const { t, locale } = useTranslations();
   const [title, setTitle] = useState(item.taskName);
   const [body, setBody] = useState(item.description);
   const [busy, setBusy] = useState(false);
@@ -179,20 +184,20 @@ function DeliveryEditor({ item, onClose, onSaved }: { item: Delivery; onClose: (
     try {
       await api(`/api/deliveries/${item.id}`, { method: "PATCH", body: JSON.stringify({ title, body, updatedAt: item.updatedAt }) });
       onSaved();
-    } catch (error) { setError(errorMessage(error)); }
+    } catch (error) { setError(errorMessage(error, locale)); }
     finally { setBusy(false); }
   }
 
   return <Modal.Backdrop isOpen onOpenChange={(open) => { if (!open && !busy) onClose(); }} isDismissable={!busy} isKeyboardDismissDisabled={busy}>
     <Modal.Container placement="center" scroll="inside"><Modal.Dialog>
       <Form onSubmit={save} className="flex min-h-0 flex-col">
-        <Modal.Header><Modal.Heading>修正消息内容</Modal.Heading></Modal.Header>
+        <Modal.Header><Modal.Heading>{t("delivery.editContent")}</Modal.Heading></Modal.Header>
         <Modal.Body className="grid content-start gap-4">
           {error && <Notice>{error}</Notice>}
-          <Field label="消息标题" value={title} onChange={(event) => setTitle(event.target.value)} maxLength={80} required disabled={busy} />
-          <AreaField label="消息正文" value={body} onChange={(event) => setBody(event.target.value)} maxLength={2000} rows={4} disabled={busy} />
+          <Field label={t("delivery.messageTitle")} value={title} onChange={(event) => setTitle(event.target.value)} maxLength={80} required disabled={busy} />
+          <AreaField label={t("delivery.messageBody")} value={body} onChange={(event) => setBody(event.target.value)} maxLength={2000} rows={4} disabled={busy} />
         </Modal.Body>
-        <Modal.Footer><Button type="button" variant="ghost" isDisabled={busy} onPress={onClose}>取消</Button><Button type="submit" isPending={busy}>保存并重试</Button></Modal.Footer>
+        <Modal.Footer><Button type="button" variant="ghost" isDisabled={busy} onPress={onClose}>{t("common.cancel")}</Button><Button type="submit" isPending={busy}>{t("delivery.saveRetry")}</Button></Modal.Footer>
       </Form>
     </Modal.Dialog></Modal.Container>
   </Modal.Backdrop>;
@@ -200,16 +205,17 @@ function DeliveryEditor({ item, onClose, onSaved }: { item: Delivery; onClose: (
 
 function DeliveryDetails({ item, onClose }: { item: Delivery; onClose: () => void }) {
   const { formatTime } = useTime();
+  const { t } = useTranslations();
   const { data, error, refresh } = useResource<{ attempts: DeliveryAttempt[] }>(`/api/deliveries/${item.id}/attempts`, 5000);
-  const names = { sending: "发送中", sent: "Bark 已接收", failed: "失败", interrupted: "结果未知" };
+  const names = { sending: "deliveryStatus.sending", sent: "deliveryStatus.sent", failed: "delivery.attemptFailed", interrupted: "delivery.attemptUnknown" } as const;
 
   return <Drawer.Backdrop isOpen onOpenChange={(open) => { if (!open) onClose(); }} isDismissable>
     <Drawer.Content placement="right"><Drawer.Dialog className="detail-drawer">
       <Drawer.Header className="flex-row items-center justify-between gap-2">
-        <Drawer.Heading>投递详情</Drawer.Heading>
+        <Drawer.Heading>{t("delivery.details")}</Drawer.Heading>
         <Tooltip delay={350}>
-          <Drawer.CloseTrigger aria-label="关闭投递详情" className="static shrink-0 max-sm:size-11" />
-          <Tooltip.Content>关闭投递详情</Tooltip.Content>
+          <Drawer.CloseTrigger aria-label={t("delivery.closeDetails")} className="static shrink-0 max-sm:size-11" />
+          <Tooltip.Content>{t("delivery.closeDetails")}</Tooltip.Content>
         </Tooltip>
       </Drawer.Header>
       <Drawer.Body className="grid content-start gap-5">
@@ -217,20 +223,20 @@ function DeliveryDetails({ item, onClose }: { item: Delivery; onClose: () => voi
           <div className="flex flex-wrap items-center gap-2"><h3 className="font-semibold break-words">{item.taskName}</h3><DeliveryBadge item={item} /></div>
           {item.description && <p className="leading-relaxed break-words whitespace-pre-wrap text-muted">{item.description}</p>}
           <DeliveryTimes item={item} />
-          <p className="text-xs text-muted tabular-nums">已完成 {item.attempts} 次尝试{item.expiresAt ? ` · 到期 ${formatTime(item.expiresAt)}` : ""}</p>
+          <p className="text-xs text-muted tabular-nums">{t("delivery.completedAttempts", { count: item.attempts })}{item.expiresAt ? t("delivery.expires", { time: formatTime(item.expiresAt) }) : ""}</p>
           {item.lastError && item.status !== "sent" && <Notice kind="warning">{item.lastError}</Notice>}
-          {item.status === "pending" && item.manualOnly && <p className="text-sm leading-relaxed text-muted">自动重试已停止。修正内容或设备配置后可手动重试。</p>}
+          {item.status === "pending" && item.manualOnly && <p className="text-sm leading-relaxed text-muted">{t("delivery.autoRetryStopped")}</p>}
         </div>
-        <section className="grid gap-3" aria-label="尝试历史">
-          <h3 className="font-semibold">尝试历史</h3>
-          {error && <Notice action={<Button variant="ghost" onPress={() => void refresh()}>重试读取</Button>}>{error}</Notice>}
-          {!data ? !error && <Loading>正在读取尝试历史</Loading> : data.attempts.length ? <>
+        <section className="grid gap-3" aria-label={t("delivery.attemptHistory")}>
+          <h3 className="font-semibold">{t("delivery.attemptHistory")}</h3>
+          {error && <Notice action={<Button variant="ghost" onPress={() => void refresh()}>{t("delivery.retryRead")}</Button>}>{error}</Notice>}
+          {!data ? !error && <Loading>{t("delivery.retryRead")}</Loading> : data.attempts.length ? <>
             <ScrollShadow className="max-h-[42dvh] overflow-y-auto" size={16}>
               <ol className="grid gap-4">
                 {data.attempts.map((attempt) => <li key={attempt.id} className="grid gap-2">
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <Chip variant="soft" color={attempt.outcome === "failed" ? "danger" : attempt.outcome === "interrupted" ? "warning" : attempt.outcome === "sent" ? "success" : "default"}>
-                      <Chip.Label>{names[attempt.outcome]}</Chip.Label>
+                      <Chip.Label>{t(names[attempt.outcome])}</Chip.Label>
                     </Chip>
                     <time className="text-xs text-muted tabular-nums" dateTime={attempt.startedAt}>{formatTime(attempt.startedAt)}</time>
                   </div>
@@ -238,7 +244,7 @@ function DeliveryDetails({ item, onClose }: { item: Delivery; onClose: () => voi
                 </li>)}
               </ol>
             </ScrollShadow>
-          </> : <Empty title="暂无尝试历史" />}
+          </> : <Empty title={t("delivery.noAttempts")} />}
         </section>
       </Drawer.Body>
     </Drawer.Dialog></Drawer.Content>

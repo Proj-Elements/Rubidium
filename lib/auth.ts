@@ -6,7 +6,7 @@ import { timeZoneSchema } from "./contracts";
 import { DomainError } from "./errors";
 import { initializeStorage, privateFile, runtimeDataDir } from "./storage";
 import { setLogSecret } from "./logging";
-import { MIN_PASSWORD_LENGTH, passwordValidationMessage } from "./password-policy";
+import { MIN_PASSWORD_LENGTH, passwordValidationLocalized, passwordValidationMessage } from "./password-policy";
 import { getEnvironmentVariable } from "./environment.mjs";
 
 const AUTH_COOKIE = "barker_session";
@@ -213,7 +213,7 @@ export function initializePassword(password: string, timeZone?: string): boolean
   initializeAuth();
   if (passwordIsConfigured()) return false;
   const invalidPassword = passwordValidationMessage(password);
-  if (invalidPassword) throw new DomainError(invalidPassword);
+  if (invalidPassword) throw new DomainError(invalidPassword, 400, passwordValidationLocalized(password));
   const salt = randomBytes(32).toString("hex");
   const hash = scryptSync(password, salt, 32).toString("hex");
   if (timeZone !== undefined && !timeZoneSchema.safeParse(timeZone).success) throw new DomainError("时区必须是有效的 IANA 时区");
@@ -327,8 +327,8 @@ export function requestIsAuthorized(request: Request): boolean {
 
 export function changePassword(current: string, next: string, clientKey: string): void {
   const invalidPassword = passwordValidationMessage(next);
-  if (invalidPassword) throw new DomainError(invalidPassword);
-  if (!verifyPassword(current, Date.now(), clientKey)) throw new DomainError("当前密码错误或尝试次数过多", loginRetryAfter(clientKey) ? 429 : 403);
+  if (invalidPassword) throw new DomainError(invalidPassword, 400, passwordValidationLocalized(next));
+  if (!verifyPassword(current, Date.now(), clientKey)) throw new DomainError("当前密码错误或尝试次数过多", loginRetryAfter(clientKey) ? 429 : 403, { key: "errors.currentPasswordInvalid" });
   const salt = randomBytes(32).toString("hex");
   const source = runtimePassword ? createHmac("sha256", sessionSecret).update(runtimePassword).digest("hex") : "setup";
   const hash = scryptSync(next, salt, 32).toString("hex");

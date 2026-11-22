@@ -32,7 +32,7 @@ export interface EncryptedExport {
 
 function validatePassphrase(passphrase: string): void {
   if (passphrase.length < 12 || passphrase.length > 200 || passphrase.trim() !== passphrase) {
-    throw new DomainError("加密密码须为 12–200 个字符且不能有首尾空格");
+    throw new DomainError("加密密码须为 12–200 个字符且不能有首尾空格", 400, { key: "errors.transferPassword" });
   }
 }
 
@@ -86,7 +86,7 @@ export function decryptExport(value: unknown, passphrase: string): Buffer {
     const compressed = Buffer.concat([decipher.update(payload), decipher.final()]);
     return gunzipSync(compressed, { maxOutputLength: MAX_TRANSFER_BYTES });
   } catch {
-    throw new DomainError("解密失败：密码错误或导出文件损坏");
+    throw new DomainError("解密失败：密码错误或导出文件损坏", 400, { key: "errors.decryptFailed" });
   }
 }
 

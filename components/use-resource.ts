@@ -3,11 +3,15 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api, errorMessage } from "@/lib/ui";
 import { createResourcePoller } from "@/lib/resource";
+import { useLocale } from "./locale-provider";
 
 /** Keep stale data visible on a network failure; discard late responses after navigation. */
 export function useResource<T>(url: string, poll = 5000, enabled = true) {
+  const locale = useLocale();
   const [state, setState] = useState<{ url: string; data: T | null; error: string }>({ url, data: null, error: "" });
   const poller = useRef<{ url: string; refresh: () => Promise<void> } | null>(null);
+  const currentLocale = useRef(locale);
+  currentLocale.current = locale;
   const refresh = useCallback(async () => {
     if (poller.current?.url === url) await poller.current.refresh();
   }, [url]);
@@ -18,7 +22,7 @@ export function useResource<T>(url: string, poll = 5000, enabled = true) {
     }
     const resource = createResourcePoller<T>({ load: (signal) => api<T>(url, { signal }), interval: poll, visible: () => !document.hidden,
       data: (data) => setState({ url, data, error: "" }),
-      error: (error) => setState((previous) => ({ url, data: previous.url === url ? previous.data : null, error: errorMessage(error) })) });
+      error: (error) => setState((previous) => ({ url, data: previous.url === url ? previous.data : null, error: errorMessage(error, currentLocale.current) })) });
     poller.current = { url, refresh: resource.refresh };
     void resource.refresh();
     const onFocus = () => { if (!document.hidden) void resource.refresh(); };

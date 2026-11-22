@@ -3,8 +3,10 @@
 import { AlertDialog, Button } from "@heroui/react";
 import { useEffect, useState } from "react";
 import { subscribeUnsavedNavigation, type UnsavedNavigationRequest } from "./use-unsaved";
+import { useTranslations } from "./locale-provider";
 
 export function UnsavedNavigationDialog() {
+  const { t } = useTranslations();
   const [request, setRequest] = useState<UnsavedNavigationRequest | null>(null);
 
   useEffect(() => subscribeUnsavedNavigation(setRequest), []);
@@ -25,12 +27,12 @@ export function UnsavedNavigationDialog() {
     <AlertDialog.Container size="sm" placement="center"><AlertDialog.Dialog>
       <AlertDialog.Header>
         <AlertDialog.Icon status="warning" />
-        <AlertDialog.Heading>放弃尚未保存的修改？</AlertDialog.Heading>
+        <AlertDialog.Heading>{t("common.discardPrompt")}</AlertDialog.Heading>
       </AlertDialog.Header>
-      <AlertDialog.Body className="text-sm leading-relaxed text-muted">离开后，本次表单修改将不会保留。</AlertDialog.Body>
+      <AlertDialog.Body className="text-sm leading-relaxed text-muted">{t("common.leaveWarning")}</AlertDialog.Body>
       <AlertDialog.Footer>
-        <Button variant="tertiary" autoFocus onPress={dismiss}>继续编辑</Button>
-        <Button variant="danger-soft" onPress={leave}>离开页面</Button>
+        <Button variant="tertiary" autoFocus onPress={dismiss}>{t("common.continueEditing")}</Button>
+        <Button variant="danger-soft" onPress={leave}>{t("common.leavePage")}</Button>
       </AlertDialog.Footer>
     </AlertDialog.Dialog></AlertDialog.Container>
   </AlertDialog.Backdrop>;

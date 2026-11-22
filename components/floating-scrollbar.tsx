@@ -1,10 +1,12 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState, type KeyboardEvent, type PointerEvent } from "react";
+import { useTranslations } from "./locale-provider";
 
 type ScrollMetrics = { top: number; thumb: number; scrollable: boolean; value: number };
 
 export function FloatingScrollbar() {
+  const { t } = useTranslations();
   const track = useRef<HTMLDivElement>(null);
   const dragPointer = useRef<number | null>(null);
   const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -75,7 +77,7 @@ export function FloatingScrollbar() {
     data-visible={visible || undefined}
     data-scrollable={metrics.scrollable || undefined}
     role="scrollbar"
-    aria-label="页面滚动位置"
+    aria-label={t("scrollbar.label")}
     aria-controls="main"
     aria-orientation="vertical"
     aria-valuemin={0}

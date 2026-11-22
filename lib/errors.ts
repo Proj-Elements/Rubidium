@@ -1,5 +1,7 @@
+import type { LocalizedMessage } from "./i18n";
+
 export class DomainError extends Error {
-  constructor(message: string, readonly status = 400) {
+  constructor(message: string, readonly status = 400, readonly localized?: LocalizedMessage) {
     super(message);
     this.name = "DomainError";
   }

@@ -1,12 +1,8 @@
-import { presetCronFromParts, SCHEDULE_TIME_ZONE, type RecurrencePreset } from "./types";
+import { presetCronFromParts, SCHEDULE_TIME_ZONE } from "./types";
 import { deliverySchema, SECURITY_SESSION_PAGE_SIZE, taskSchema, timestampSchema } from "./contracts";
+import { isMessageKey, localeTags, translate, type Locale, type MessageKey, type MessageValues } from "./i18n";
 
 export { SCHEDULE_TIME_ZONE };
-
-export const PRESET_LABELS: Record<RecurrencePreset, string> = {
-  once: "仅一次",
-  daily: "每天", weekdays: "周一至周五", weekly: "每周", monthly: "每月", custom: "自定义 Cron",
-};
 
 const wallFormatter = new Intl.DateTimeFormat("sv-SE", {
   timeZone: SCHEDULE_TIME_ZONE, year: "numeric", month: "2-digit", day: "2-digit",
@@ -76,27 +72,32 @@ export function createIdempotencyKey(): string {
   return `${Date.now().toString(36)}${Math.random().toString(36).slice(2)}${Math.random().toString(36).slice(2)}`;
 }
 
-export function formatTime(value: string | null, options?: Intl.DateTimeFormatOptions): string {
-  if (!value) return "暂无安排";
+export function formatTime(value: string | null, options?: Intl.DateTimeFormatOptions, locale: Locale = "zh-CN"): string {
+  if (!value) return translate(locale, "common.noSchedule");
   const date = new Date(value);
-  if (!validDate(date)) return "时间无效";
-  return new Intl.DateTimeFormat("zh-CN", {
+  if (!validDate(date)) return translate(locale, "common.invalidTime");
+  return new Intl.DateTimeFormat(localeTags[locale], {
     timeZone: SCHEDULE_TIME_ZONE, year: "numeric", month: "long", day: "numeric", hour: "2-digit", minute: "2-digit", ...options,
   }).format(date);
 }
 
-export function clockTime(value: string, timeZone = SCHEDULE_TIME_ZONE): string {
+export function clockTime(value: string, timeZone = SCHEDULE_TIME_ZONE, locale: Locale = "zh-CN"): string {
   const date = new Date(value);
-  if (!validDate(date)) return "时间无效";
-  return new Intl.DateTimeFormat("zh-CN", { timeZone, hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(date);
+  if (!validDate(date)) return translate(locale, "common.invalidTime");
+  return new Intl.DateTimeFormat(localeTags[locale], { timeZone, hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(date);
 }
 
-export function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : "操作未完成，请重试";
+export function errorMessage(error: unknown, locale?: Locale): string {
+  if (!(error instanceof Error)) return translate(locale ?? "zh-CN", "common.operationFailed");
+  const localized = error instanceof ApiError ? error.localized : undefined;
+  if (locale && localized) return translate(locale, localized.key, localized.values);
+  if (!locale || locale === "zh-CN") return error.message;
+  if (/\p{Script=Han}/u.test(error.message)) return translate(locale, "common.operationFailed");
+  return error.message;
 }
 
 export class ApiError extends Error {
-  constructor(message: string, readonly status: number) { super(message); }
+  constructor(message: string, readonly status: number, readonly localized?: { key: MessageKey; values?: MessageValues }) { super(message); }
 }
 
 function objectValue(value: unknown): value is Record<string, unknown> {
@@ -194,17 +195,21 @@ export async function api<T>(url: string, init?: RequestInit): Promise<T> {
     signal: init?.signal ? AbortSignal.any([init.signal, timeout.signal]) : timeout.signal,
   });
   const contentType = response.headers.get("content-type") ?? "";
-  if (!contentType.includes("application/json")) throw new ApiError("服务返回了非 JSON 响应，请检查网络或反向代理", response.status);
-  let data: T & { error?: string };
-  try { data = await response.json() as T & { error?: string }; }
-  catch { throw new ApiError("服务响应损坏，请重新同步", response.status); }
+  if (!contentType.includes("application/json")) throw new ApiError("服务返回了非 JSON 响应，请检查网络或反向代理", response.status, { key: "errors.invalidResponse" });
+  let data: T & { error?: string; errorKey?: unknown; errorValues?: unknown };
+  try { data = await response.json() as T & { error?: string; errorKey?: unknown; errorValues?: unknown }; }
+  catch { throw new ApiError("服务响应损坏，请重新同步", response.status, { key: "errors.corruptResponse" }); }
   if (!response.ok) {
     if (response.status === 401 && url !== "/api/session" && typeof window !== "undefined") {
       window.dispatchEvent(new Event("barker:unauthorized"));
     }
-    throw new ApiError(typeof data?.error === "string" ? data.error : `请求失败 (${response.status})`, response.status);
+    const key = isMessageKey(data?.errorKey) ? data.errorKey : undefined;
+    const values = data?.errorValues && typeof data.errorValues === "object" && !Array.isArray(data.errorValues)
+      && Object.values(data.errorValues).every((value) => typeof value === "string" || typeof value === "number")
+      ? data.errorValues as MessageValues : undefined;
+    throw new ApiError(typeof data?.error === "string" ? data.error : `请求失败 (${response.status})`, response.status, key ? { key, values } : undefined);
   }
-  if (!validApiPayload(url, data)) throw new ApiError("服务响应格式无效，请重新同步", response.status);
+  if (!validApiPayload(url, data)) throw new ApiError("服务响应格式无效，请重新同步", response.status, { key: "errors.invalidPayload" });
   return data;
   } finally { clearTimeout(timer); }
 }

@@ -6,6 +6,8 @@ import NextLink from "next/link";
 import type { ComponentProps, ReactNode, Ref } from "react";
 import type { Delivery, Task } from "@/lib/types";
 import { Glyph, type IconName } from "./icons";
+import { useTranslations } from "./locale-provider";
+import type { MessageKey } from "@/lib/i18n";
 
 export function IconButton({ label, icon, className, ...props }: { label: string; icon: IconName } & Omit<ComponentProps<typeof Button>, "children" | "aria-label">) {
   return <Tooltip delay={350}>
@@ -81,21 +83,25 @@ export function Details({ title, children }: { title: string; children: ReactNod
   </Disclosure>;
 }
 
-const taskLabels = { active: "进行中", paused: "已暂停", completed: "排期结束", archived: "已归档" };
-export const deliveryLabels: Record<Delivery["status"], string> = {
-  pending: "待投递", sending: "发送中", sent: "已接收", cancelled: "已取消", expired: "已过期",
+const taskLabelKeys: Record<Task["status"], MessageKey> = {
+  active: "taskStatus.active", paused: "taskStatus.paused", completed: "taskStatus.completed", archived: "taskStatus.archived",
+};
+export const deliveryLabelKeys: Record<Delivery["status"], MessageKey> = {
+  pending: "deliveryStatus.pending", sending: "deliveryStatus.sending", sent: "deliveryStatus.sent", cancelled: "deliveryStatus.cancelled", expired: "deliveryStatus.expired",
 };
 
 export function TaskBadge({ task }: { task: Task }) {
-  return <Chip variant="soft" className="w-fit shrink-0 whitespace-nowrap" color={task.status === "active" ? "success" : "default"}><Chip.Label>{taskLabels[task.status]}</Chip.Label></Chip>;
+  const { t } = useTranslations();
+  return <Chip variant="soft" className="w-fit shrink-0 whitespace-nowrap" color={task.status === "active" ? "success" : "default"}><Chip.Label>{t(taskLabelKeys[task.status])}</Chip.Label></Chip>;
 }
 
 export function DeliveryBadge({ item }: { item: Delivery }) {
+  const { t } = useTranslations();
   const pending = item.status === "pending";
   const manual = pending && item.manualOnly;
   const retrying = pending && item.attempts > 0;
   return <Chip variant="soft" className="w-fit shrink-0 whitespace-nowrap" color={item.status === "sent" ? "success" : manual ? "danger" : retrying ? "warning" : "default"}>
-    <Chip.Label>{manual ? "等待人工处理" : retrying ? "重试中" : deliveryLabels[item.status]}</Chip.Label>
+    <Chip.Label>{manual ? t("deliveryStatus.needsAttention") : retrying ? t("deliveryStatus.retrying") : t(deliveryLabelKeys[item.status])}</Chip.Label>
   </Chip>;
 }
 
@@ -123,13 +129,14 @@ export function Loading({ children }: { children: ReactNode }) {
   </div>;
 }
 
-export function Confirm({ title, children, confirmLabel, cancelLabel = "取消", onConfirm, onClose, busy = false }: { title: string; children: ReactNode; confirmLabel: string; cancelLabel?: string; onConfirm: () => void; onClose: () => void; busy?: boolean }) {
+export function Confirm({ title, children, confirmLabel, cancelLabel, onConfirm, onClose, busy = false }: { title: string; children: ReactNode; confirmLabel: string; cancelLabel?: string; onConfirm: () => void; onClose: () => void; busy?: boolean }) {
+  const { t } = useTranslations();
   return <AlertDialog.Backdrop isOpen onOpenChange={(open) => { if (!open && !busy) onClose(); }} isKeyboardDismissDisabled={busy}>
     <AlertDialog.Container size="sm" placement="center"><AlertDialog.Dialog>
       <AlertDialog.Header><AlertDialog.Icon status="danger" /><AlertDialog.Heading className="[overflow-wrap:anywhere]">{title}</AlertDialog.Heading></AlertDialog.Header>
       <AlertDialog.Body className="text-sm leading-relaxed text-muted">{children}</AlertDialog.Body>
       <AlertDialog.Footer>
-        <Button variant="ghost" autoFocus isDisabled={busy} onPress={onClose}>{cancelLabel}</Button>
+        <Button variant="ghost" autoFocus isDisabled={busy} onPress={onClose}>{cancelLabel ?? t("common.cancel")}</Button>
         <Button variant="danger-soft" isPending={busy} onPress={onConfirm}>{confirmLabel}</Button>
       </AlertDialog.Footer>
     </AlertDialog.Dialog></AlertDialog.Container>

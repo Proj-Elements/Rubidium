@@ -12,7 +12,9 @@ import { useResource } from "./use-resource";
 import { useTime } from "./use-time";
 import { useUnsaved } from "./use-unsaved";
 import { useWorkspace } from "./workspace-context";
-import { MIN_PASSWORD_LENGTH, passwordValidationMessage } from "@/lib/password-policy";
+import { MIN_PASSWORD_LENGTH, passwordValidationIssue } from "@/lib/password-policy";
+import { useTranslations } from "./locale-provider";
+import type { MessageKey } from "@/lib/i18n";
 
 interface Security {
   sessions: Array<{ id: string; expiresAt: number }>;
@@ -20,10 +22,10 @@ interface Security {
   tokens: Array<{ id: string; name: string; scope: string; expiresAt: number }>;
 }
 
-const scopes = [{ value: "read", label: "只读" }, { value: "write", label: "读写" }];
 const defaultDays = 30;
 
 export function SecurityManager({ active }: { active: boolean }) {
+  const { t, locale } = useTranslations();
   const { formatTime } = useTime();
   const { notify } = useWorkspace();
   const [sessionPage, setSessionPage] = useState(1);
@@ -39,8 +41,10 @@ export function SecurityManager({ active }: { active: boolean }) {
   const [mcpAddressOpen, setMcpAddressOpen] = useState(false);
   const [revocation, setRevocation] = useState<{ id: string; kind: "session" | "token"; name: string } | null>(null);
   const [busy, setBusy] = useState<"password" | "token" | "revoke" | null>(null);
-  const passwordReason = next ? passwordValidationMessage(next) : null;
+  const passwordIssue = next ? passwordValidationIssue(next) : null;
+  const passwordReason = passwordIssue ? t(passwordIssue.key, passwordIssue.values) : null;
   const passwordMismatch = next.length > 0 && next !== confirmNext;
+  const scopes = [{ value: "read", label: t("security.readOnly") }, { value: "write", label: t("security.readWrite") }];
   useUnsaved(Boolean(current || next || confirmNext || name || scope !== "read" || days !== defaultDays));
 
   async function mutate(action: NonNullable<typeof busy>, fields: object, message: string) {
@@ -52,14 +56,14 @@ export function SecurityManager({ active }: { active: boolean }) {
       if (action !== "token") notify(message);
       await refresh();
       return true;
-    } catch (error) { notify(errorMessage(error), "error"); return false; }
+    } catch (error) { notify(errorMessage(error, locale), "error"); return false; }
     finally { setBusy(null); }
   }
 
   async function password(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!current || !next || !confirmNext || passwordReason || next !== confirmNext) return;
-    if (await mutate("password", { current, next }, "访问密码已更新。")) { setCurrent(""); setNext(""); setConfirmNext(""); }
+    if (!current || !next || !confirmNext || passwordIssue || next !== confirmNext) return;
+    if (await mutate("password", { current, next }, t("security.passwordChanged"))) { setCurrent(""); setNext(""); setConfirmNext(""); }
   }
 
   async function credential(event: FormEvent<HTMLFormElement>) {
@@ -72,134 +76,137 @@ export function SecurityManager({ active }: { active: boolean }) {
     const { kind, id } = revocation;
     const previousPage = data?.sessionPagination.page;
     const lastSessionOnPage = kind === "session" && data?.sessions.length === 1;
-    if (await mutate("revoke", { kind, id }, kind === "token" ? "API 凭据已撤销。" : "会话已撤销。")) {
+    if (await mutate("revoke", { kind, id }, kind === "token" ? t("security.credentialRevoked") : t("security.sessionRevoked"))) {
       if (lastSessionOnPage && previousPage && previousPage > 1) setSessionPage(previousPage - 1);
       setRevocation(null);
     }
   }
 
   return <div className="grid items-start gap-5 @min-[52rem]/settings:grid-cols-2">
-    {error && <div className="@min-[52rem]/settings:col-span-2"><Notice action={<Button variant="ghost" onPress={() => void refresh()}>重试</Button>}>{error}</Notice></div>}
+    {error && <div className="@min-[52rem]/settings:col-span-2"><Notice action={<Button variant="ghost" onPress={() => void refresh()}>{t("common.retry")}</Button>}>{error}</Notice></div>}
     <Card className="min-w-0 gap-5 p-5 sm:p-6 @min-[52rem]/settings:col-span-2">
-      <CardHeading title="访问密码" />
+      <CardHeading title={t("security.password")} />
       <Form onSubmit={password}>
         <Fieldset className="min-w-0 gap-4" disabled={busy !== null}>
           <Fieldset.Group className="security-password-fields @min-[52rem]/settings:grid-cols-2">
-            <Field label="当前访问密码" type="password" value={current} onChange={(event) => setCurrent(event.target.value)} maxLength={300} autoComplete="current-password" required />
+            <Field label={t("security.currentPassword")} type="password" value={current} onChange={(event) => setCurrent(event.target.value)} maxLength={300} autoComplete="current-password" required />
             <TextField className="workspace-field" fullWidth isRequired isDisabled={busy !== null} isInvalid={Boolean(passwordReason)}>
-              <Label>新访问密码</Label>
+              <Label>{t("security.newPassword")}</Label>
               <Input variant="secondary" fullWidth className="h-11" type="password" value={next} onChange={(event) => setNext(event.target.value)} minLength={MIN_PASSWORD_LENGTH} maxLength={300} autoComplete="new-password" />
               {passwordReason && <FieldError>{passwordReason}</FieldError>}
             </TextField>
             <TextField className="workspace-field" fullWidth name="confirmNewPassword" type="password" isRequired isDisabled={busy !== null} isInvalid={passwordMismatch}>
-              <Label>确认新访问密码</Label>
+              <Label>{t("security.confirmPassword")}</Label>
               <Input variant="secondary" fullWidth className="h-11" autoComplete="new-password" value={confirmNext} onChange={(event) => setConfirmNext(event.target.value)} maxLength={300} />
-              {passwordMismatch && <FieldError>{confirmNext ? "两次输入的新访问密码不一致" : "请再次输入新访问密码以确认"}</FieldError>}
+              {passwordMismatch && <FieldError>{confirmNext ? t("security.passwordMismatch") : t("security.confirmHint")}</FieldError>}
             </TextField>
           </Fieldset.Group>
-          <Fieldset.Actions><Button type="submit" isPending={busy === "password"} isDisabled={busy !== null || !current || !next || !confirmNext || Boolean(passwordReason) || passwordMismatch}>修改访问密码</Button></Fieldset.Actions>
+          <Fieldset.Actions><Button type="submit" isPending={busy === "password"} isDisabled={busy !== null || !current || !next || !confirmNext || Boolean(passwordIssue) || passwordMismatch}>{t("security.changePassword")}</Button></Fieldset.Actions>
         </Fieldset>
       </Form>
     </Card>
 
     <Card className="min-w-0 gap-5 p-5 sm:p-6">
-      <CardHeading title="API 凭据" />
-      {data ? (data.tokens.length ? <ItemCardGroup variant="transparent" role="list" aria-label="API 凭据">
+      <CardHeading title={t("security.apiCredentials")} />
+      {data ? (data.tokens.length ? <ItemCardGroup variant="transparent" role="list" aria-label={t("security.apiCredentials")}>
         {data.tokens.map((item) => <ItemCard key={item.id} role="listitem" variant="transparent" className="flex-wrap px-0">
           <ItemCard.Content className="min-w-36">
-            <div className="flex flex-wrap items-center gap-2"><ItemCard.Title>{item.name}</ItemCard.Title><Chip variant="soft"><Chip.Label>{item.scope === "read" ? "只读" : "读写"}</Chip.Label></Chip></div>
-            <ItemCard.Description className="tabular-nums">{item.expiresAt === 0 ? "永不过期" : `到期 ${formatTime(new Date(item.expiresAt).toISOString())}`}</ItemCard.Description>
+            <div className="flex flex-wrap items-center gap-2"><ItemCard.Title>{item.name}</ItemCard.Title><Chip variant="soft"><Chip.Label>{item.scope === "read" ? t("security.readOnly") : t("security.readWrite")}</Chip.Label></Chip></div>
+            <ItemCard.Description className="tabular-nums">{item.expiresAt === 0 ? t("security.neverExpires") : t("security.expiresAt", { time: formatTime(new Date(item.expiresAt).toISOString()) })}</ItemCard.Description>
           </ItemCard.Content>
-          <ItemCard.Action><Button variant="danger-soft" isDisabled={busy !== null} onPress={() => setRevocation({ id: item.id, kind: "token", name: item.name })}>撤销凭据</Button></ItemCard.Action>
+          <ItemCard.Action><Button variant="danger-soft" isDisabled={busy !== null} onPress={() => setRevocation({ id: item.id, kind: "token", name: item.name })}>{t("security.revokeCredential")}</Button></ItemCard.Action>
         </ItemCard>)}
-      </ItemCardGroup> : <p className="text-sm text-muted">尚未创建 API 凭据。</p>) : !error && <Loading>正在读取 API 凭据</Loading>}
-      <Details title="创建 API 凭据">
+      </ItemCardGroup> : <p className="text-sm text-muted">{t("security.noCredentials")}</p>) : !error && <Loading>{t("security.loadingCredentials")}</Loading>}
+      <Details title={t("security.createCredential")}>
         <Form onSubmit={credential}>
           <Fieldset className="min-w-0 gap-3" disabled={busy !== null}>
             <Fieldset.Group>
-              <Field label="凭据名称" value={name} onChange={(event) => setName(event.target.value)} maxLength={80} required />
+              <Field label={t("security.credentialName")} value={name} onChange={(event) => setName(event.target.value)} maxLength={80} required />
               <div className="grid grid-cols-2 items-start gap-4">
-                <Pick label="凭据权限" value={scope} onChange={setScope} className="credential-scope" options={scopes} isDisabled={busy !== null} />
+                <Pick label={t("security.permission")} value={scope} onChange={setScope} className="credential-scope" options={scopes} isDisabled={busy !== null} />
                 <div className="grid content-start gap-1">
                   <div className="flex min-h-11 items-center gap-1">
-                    <span className="label font-medium text-foreground">有效天数</span>
+                    <span className="label font-medium text-foreground">{t("security.validDays")}</span>
                     <Tooltip delay={350} isOpen={expiryTooltipOpen} onOpenChange={setExpiryTooltipOpen}>
-                      <Button isIconOnly variant="ghost" aria-label="有效天数说明" className="size-11 shrink-0"
+                      <Button isIconOnly variant="ghost" aria-label={t("security.expiryHelpLabel")} className="size-11 shrink-0"
                         onPointerEnter={() => setExpiryTooltipOpen(true)} onPointerLeave={() => setExpiryTooltipOpen(false)}>
                         <Glyph name="info" />
                       </Button>
-                      <Tooltip.Content>0 表示永不过期；1–365 表示有效天数。</Tooltip.Content>
+                      <Tooltip.Content>{t("security.expiryHelp")}</Tooltip.Content>
                     </Tooltip>
                   </div>
-                  <NumericField label="有效天数" hideLabel value={days} onChange={setDays} minValue={0} maxValue={365} isRequired isDisabled={busy !== null} />
+                  <NumericField label={t("security.validDays")} hideLabel value={days} onChange={setDays} minValue={0} maxValue={365} isRequired isDisabled={busy !== null} />
                 </div>
               </div>
             </Fieldset.Group>
-            <Fieldset.Actions><Button type="submit" variant="outline" isPending={busy === "token"} isDisabled={busy !== null && busy !== "token"}>创建凭据</Button></Fieldset.Actions>
+            <Fieldset.Actions><Button type="submit" variant="outline" isPending={busy === "token"} isDisabled={busy !== null && busy !== "token"}>{t("security.create")}</Button></Fieldset.Actions>
           </Fieldset>
         </Form>
       </Details>
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-        <a className="workspace-link" href="https://github.com/Proj-Elements/Rubidium/blob/main/docs/api-mcp.md#http-api" target="_blank" rel="noreferrer">API 文档<Glyph name="link" size={14} /></a>
-        <a className="workspace-link" href="https://github.com/Proj-Elements/Rubidium/blob/main/docs/api-mcp.md#mcp-streamable-http" target="_blank" rel="noreferrer">MCP 文档<Glyph name="link" size={14} /></a>
-        <Button variant="outline" className="min-h-11" onPress={() => setMcpAddressOpen((open) => !open)} aria-expanded={mcpAddressOpen}>MCP 地址</Button>
+        <a className="workspace-link" href="https://github.com/Proj-Elements/Rubidium/blob/main/docs/api-mcp.md#http-api" target="_blank" rel="noreferrer">{t("security.apiDocs")}<Glyph name="link" size={14} /></a>
+        <a className="workspace-link" href="https://github.com/Proj-Elements/Rubidium/blob/main/docs/api-mcp.md#mcp-streamable-http" target="_blank" rel="noreferrer">{t("security.mcpDocs")}<Glyph name="link" size={14} /></a>
+        <Button variant="outline" className="min-h-11" onPress={() => setMcpAddressOpen((open) => !open)} aria-expanded={mcpAddressOpen}>{t("security.openMcpAddress")}</Button>
       </div>
       {mcpAddressOpen && <McpAddress />}
-      {token && <Notice kind="info" action={<Button variant="ghost" onPress={() => setToken("")}>关闭提示</Button>}>
-        <p>凭据只显示这一次。请复制保存，在请求头中使用 <code>Authorization: Bearer</code>。</p>
-        <div className="workspace-field"><Input aria-label="新 API 凭据" className="font-mono" fullWidth value={token} readOnly onFocus={(event) => event.currentTarget.select()} /></div>
+      {token && <Notice kind="info" action={<Button variant="ghost" onPress={() => setToken("")}>{t("security.dismissCredential")}</Button>}>
+        <p>{t("security.tokenShownOnce")}</p>
+        <div className="workspace-field"><Input aria-label={t("security.newCredentialLabel")} className="font-mono" fullWidth value={token} readOnly onFocus={(event) => event.currentTarget.select()} /></div>
       </Notice>}
     </Card>
 
     <Card className="min-w-0 gap-5 p-5 sm:p-6">
-      <CardHeading title="有效会话" />
+      <CardHeading title={t("security.sessions")} />
       {data ? (data.sessions.length ? <>
-        <ItemCardGroup variant="transparent" role="list" aria-label="有效会话">
+        <ItemCardGroup variant="transparent" role="list" aria-label={t("security.sessionList")}>
           {data.sessions.map((item) => <ItemCard key={item.id} role="listitem" variant="transparent" className="flex-wrap px-0">
             <ItemCard.Content className="min-w-36">
-              <ItemCard.Title>会话 <code className="tabular-nums">{item.id.slice(0, 8)}</code></ItemCard.Title>
-              <ItemCard.Description className="tabular-nums">到期 {formatTime(new Date(item.expiresAt).toISOString())}</ItemCard.Description>
+              <ItemCard.Title>{t("security.sessionId", { id: item.id.slice(0, 8) })}</ItemCard.Title>
+              <ItemCard.Description className="tabular-nums">{t("security.expiresAt", { time: formatTime(new Date(item.expiresAt).toISOString()) })}</ItemCard.Description>
             </ItemCard.Content>
-            <ItemCard.Action><Button variant="danger-soft" isDisabled={busy !== null} onPress={() => setRevocation({ id: item.id, kind: "session", name: `会话 ${item.id.slice(0, 8)}` })}>撤销会话</Button></ItemCard.Action>
+            <ItemCard.Action><Button variant="danger-soft" isDisabled={busy !== null} onPress={() => setRevocation({ id: item.id, kind: "session", name: t("security.sessionId", { id: item.id.slice(0, 8) }) })}>{t("security.revokeSession")}</Button></ItemCard.Action>
           </ItemCard>)}
         </ItemCardGroup>
         <Pagination page={data.sessionPagination.page} total={data.sessionPagination.total} pageSize={SECURITY_SESSION_PAGE_SIZE} onChange={setSessionPage} />
-      </> : <p className="text-sm text-muted">暂无有效会话。</p>) : !error && <Loading>正在读取访问记录</Loading>}
+      </> : <p className="text-sm text-muted">{t("security.noSessions")}</p>) : !error && <Loading>{t("security.loadingSessions")}</Loading>}
     </Card>
 
-    {revocation && <Confirm title={`撤销「${revocation.name}」？`} confirmLabel="确认撤销" onClose={() => setRevocation(null)} onConfirm={() => void revoke()} busy={busy === "revoke"}>
-      <p>{revocation.kind === "token" ? "使用此 API 凭据的客户端将失去访问权限。" : "此会话将立即退出，需要重新登录。"}</p>
+    {revocation && <Confirm title={t("security.revokeTitle", { name: revocation.name })} confirmLabel={t("common.confirm")} onClose={() => setRevocation(null)} onConfirm={() => void revoke()} busy={busy === "revoke"}>
+      <p>{revocation.kind === "token" ? t("security.revokeTokenDescription") : t("security.revokeSessionDescription")}</p>
     </Confirm>}
   </div>;
 }
 
 function McpAddress() {
+  const { t } = useTranslations();
   const { notify } = useWorkspace();
   const [address, setAddress] = useState("");
   useEffect(() => setAddress(`${window.location.origin}/api/mcp`), []);
   return <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-2">
-    <Input aria-label="MCP 服务地址" className="min-w-0 font-mono" variant="secondary" value={address} readOnly />
-    <IconButton icon="copy" label="复制 MCP 地址" isDisabled={!address} onPress={() => {
-      void navigator.clipboard.writeText(address).then(() => notify("MCP 地址已复制。"))
-        .catch(() => notify("无法访问剪贴板，请检查浏览器权限。", "error"));
+    <Input aria-label={t("security.mcpAddressLabel")} className="min-w-0 font-mono" variant="secondary" value={address} readOnly />
+    <IconButton icon="copy" label={t("security.copyMcpAddress")} isDisabled={!address} onPress={() => {
+      void navigator.clipboard.writeText(address).then(() => notify(t("security.mcpCopied")))
+        .catch(() => notify(t("security.clipboardDenied"), "error"));
     }} />
   </div>;
 }
 
-const auditActions: Record<string, string> = {
-  "session.create": "登录工作空间", "session.logout": "退出工作空间",
-  "settings.update": "保存推送设置", "history.prune": "清理旧记录",
-  "task.create": "新建提醒", "task.update": "编辑提醒", "task.restore": "恢复归档提醒",
-  "task.active": "启用提醒", "task.paused": "暂停提醒", "task.archive": "归档提醒", "task.delete": "删除提醒",
-  "delivery.retry": "重试投递", "delivery.cancel": "取消投递", "delivery.edit": "编辑投递",
-  "device.create": "添加设备", "device.update": "编辑设备", "device.delete": "删除设备",
-  "security.password.change": "修改访问密码", "security.token.create": "创建 API 凭据",
-  "security.token.revoke": "撤销 API 凭据", "security.session.revoke": "撤销会话", "data.import": "导入加密数据",
+const auditActionKeys: Record<string, MessageKey> = {
+  "session.create": "audit.sessionCreate", "session.logout": "audit.sessionLogout",
+  "settings.update": "audit.settingsUpdate", "history.prune": "audit.historyPrune",
+  "task.create": "audit.taskCreate", "task.update": "audit.taskUpdate", "task.restore": "audit.taskRestore",
+  "task.active": "audit.taskActive", "task.paused": "audit.taskPaused", "task.archive": "audit.taskArchive", "task.delete": "audit.taskDelete",
+  "delivery.retry": "audit.deliveryRetry", "delivery.cancel": "audit.deliveryCancel", "delivery.edit": "audit.deliveryEdit",
+  "device.create": "audit.deviceCreate", "device.update": "audit.deviceUpdate", "device.delete": "audit.deviceDelete",
+  "channel.create": "audit.channelCreate", "channel.update": "audit.channelUpdate", "channel.delete": "audit.channelDelete",
+  "security.password.change": "audit.passwordChange", "security.token.create": "audit.tokenCreate",
+  "security.token.revoke": "audit.tokenRevoke", "security.session.revoke": "audit.sessionRevoke", "data.import": "audit.dataImport",
 };
 const auditPageSize = 8;
 type AuditEvent = { id: string; action: string; target: string; createdAt: string };
 
 export function AuditLog({ active }: { active: boolean }) {
+  const { t } = useTranslations();
   const { formatTime } = useTime();
   const { notify } = useWorkspace();
   const { data, error, refresh } = useResource<{ events: AuditEvent[] }>("/api/audit", 15_000, active);
@@ -210,32 +217,32 @@ export function AuditLog({ active }: { active: boolean }) {
   const events = data?.events.slice((displayedPage - 1) * auditPageSize, displayedPage * auditPageSize) ?? [];
 
   return <Card className="min-w-0 gap-4 p-5 sm:p-6">
-    <CardHeading title="操作审计" />
-    {error && <Notice action={<Button variant="ghost" onPress={() => void refresh()}>重试</Button>}>{error}</Notice>}
+    <CardHeading title={t("settings.audit")} />
+    {error && <Notice action={<Button variant="ghost" onPress={() => void refresh()}>{t("common.retry")}</Button>}>{error}</Notice>}
     {events.length ? <>
-      <ItemCardGroup variant="transparent" role="list" aria-label="操作审计">
+      <ItemCardGroup variant="transparent" role="list" aria-label={t("settings.auditList")}>
         {events.map((item) => <ItemCard key={item.id} role="listitem" variant="transparent" className="min-w-0 px-0">
           <ItemCard.Content>
-            <ItemCard.Title>{auditActions[item.action] ?? item.action}</ItemCard.Title>
+            <ItemCard.Title>{auditActionKeys[item.action] ? t(auditActionKeys[item.action]) : item.action}</ItemCard.Title>
             <ItemCard.Description><time dateTime={item.createdAt} className="tabular-nums">{formatTime(item.createdAt)}</time></ItemCard.Description>
-            <code className="mt-1 max-w-full truncate text-xs text-muted">{item.target || "工作空间"}</code>
+            <code className="mt-1 max-w-full truncate text-xs text-muted">{item.target || t("audit.unknownTarget")}</code>
           </ItemCard.Content>
-          <ItemCard.Action><IconButton icon="inbox" label={`查看审计详情 ${auditActions[item.action] ?? item.action}`} onPress={() => setDetails(item)} /></ItemCard.Action>
+          <ItemCard.Action><IconButton icon="inbox" label={t("security.auditViewNamed", { name: auditActionKeys[item.action] ? t(auditActionKeys[item.action]) : item.action })} onPress={() => setDetails(item)} /></ItemCard.Action>
         </ItemCard>)}
       </ItemCardGroup>
       <Pagination page={displayedPage} total={total} pageSize={auditPageSize} onChange={setPage} />
-    </> : data ? <Empty title="暂无操作记录" /> : !error && <Loading>正在读取操作审计</Loading>}
+    </> : data ? <Empty title={t("settings.auditEmpty")} /> : !error && <Loading>{t("settings.auditLoading")}</Loading>}
     {details && <Modal.Backdrop isOpen onOpenChange={(open) => { if (!open) setDetails(null); }}>
       <Modal.Container size="sm" placement="center"><Modal.Dialog>
-        <Modal.Header><Modal.Heading>操作详情</Modal.Heading></Modal.Header>
+        <Modal.Header><Modal.Heading>{t("settings.auditDetails")}</Modal.Heading></Modal.Header>
         <Modal.Body className="grid gap-4">
-          <p className="font-medium">{auditActions[details.action] ?? details.action}</p>
+          <p className="font-medium">{auditActionKeys[details.action] ? t(auditActionKeys[details.action]) : details.action}</p>
           <time dateTime={details.createdAt} className="text-sm text-muted tabular-nums">{formatTime(details.createdAt)}</time>
-          <div className="grid gap-2"><p className="text-xs text-muted">完整目标标识</p><code className="select-all text-sm [overflow-wrap:anywhere]">{details.target || "工作空间"}</code></div>
+          <div className="grid gap-2"><p className="text-xs text-muted">{t("settings.auditTarget")}</p><code className="select-all text-sm [overflow-wrap:anywhere]">{details.target || t("audit.unknownTarget")}</code></div>
         </Modal.Body>
         <Modal.Footer className="flex-wrap">
-          <Button variant="ghost" onPress={() => setDetails(null)}>关闭</Button>
-          {details.target && <Button variant="outline" onPress={() => { void navigator.clipboard.writeText(details.target).then(() => notify("目标标识已复制。"), () => notify("无法自动复制，请选中完整标识复制。", "error")); }}>复制标识</Button>}
+          <Button variant="ghost" onPress={() => setDetails(null)}>{t("common.close")}</Button>
+          {details.target && <Button variant="outline" onPress={() => { void navigator.clipboard.writeText(details.target).then(() => notify(t("settings.targetCopied")), () => notify(t("settings.targetCopyFailed"), "error")); }}>{t("settings.copyTarget")}</Button>}
         </Modal.Footer>
       </Modal.Dialog></Modal.Container>
     </Modal.Backdrop>}

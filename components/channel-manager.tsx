@@ -10,6 +10,8 @@ import { Glyph } from "./icons";
 import { useResource } from "./use-resource";
 import { useUnsaved } from "./use-unsaved";
 import { useWorkspace } from "./workspace-context";
+import { useTranslations } from "./locale-provider";
+import type { MessageKey } from "@/lib/i18n";
 
 type ChannelDraft = {
   id?: string;
@@ -33,12 +35,13 @@ function draftFromChannel(channel: Channel): ChannelDraft {
   };
 }
 
-function channelStatus(channel: Channel): { label: string; color: "success" | "warning" | "default" } {
-  if (channel.credentialConfigured) return { label: "凭据已配置", color: "success" };
-  return channel.type === "bark" ? { label: "未配置密钥", color: "warning" } : { label: "无需令牌", color: "default" };
+function channelStatus(channel: Channel): { label: MessageKey; color: "success" | "warning" | "default" } {
+  if (channel.credentialConfigured) return { label: "channel.credentialsConfigured", color: "success" };
+  return channel.type === "bark" ? { label: "channel.missingKey", color: "warning" } : { label: "channel.noToken", color: "default" };
 }
 
 export function ChannelManager({ active, onChanged }: { active: boolean; onChanged: () => Promise<void> }) {
+  const { t, locale } = useTranslations();
   const { data, error, refresh } = useResource<{ channels: Channel[] }>("/api/channels", 15_000, active);
   const { notify } = useWorkspace();
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -111,10 +114,10 @@ export function ChannelManager({ active, onChanged }: { active: boolean; onChang
         body: JSON.stringify(draft),
       });
       finishDialog();
-      notify(editing ? "渠道已更新。" : "渠道已添加。");
+      notify(editing ? t("channel.updated") : t("channel.added"));
       await Promise.all([refresh(), onChanged()]);
     } catch (error) {
-      setFeedback({ message: errorMessage(error), kind: "error" });
+      setFeedback({ message: errorMessage(error, locale), kind: "error" });
       void refresh();
     } finally {
       setBusy(null);
@@ -126,8 +129,8 @@ export function ChannelManager({ active, onChanged }: { active: boolean; onChang
     setTestingId(channel.id);
     try {
       await api(`/api/channels/${encodeURIComponent(channel.id)}/test`, { method: "POST", body: "{}" });
-      notify(`已向「${channel.name}」发送测试通知。`);
-    } catch (error) { notify(errorMessage(error), "error"); }
+      notify(t("channel.testSent", { name: channel.isDefault ? t("channel.defaultName") : channel.name }));
+    } catch (error) { notify(errorMessage(error, locale), "error"); }
     finally { setBusy(null); setTestingId(null); }
   }
 
@@ -138,9 +141,9 @@ export function ChannelManager({ active, onChanged }: { active: boolean; onChang
         method: "DELETE", headers: { "if-match": String(channel.revision) },
       });
       setConfirmation(null);
-      notify("渠道已删除。");
+      notify(t("channel.deleted"));
       await Promise.all([refresh(), onChanged()]);
-    } catch (error) { notify(errorMessage(error), "error"); void refresh(); }
+    } catch (error) { notify(errorMessage(error, locale), "error"); void refresh(); }
     finally { setBusy(null); }
   }
 
@@ -150,14 +153,14 @@ export function ChannelManager({ active, onChanged }: { active: boolean; onChang
 
   return <Card className="grid min-w-0 gap-4 p-4 sm:p-5" aria-labelledby="channel-manager-heading">
     <Card.Header className="flex-row flex-wrap items-center justify-between gap-3">
-      <Card.Title render={(props) => <h2 {...props} id="channel-manager-heading" />} className="text-base font-semibold">通知渠道</Card.Title>
+      <Card.Title render={(props) => <h2 {...props} id="channel-manager-heading" />} className="text-base font-semibold">{t("settings.channels")}</Card.Title>
       <Button className="min-h-11" onPress={openCreate} isDisabled={busy !== null || (data?.channels.length ?? 0) >= 101}>
-        <Glyph name="plus" />添加渠道
+        <Glyph name="plus" />{t("channel.add")}
       </Button>
     </Card.Header>
     <Card.Content className="grid min-w-0 gap-4">
-    {error && <Notice action={<Button variant="ghost" onPress={() => void refresh()}>重试</Button>}>{error}</Notice>}
-    {data ? data.channels.length ? <ItemCardGroup variant="transparent" className="overflow-hidden" role="list" aria-label="通知渠道列表">
+    {error && <Notice action={<Button variant="ghost" onPress={() => void refresh()}>{t("common.retry")}</Button>}>{error}</Notice>}
+    {data ? data.channels.length ? <ItemCardGroup variant="transparent" className="overflow-hidden" role="list" aria-label={t("channel.list")}>
       {data.channels.map((channel, index) => {
         const status = channelStatus(channel);
         return <Fragment key={channel.id}>
@@ -166,10 +169,10 @@ export function ChannelManager({ active, onChanged }: { active: boolean; onChang
             <ItemCard.Icon className="size-10 shrink-0 rounded-lg bg-surface-secondary text-muted"><Glyph name="bell" /></ItemCard.Icon>
             <ItemCard.Content className="min-w-0 flex-1">
               <ItemCard.Title className="flex min-w-0 flex-wrap items-center gap-2">
-                <span className="[overflow-wrap:anywhere]">{channel.name}</span>
+                <span className="[overflow-wrap:anywhere]">{channel.isDefault ? t("channel.defaultName") : channel.name}</span>
                 <Chip size="sm" variant="soft" color="accent"><Chip.Label>{channel.type === "bark" ? "Bark" : "Ntfy"}</Chip.Label></Chip>
-                {channel.isDefault && <Chip size="sm" variant="soft" color="accent"><Chip.Label>默认</Chip.Label></Chip>}
-                <Chip size="sm" variant="soft" color={status.color}><Chip.Label>{status.label}</Chip.Label></Chip>
+                {channel.isDefault && <Chip size="sm" variant="soft" color="accent"><Chip.Label>{t("channel.default")}</Chip.Label></Chip>}
+                <Chip size="sm" variant="soft" color={status.color}><Chip.Label>{t(status.label)}</Chip.Label></Chip>
               </ItemCard.Title>
               <ItemCard.Description className="block min-w-0 [overflow-wrap:anywhere]">
                 {channel.endpoint}{channel.type === "ntfy" && ` · ${channel.topic}`}
@@ -178,50 +181,50 @@ export function ChannelManager({ active, onChanged }: { active: boolean; onChang
             <ItemCard.Action className="flex w-full shrink-0 flex-wrap items-center justify-end gap-1 sm:w-auto">
               <Button type="button" variant="outline" className="min-h-11" isPending={busy === "test" && testingId === channel.id}
                 isDisabled={busy !== null || (channel.type === "bark" && !channel.credentialConfigured)} onPress={() => void testChannel(channel)}>
-                <Glyph name="send" />发送测试
+                <Glyph name="send" />{t("channel.test")}
               </Button>
-              <IconButton icon="edit" label={`编辑 ${channel.name}`} variant="outline" className="min-h-11 min-w-11" isDisabled={busy !== null} onPress={() => openEdit(channel)} />
-              {!channel.isDefault && <IconButton icon="trash" label={`删除 ${channel.name}`} variant="danger-soft" className="min-h-11 min-w-11" isDisabled={busy !== null} onPress={() => setConfirmation(channel)} />}
+              <IconButton icon="edit" label={t("taskStatus.editNamed", { name: channel.isDefault ? t("channel.defaultName") : channel.name })} variant="outline" className="min-h-11 min-w-11" isDisabled={busy !== null} onPress={() => openEdit(channel)} />
+              {!channel.isDefault && <IconButton icon="trash" label={t("channel.deleteNamed", { name: channel.name })} variant="danger-soft" className="min-h-11 min-w-11" isDisabled={busy !== null} onPress={() => setConfirmation(channel)} />}
             </ItemCard.Action>
           </ItemCard>
         </Fragment>;
       })}
-    </ItemCardGroup> : <Empty title="还没有通知渠道" action={<Button onPress={openCreate}>添加渠道</Button>} /> : !error && <Loading>正在读取通知渠道</Loading>}
+    </ItemCardGroup> : <Empty title={t("channel.empty")} action={<Button onPress={openCreate}>{t("channel.add")}</Button>} /> : !error && <Loading>{t("channel.loading")}</Loading>}
 
     <Modal.Backdrop isOpen={dialogOpen} onOpenChange={(open) => { if (!open) requestClose(); }} isDismissable={busy !== "save"} isKeyboardDismissDisabled={busy === "save"}>
       <Modal.Container size="md" placement="auto" scroll="inside">
         <Modal.Dialog className="p-0">
           <Form className="flex min-h-0 flex-col" onSubmit={save}>
             <Modal.Header className="shrink-0 flex-row items-start justify-between gap-3 px-5 pt-5 sm:px-6">
-              <Modal.Heading>{editing ? "编辑通知渠道" : "添加通知渠道"}</Modal.Heading>
-              <Modal.CloseTrigger aria-label="关闭渠道编辑" className="static size-11 shrink-0" isDisabled={busy === "save"} />
+              <Modal.Heading>{editing ? t("channel.edit") : t("channel.add")}</Modal.Heading>
+              <Modal.CloseTrigger aria-label={t("channel.closeEditor")} className="static size-11 shrink-0" isDisabled={busy === "save"} />
             </Modal.Header>
             <Modal.Body className="grid min-h-0 content-start gap-4 px-5 py-4 sm:px-6">
-              <Field label="渠道名称" value={draft.name} onChange={(event) => update("name", event.target.value)} maxLength={80} required disabled={busy === "save"} />
-              <Pick label="渠道类型" value={draft.type} onChange={updateType} isDisabled={busy === "save"} options={[
+              <Field label={t("channel.name")} value={draft.name} onChange={(event) => update("name", event.target.value)} maxLength={80} required disabled={busy === "save"} />
+              <Pick label={t("channel.type")} value={draft.type} onChange={updateType} isDisabled={busy === "save"} options={[
                 { value: "bark", label: "Bark" }, { value: "ntfy", label: "Ntfy" },
               ]} />
-              <Field label="服务地址" value={draft.endpoint} onChange={(event) => update("endpoint", event.target.value)} placeholder={draft.type === "bark" ? "https://api.day.app" : "https://ntfy.sh"} type="url" maxLength={300} required disabled={busy === "save"} />
-              {draft.type === "ntfy" && <Field label="Ntfy 主题" value={draft.topic} onChange={(event) => update("topic", event.target.value)} maxLength={64} required disabled={busy === "save"} />}
-              <Field label={draft.type === "bark" ? "Device Key" : "访问令牌"} value={draft.credential} onChange={(event) => update("credential", event.target.value)}
-                placeholder={editing?.credentialConfigured ? "留空保留已保存凭据" : draft.type === "ntfy" ? "可选" : undefined}
+              <Field label={t("channel.endpoint")} value={draft.endpoint} onChange={(event) => update("endpoint", event.target.value)} placeholder={draft.type === "bark" ? "https://api.day.app" : "https://ntfy.sh"} type="url" maxLength={300} required disabled={busy === "save"} />
+              {draft.type === "ntfy" && <Field label={t("channel.topic")} value={draft.topic} onChange={(event) => update("topic", event.target.value)} maxLength={64} required disabled={busy === "save"} />}
+              <Field label={draft.type === "bark" ? "Device Key" : t("channel.credential")} value={draft.credential} onChange={(event) => update("credential", event.target.value)}
+                placeholder={editing?.credentialConfigured ? t("channel.keepCredential") : draft.type === "ntfy" ? t("channel.optional") : undefined}
                 type="password" autoComplete="new-password" maxLength={draft.type === "bark" ? 300 : 512} required={keyRequired} disabled={busy === "save"} />
               {editing?.credentialConfigured && <div className="flex flex-wrap items-center justify-between gap-2">
-                <span className="text-sm text-muted">已保存凭据</span>
+                <span className="text-sm text-muted">{t("channel.savedCredential")}</span>
                 <Button type="button" variant="ghost" className="min-h-11" isDisabled={busy === "save" || Boolean(draft.credential.trim())}
                   onPress={() => setDraft((current) => ({ ...current, clearCredential: !current.clearCredential }))}>
-                  {draft.clearCredential ? "撤销清除" : "清除已保存凭据"}
+                  {draft.clearCredential ? t("channel.undoClear") : t("channel.clearCredential")}
                 </Button>
               </div>}
-              {draft.clearCredential && <Notice kind="warning">保存后会清除已保存凭据。</Notice>}
-              {draft.endpoint.trim().toLowerCase().startsWith("http:") && <Notice kind="warning">当前服务地址使用明文 HTTP。</Notice>}
-              {conflict && <Notice kind="warning">渠道已在其他页面更新，请关闭后重新载入。</Notice>}
+              {draft.clearCredential && <Notice kind="warning">{t("channel.clearWarning")}</Notice>}
+              {draft.endpoint.trim().toLowerCase().startsWith("http:") && <Notice kind="warning">{t("channel.httpWarning")}</Notice>}
+              {conflict && <Notice kind="warning">{t("channel.conflict")}</Notice>}
               {feedback && <Notice kind={feedback.kind}>{feedback.message}</Notice>}
             </Modal.Body>
             <Modal.Footer className="shrink-0 flex-wrap justify-end gap-2 px-5 pb-5 sm:px-6">
-              <Button type="button" variant="ghost" className="min-h-11" isDisabled={busy === "save"} onPress={requestClose}>取消</Button>
+              <Button type="button" variant="ghost" className="min-h-11" isDisabled={busy === "save"} onPress={requestClose}>{t("common.cancel")}</Button>
               <Button type="submit" className="min-h-11" isPending={busy === "save"} isDisabled={!dirty || conflict || busy === "test" || busy === "delete"}>
-                保存渠道
+                {t("channel.save")}
               </Button>
             </Modal.Footer>
           </Form>
@@ -229,11 +232,11 @@ export function ChannelManager({ active, onChanged }: { active: boolean; onChang
       </Modal.Container>
     </Modal.Backdrop>
 
-    {confirmation && <Confirm title={`删除渠道「${confirmation.name}」？`} confirmLabel="删除渠道" onClose={() => setConfirmation(null)} onConfirm={() => void deleteChannel(confirmation)} busy={busy === "delete"}>
-      <p>仍被任务或待投递记录引用的渠道不能删除。</p>
+    {confirmation && <Confirm title={t("channel.deleteTitle", { name: confirmation.name })} confirmLabel={t("channel.delete")} onClose={() => setConfirmation(null)} onConfirm={() => void deleteChannel(confirmation)} busy={busy === "delete"}>
+      <p>{t("channel.deleteDescription")}</p>
     </Confirm>}
-    {discardConfirmation && <Confirm title="放弃渠道修改？" confirmLabel="放弃修改" cancelLabel="继续编辑" onClose={() => setDiscardConfirmation(false)} onConfirm={finishDialog}>
-      <p>本次修改尚未保存。</p>
+    {discardConfirmation && <Confirm title={t("channel.discardTitle")} confirmLabel={t("common.discard")} cancelLabel={t("common.continueEditing")} onClose={() => setDiscardConfirmation(false)} onConfirm={finishDialog}>
+      <p>{t("channel.discardDescription")}</p>
     </Confirm>}
     </Card.Content>
   </Card>;

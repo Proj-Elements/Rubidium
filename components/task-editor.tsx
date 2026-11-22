@@ -5,9 +5,10 @@ import { Segment } from "@heroui-pro/react";
 import { Button, Fieldset, Form, Modal, Popover, Separator, Tooltip } from "@heroui/react";
 import { parseDate } from "@internationalized/date";
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
-import { DEFAULT_REMINDER_BODY, REMINDER_CONTENT_MAX_BYTES, reminderContentBytes } from "@/lib/contracts";
+import { REMINDER_CONTENT_MAX_BYTES, reminderContentBytes } from "@/lib/contracts";
 import type { Channel, RecurrencePreset, Task, TaskInput } from "@/lib/types";
-import { api, clientPresetCron, createIdempotencyKey, duplicateStart, errorMessage, localDateValue, localInputValue, PRESET_LABELS, toOffsetDateTime } from "@/lib/ui";
+import { api, clientPresetCron, createIdempotencyKey, duplicateStart, errorMessage, localDateValue, localInputValue, toOffsetDateTime } from "@/lib/ui";
+import { presetMessageKeys } from "@/lib/i18n";
 import { useTime } from "./use-time";
 import { CalendarField } from "./calendar-field";
 import { Glyph } from "./icons";
@@ -16,14 +17,16 @@ import { useWorkspace } from "./workspace-context";
 import { useUnsaved } from "./use-unsaved";
 import { useResource } from "./use-resource";
 import { TimeZonePicker } from "./time-zone-picker";
+import { useTranslations } from "./locale-provider";
 
 export function TaskEditor({ task, duplicate = false, onClose }: { task?: Task; duplicate?: boolean; onClose: () => void }) {
+  const { t, locale } = useTranslations();
   const { formatTime, timeZone: displayTimeZone } = useTime();
   const [persisted, setPersisted] = useState<Task | undefined>(duplicate ? undefined : task);
   const editing = Boolean(persisted);
   const { refresh, notify, dashboard } = useWorkspace();
   const { data: channels } = useResource<{ channels: Channel[] }>("/api/channels", 0);
-  const [name, setName] = useState(task ? duplicate ? `${task.name.slice(0, 76)}（副本）` : task.name : "");
+  const [name, setName] = useState(task ? duplicate ? `${task.name.slice(0, 80 - t("reminder.duplicateSuffix").length)}${t("reminder.duplicateSuffix")}` : task.name : "");
   const [description, setDescription] = useState(task?.description ?? "");
   const [timeZone, setTimeZone] = useState(task?.timeZone ?? displayTimeZone);
   const [startsAt, setStartsAt] = useState(() => task ? duplicate ? duplicateStart(task) : localInputValue(new Date(task.startsAt), task.timeZone) : localInputValue(new Date(Date.now() + 300_000), displayTimeZone));
@@ -73,7 +76,7 @@ export function TaskEditor({ task, duplicate = false, onClose }: { task?: Task; 
   }
   useEffect(() => { const timer = setInterval(() => setPreviewVersion((value) => value + 1), 30_000); return () => clearInterval(timer); }, []);
   const previewKey = payload.startsAt ? JSON.stringify({
-    name: "预览", startsAt: payload.startsAt, timeZone, preset, cron: generatedCron, repeatCount: payload.repeatCount,
+    name: t("reminder.preview"), startsAt: payload.startsAt, timeZone, preset, cron: generatedCron, repeatCount: payload.repeatCount,
     endDate: payload.endDate, skipDates: payload.skipDates, includeDates: payload.includeDates, taskId: persisted?.id,
   }) : "";
   const [preview, setPreview] = useState<{ key: string; dates: string[]; error: string }>({ key: "", dates: [], error: "" });
@@ -83,15 +86,15 @@ export function TaskEditor({ task, duplicate = false, onClose }: { task?: Task; 
     const timer = setTimeout(() => {
       void api<{ dates: string[] }>("/api/tasks/preview", { method: "POST", body: previewKey, signal: controller.signal })
         .then((data) => setPreview({ key: previewKey, dates: data.dates, error: "" }))
-        .catch((error) => { if (!controller.signal.aborted) setPreview({ key: previewKey, dates: [], error: errorMessage(error) }); });
+        .catch((error) => { if (!controller.signal.aborted) setPreview({ key: previewKey, dates: [], error: errorMessage(error, locale) }); });
     }, 350);
     return () => { clearTimeout(timer); controller.abort(); };
   }, [previewKey, previewVersion]);
 
   const currentPreview = previewKey && preview.key === previewKey ? preview : null;
   const nextPreview = currentPreview?.dates[0];
-  const previewStatus = !previewKey ? "请选择有效的开始时间。" : !currentPreview ? "正在计算排期…"
-    : currentPreview.error ? "暂时无法预览 · 查看原因" : "没有剩余排期";
+  const previewStatus = !previewKey ? t("reminder.noValidStart") : !currentPreview ? t("reminder.calculating")
+    : currentPreview.error ? t("reminder.previewUnavailable") : t("reminder.noOccurrences");
 
   async function save(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -101,7 +104,7 @@ export function TaskEditor({ task, duplicate = false, onClose }: { task?: Task; 
       return;
     }
     if (preset !== "once" && limit === "count" && !Number.isInteger(count)) {
-      setError("请输入有效的重复次数。");
+      setError(t("reminder.validCountRequired"));
       return;
     }
     setBusy(true);
@@ -112,12 +115,12 @@ export function TaskEditor({ task, duplicate = false, onClose }: { task?: Task; 
         method: persisted ? "PUT" : "POST", headers: persisted ? {} : { "idempotency-key": creation.current.key }, body,
       });
       setPersisted(response.task); setSavedPayload(serialized);
-      notify(editing ? "提醒已更新，已排队的消息保持原样。" : "提醒已创建。");
+      notify(editing ? t("reminder.updated") : t("reminder.saved"));
       void refresh();
       window.dispatchEvent(new Event("barker:tasks-changed"));
       if (latestPayload.current === serialized) onClose();
-      else setError("提交内容已保存；保存期间的新修改仍保留在这里，请再次保存。");
-    } catch (error) { setError(errorMessage(error)); }
+      else setError(t("reminder.savedWithNewEdits"));
+    } catch (error) { setError(errorMessage(error, locale)); }
     finally { setBusy(false); }
   }
 
@@ -127,69 +130,69 @@ export function TaskEditor({ task, duplicate = false, onClose }: { task?: Task; 
         <Form className="flex min-h-0 flex-col" onSubmit={save}>
           <Modal.Header className="shrink-0 flex-row items-start justify-between gap-3 px-5 pt-5 sm:px-6">
             <div className="space-y-1">
-              <Modal.Heading className="text-xl font-semibold">{editing ? "编辑提醒" : duplicate ? "复制为新提醒" : "新建提醒"}</Modal.Heading>
+              <Modal.Heading className="text-xl font-semibold">{editing ? t("reminder.edit") : duplicate ? t("reminder.duplicate") : t("reminder.create")}</Modal.Heading>
             </div>
             <Tooltip delay={350}>
-              <Modal.CloseTrigger aria-label="关闭编辑器" className="static shrink-0 max-sm:size-11" isDisabled={busy} />
-              <Tooltip.Content>关闭编辑器</Tooltip.Content>
+              <Modal.CloseTrigger aria-label={t("reminder.closeEditor")} className="static shrink-0 max-sm:size-11" isDisabled={busy} />
+              <Tooltip.Content>{t("reminder.closeEditor")}</Tooltip.Content>
             </Tooltip>
           </Modal.Header>
 
           <Modal.Body className="@container/editor grid content-start gap-5 px-5 py-4 sm:px-6 sm:py-5">
             <div className="grid gap-3">
-              <Field label="提醒名称" value={name} onChange={(event) => setName(event.target.value)} required maxLength={80} placeholder="例如：给绿植浇水" />
-              <AreaField label="提醒内容" rows={2} value={description} onChange={(event) => setDescription(event.target.value)} maxLength={2000}
-                ref={descriptionInput} placeholder={`可选，默认「${DEFAULT_REMINDER_BODY}」`} className="resize-y"
-                error={contentOverLimit ? `内容超出 ${contentSize - REMINDER_CONTENT_MAX_BYTES} 字节，请缩短标题或正文。` : undefined} />
+              <Field label={t("reminder.name")} value={name} onChange={(event) => setName(event.target.value)} required maxLength={80} placeholder={t("reminder.namePlaceholder")} />
+              <AreaField label={t("reminder.content")} rows={2} value={description} onChange={(event) => setDescription(event.target.value)} maxLength={2000}
+                ref={descriptionInput} placeholder={t("reminder.contentPlaceholderWithDefault", { body: t("reminder.defaultBody") })} className="resize-y"
+                error={contentOverLimit ? t("reminder.contentTooLong", { count: contentSize - REMINDER_CONTENT_MAX_BYTES }) : undefined} />
             </div>
 
             <Fieldset className="min-w-0">
-              <Fieldset.Legend className="mb-1 pt-1 font-semibold">排期 <span className="ms-2 text-xs font-normal text-muted [overflow-wrap:anywhere]">{timeZone}</span></Fieldset.Legend>
+              <Fieldset.Legend className="mb-1 pt-1 font-semibold">{t("reminder.schedule")} <span className="ms-2 text-xs font-normal text-muted [overflow-wrap:anywhere]">{timeZone}</span></Fieldset.Legend>
               <Fieldset.Group className="grid gap-3 space-y-0 sm:gap-4">
                 <div className="grid items-start gap-3 sm:grid-cols-[1.3fr_1fr] sm:gap-4">
-                  <CalendarField label="开始时间" value={startsAt} onChange={setStartsAt} timeZone={timeZone} />
-                  <Pick label="重复周期" value={preset} onChange={(value) => setPreset(value as RecurrencePreset)} options={Object.entries(PRESET_LABELS).map(([value, label]) => ({ value, label }))} />
+                  <CalendarField label={t("reminder.startTime")} value={startsAt} onChange={setStartsAt} timeZone={timeZone} />
+                  <Pick label={t("reminder.repeat")} value={preset} onChange={(value) => setPreset(value as RecurrencePreset)} options={Object.entries(presetMessageKeys).map(([value, key]) => ({ value, label: t(key) }))} />
                 </div>
-                {preset === "custom" && <Field label="Cron 表达式" value={cron} onChange={(event) => setCron(event.target.value)} required maxLength={80} />}
-                {preset !== "once" && <section className="grid gap-2" aria-label="结束条件">
+                {preset === "custom" && <Field label={t("reminder.cron")} value={cron} onChange={(event) => setCron(event.target.value)} required maxLength={80} />}
+                {preset !== "once" && <section className="grid gap-2" aria-label={t("reminder.endConditions")}>
                   <div className="grid items-start gap-3 @min-[26rem]/editor:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]">
                     <div className="workspace-field grid gap-1">
-                      <h3 className="label font-medium text-foreground">何时结束</h3>
-                      <Segment aria-label="提醒结束方式" className="w-fit max-w-full" selectedKey={limit} onSelectionChange={(key) => setLimit(String(key))}>
-                        <Segment.Item id="count">按次数</Segment.Item>
-                        <Segment.Item id="date">按日期</Segment.Item>
-                        <Segment.Item id="never">持续重复</Segment.Item>
+                      <h3 className="label font-medium text-foreground">{t("reminder.ends")}</h3>
+                      <Segment aria-label={t("reminder.endCondition")} className="w-fit max-w-full" selectedKey={limit} onSelectionChange={(key) => setLimit(String(key))}>
+                        <Segment.Item id="count">{t("reminder.afterCount")}</Segment.Item>
+                        <Segment.Item id="date">{t("reminder.onDate")}</Segment.Item>
+                        <Segment.Item id="never">{t("reminder.never")}</Segment.Item>
                       </Segment>
                     </div>
-                    {limit === "count" && <NumericField label="重复次数" minValue={1} maxValue={100000} value={count} onChange={setCount} isRequired />}
-                    {limit === "date" && <CalendarField label="截止日期" value={endDate} onChange={setEndDate} timeZone={timeZone} dateOnly />}
+                    {limit === "count" && <NumericField label={t("reminder.repeatCount")} minValue={1} maxValue={100000} value={count} onChange={setCount} isRequired />}
+                    {limit === "date" && <CalendarField label={t("reminder.endDate")} value={endDate} onChange={setEndDate} timeZone={timeZone} dateOnly />}
                   </div>
-                  {persisted && <p className="text-xs leading-relaxed text-muted tabular-nums">已排期 {persisted.queuedCount} 次</p>}
+                  {persisted && <p className="text-xs leading-relaxed text-muted tabular-nums">{t("reminder.scheduledCount", { count: persisted.queuedCount })}</p>}
                 </section>}
               </Fieldset.Group>
             </Fieldset>
 
             <div className="grid gap-3">
-              <Pick label="通知渠道" value={deviceId} onChange={setDeviceId} options={(channels?.channels ?? [{ id: "default", name: "主要通知", type: "bark" }]).map((channel) => ({
-                value: channel.id, label: `${channel.name} · ${channel.type === "ntfy" ? "Ntfy" : "Bark"}`,
+              <Pick label={t("reminder.channel")} value={deviceId} onChange={setDeviceId} options={(channels?.channels ?? [{ id: "default", name: t("channel.defaultName"), type: "bark" }]).map((channel) => ({
+                value: channel.id, label: `${channel.isDefault ? t("channel.defaultName") : channel.name} · ${channel.type === "ntfy" ? "Ntfy" : "Bark"}`,
               }))} />
-              {dashboard?.defaultChannel.type === "bark" && !dashboard.defaultChannel.credentialConfigured && deviceId === "default" && <Notice kind="info" action={<WorkspaceLink href="/settings" className="workspace-link">前往设置</WorkspaceLink>}>默认 Bark 渠道未配置 Device Key。</Notice>}
+              {dashboard?.defaultChannel.type === "bark" && !dashboard.defaultChannel.credentialConfigured && deviceId === "default" && <Notice kind="info" action={<WorkspaceLink href="/settings" className="workspace-link">{t("reminder.openSettings")}</WorkspaceLink>}>{t("reminder.barkMissing")}</Notice>}
             </div>
 
-            <Details title="时区、节假日与通知策略">
-              <TimeZonePicker label="排期时区" value={timeZone} onChange={setTimeZone} />
-              <Field label="跳过日期" value={skipDates} onChange={(event) => setSkipDates(event.target.value)} placeholder="2026-12-25, 2027-01-01" />
-              {preset === "weekdays" && <Field label="补班日期" value={includeDates} onChange={(event) => setIncludeDates(event.target.value)} placeholder="2026-12-26" />}
-              <NumericField label="允许延迟（分钟）" minValue={1} maxValue={525600} value={lateness} onChange={setLateness} />
+            <Details title={t("reminder.advanced")}>
+              <TimeZonePicker label={t("reminder.timeZone")} value={timeZone} onChange={setTimeZone} />
+              <Field label={t("reminder.skipDates")} value={skipDates} onChange={(event) => setSkipDates(event.target.value)} placeholder="2026-12-25, 2027-01-01" />
+              {preset === "weekdays" && <Field label={t("reminder.extraWorkdays")} value={includeDates} onChange={(event) => setIncludeDates(event.target.value)} placeholder="2026-12-26" />}
+              <NumericField label={t("reminder.maxDelay")} minValue={1} maxValue={525600} value={lateness} onChange={setLateness} />
               <div className="grid gap-4 sm:grid-cols-2">
-                <Field label="任务通知分组" value={group} onChange={(event) => setGroup(event.target.value)} maxLength={100} placeholder="使用全局设置" />
-                <Field label="任务提示音" value={sound} onChange={(event) => setSound(event.target.value)} maxLength={80} placeholder="使用全局设置" />
+                <Field label={t("reminder.notificationGroup")} value={group} onChange={(event) => setGroup(event.target.value)} maxLength={100} placeholder={t("reminder.useGlobal")} />
+                <Field label={t("reminder.sound")} value={sound} onChange={(event) => setSound(event.target.value)} maxLength={80} placeholder={t("reminder.useGlobal")} />
               </div>
               <section className="notification-preview grid gap-2 rounded-lg bg-surface-secondary p-4 text-sm">
-                <h3 className="text-xs font-medium text-muted">通知预览</h3>
-                <p className="line-clamp-1 font-semibold break-words">{name || "提醒名称"}</p>
-                <p className="line-clamp-3 break-words whitespace-pre-line text-muted">{description.trim() || DEFAULT_REMINDER_BODY}</p>
-                <p className="line-clamp-1 text-xs break-words text-muted">分组：{group || "全局设置"} · 提示音：{sound || "全局设置"}</p>
+                <h3 className="text-xs font-medium text-muted">{t("reminder.preview")}</h3>
+                <p className="line-clamp-1 font-semibold break-words">{name || t("reminder.notificationTitle")}</p>
+                <p className="line-clamp-3 break-words whitespace-pre-line text-muted">{description.trim() || t("reminder.defaultBody")}</p>
+                <p className="line-clamp-1 text-xs break-words text-muted">{t("reminder.groupLabel", { group: group || t("reminder.globalSettings"), sound: sound || t("reminder.globalSettings") })}</p>
               </section>
             </Details>
           </Modal.Body>
@@ -199,17 +202,17 @@ export function TaskEditor({ task, duplicate = false, onClose }: { task?: Task; 
             <Popover>
               <Button type="button" variant="tertiary" fullWidth className="h-auto min-h-12 justify-between gap-2 rounded-lg px-3 py-2 text-start">
                 <span className="grid min-w-0 gap-0.5">
-                  <span className="text-xs font-medium text-muted">排期预览</span>
+                  <span className="text-xs font-medium text-muted">{t("reminder.schedulePreview")}</span>
                   <span className={currentPreview?.error ? "text-danger-soft-foreground" : "tabular-nums"} aria-live="polite">
-                    {nextPreview ? <>{persisted?.status === "paused" && "若恢复 · "}<time dateTime={nextPreview}>{formatTime(nextPreview)}</time></> : previewStatus}
+                    {nextPreview ? <>{persisted?.status === "paused" && t("reminder.previewPaused")}<time dateTime={nextPreview}>{formatTime(nextPreview)}</time></> : previewStatus}
                   </span>
                 </span>
                 <Glyph name="chevronDown" size={14} className="shrink-0 rotate-180 text-muted" />
               </Button>
               <Popover.Content placement="top start" className="w-72 max-w-[calc(100vw-2rem)] rounded-lg">
                 <Popover.Dialog className="grid gap-2 p-3">
-                  <Popover.Heading className="font-semibold">接下来的提醒</Popover.Heading>
-                  <p className="text-xs text-muted">显示时区：{displayTimeZone}</p>
+                  <Popover.Heading className="font-semibold">{t("reminder.upcoming")}</Popover.Heading>
+                  <p className="text-xs text-muted">{t("reminder.displayTimeZone", { zone: displayTimeZone })}</p>
                   {nextPreview ? <ol className="list-decimal space-y-1 ps-5 tabular-nums">{currentPreview?.dates.slice(0, 3).map((date) => <li key={date}><time dateTime={date}>{formatTime(date)}</time></li>)}</ol>
                     : <p className={currentPreview?.error ? "text-danger-soft-foreground" : "text-muted"}>{currentPreview?.error || previewStatus}</p>}
                   {generatedCron && <p className="text-xs text-muted">Cron <code className="[overflow-wrap:anywhere]">{generatedCron}</code></p>}
@@ -218,15 +221,15 @@ export function TaskEditor({ task, duplicate = false, onClose }: { task?: Task; 
             </Popover>
             {error && <div className="max-h-28 overflow-y-auto"><Notice>{error}</Notice></div>}
             <div className="flex items-center justify-end gap-2">
-              <Button type="button" variant="ghost" className="max-sm:min-h-11" isDisabled={busy} onPress={close}>取消</Button>
-              <Button type="submit" className="max-sm:min-h-11" isPending={busy}>{editing ? "保存修改" : "创建提醒"}</Button>
+              <Button type="button" variant="ghost" className="max-sm:min-h-11" isDisabled={busy} onPress={close}>{t("common.cancel")}</Button>
+              <Button type="submit" className="max-sm:min-h-11" isPending={busy}>{editing ? t("common.save") : t("reminder.create")}</Button>
             </div>
           </Modal.Footer>
         </Form>
       </Modal.Dialog></Modal.Container>
     </Modal.Backdrop>
-    {discardChanges && <Confirm title="放弃尚未保存的修改？" confirmLabel="放弃修改" cancelLabel="继续编辑" onClose={() => setDiscardChanges(false)} onConfirm={onClose}>
-      <p>关闭后，这次对提醒表单的修改将不会保留。</p>
+    {discardChanges && <Confirm title={t("reminder.discardTitle")} confirmLabel={t("common.discard")} cancelLabel={t("common.continueEditing")} onClose={() => setDiscardChanges(false)} onConfirm={onClose}>
+      <p>{t("reminder.discardDescription")}</p>
     </Confirm>}
   </>;
 }

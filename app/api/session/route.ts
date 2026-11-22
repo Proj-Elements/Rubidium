@@ -14,14 +14,14 @@ export const POST = apiRoute(async (request: Request): Promise<NextResponse> => 
   const blocked = requireSameOriginMutation(request);
   if (blocked) return blocked;
   const { password, mode, timeZone, setupToken } = jsonObjectBody(await requestBody(request));
-  if (typeof password !== "string") return jsonError("请输入访问密码", 400);
-  if (password.length > MAX_SECRET_LENGTH) return jsonError("访问密码过长", 400);
+  if (typeof password !== "string") return jsonError("请输入访问密码", 400, { key: "gate.passwordRequired" });
+  if (password.length > MAX_SECRET_LENGTH) return jsonError("访问密码过长", 400, { key: "password.tooLong", values: { count: MAX_SECRET_LENGTH } });
   if (mode !== undefined && mode !== "login" && mode !== "setup") return jsonError("初始化请求无效", 400);
   if (mode === "setup") {
-    if (passwordIsConfigured()) return jsonError("初始化已完成，请刷新页面后登录", 409);
+    if (passwordIsConfigured()) return jsonError("初始化已完成，请刷新页面后登录", 409, { key: "gate.setupCompleteError" });
     const setup = setupConfiguration();
     if (!setup.enabled) return jsonError("首次初始化未启用，请部署者配置引导令牌或显式启用初始化", 403);
-    if (setup.tokenRequired && !verifySetupToken(setupToken)) return jsonError("部署引导令牌无效", 403);
+    if (setup.tokenRequired && !verifySetupToken(setupToken)) return jsonError("部署引导令牌无效", 403, { key: "gate.invalidSetupToken" });
     if (timeZone !== undefined && typeof timeZone !== "string") return jsonError("时区无效", 400);
     if (!initializePassword(password, timeZone)) return jsonError("初始化已由其他请求完成，请刷新页面后登录", 409);
   } else {
@@ -31,7 +31,7 @@ export const POST = apiRoute(async (request: Request): Promise<NextResponse> => 
   const now = Date.now();
   if (mode !== "setup" && !verifyPassword(password, now, clientKey)) {
     const wait = loginRetryAfter(clientKey, now);
-    const response = jsonError(wait ? "错误尝试次数过多，请稍后再试" : "访问密码错误", wait ? 429 : 401);
+    const response = jsonError(wait ? "错误尝试次数过多，请稍后再试" : "访问密码错误", wait ? 429 : 401, { key: wait ? "gate.rateLimited" : "gate.signInFailed" });
     if (wait) response.headers.set("retry-after", String(wait));
     return response;
   }

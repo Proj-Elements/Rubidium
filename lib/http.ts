@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { DomainError } from "./errors";
 import { randomUUID } from "node:crypto";
 import { logError } from "./logging";
+import type { LocalizedMessage } from "./i18n";
 
 /** Requests are tiny JSON documents; anything bigger is abuse or a mistake. */
 export const MAX_REQUEST_BYTES = 64 * 1024;
@@ -10,7 +11,7 @@ export class HttpError extends DomainError {}
 
 export async function requestBytes(request: Request, maximumBytes = MAX_REQUEST_BYTES): Promise<Buffer> {
   const declared = Number(request.headers.get("content-length") ?? "0");
-  if (Number.isFinite(declared) && declared > maximumBytes) throw new HttpError("请求体过大", 413);
+  if (Number.isFinite(declared) && declared > maximumBytes) throw new HttpError("请求体过大", 413, { key: "errors.requestTooLarge" });
   try {
     const reader = request.body?.getReader();
     if (!reader) throw new HttpError("请求必须包含有效 JSON", 400);
@@ -22,7 +23,7 @@ export async function requestBytes(request: Request, maximumBytes = MAX_REQUEST_
       bytes += value.byteLength;
       if (bytes > maximumBytes) {
         await reader.cancel();
-        throw new HttpError("请求体过大", 413);
+        throw new HttpError("请求体过大", 413, { key: "errors.requestTooLarge" });
       }
       chunks.push(value);
     }
@@ -33,14 +34,14 @@ export async function requestBytes(request: Request, maximumBytes = MAX_REQUEST_
   }
 }
 
-export function jsonError(message: string, status: number): NextResponse {
-  return NextResponse.json({ error: message }, { status });
+export function jsonError(message: string, status: number, localized?: LocalizedMessage): NextResponse {
+  return NextResponse.json({ error: message, ...(localized ? { errorKey: localized.key, ...(localized.values ? { errorValues: localized.values } : {}) } : {}) }, { status });
 }
 
 /** Turn a domain error into its intended status and everything else into a sanitized 500. */
 export function jsonErrorFrom(error: unknown, fallbackStatus = 500, fallbackMessage = "服务暂时无法完成请求，请稍后重试"): NextResponse {
-  if (error instanceof DomainError) return jsonError(error.message, error.status);
-  return jsonError(fallbackMessage, fallbackStatus);
+  if (error instanceof DomainError) return jsonError(error.message, error.status, error.localized);
+  return jsonError(fallbackMessage, fallbackStatus, { key: "common.operationFailed" });
 }
 
 /** Keep every API failure in the JSON contract, including auth/DB bootstrapping errors. */
@@ -72,7 +73,7 @@ export function expectedRevision(value: unknown): number {
 
 export async function requestBody(request: Request, maximumBytes = MAX_REQUEST_BYTES): Promise<unknown> {
   const text = new TextDecoder().decode(await requestBytes(request, maximumBytes));
-  if (Buffer.byteLength(text, "utf8") > maximumBytes) throw new HttpError("请求体过大", 413);
+  if (Buffer.byteLength(text, "utf8") > maximumBytes) throw new HttpError("请求体过大", 413, { key: "errors.requestTooLarge" });
   try {
     return JSON.parse(text) as unknown;
   } catch {
@@ -97,7 +98,7 @@ export function requireSameOriginMutation(request: Request, maximumBytes = MAX_R
   const method = request.method.toUpperCase();
   if (method === "GET" || method === "HEAD") return null;
   const declared = Number(request.headers.get("content-length") ?? "0");
-  if (Number.isFinite(declared) && declared > maximumBytes) return jsonError("请求体过大", 413);
+  if (Number.isFinite(declared) && declared > maximumBytes) return jsonError("请求体过大", 413, { key: "errors.requestTooLarge" });
   const contentType = (request.headers.get("content-type") ?? "").split(";", 1)[0].trim().toLowerCase();
   const expectsJsonBody = method === "POST" || method === "PUT" || method === "PATCH";
   if (expectsJsonBody && contentType !== "application/json") {

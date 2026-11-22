@@ -2,12 +2,12 @@
 
 import { useEffect, useState } from "react";
 import { IconButton } from "./primitives";
+import { useTranslations } from "./locale-provider";
 
 const preferenceKey = "barker:appearance";
 type Appearance = "system" | "light" | "dark";
-const labels: Record<Appearance, string> = { system: "跟随系统", light: "浅色", dark: "深色" };
-
 export function ThemeToggle() {
+  const { t } = useTranslations();
   const [appearance, setAppearance] = useState<Appearance>("system");
   const [systemDark, setSystemDark] = useState(false);
 
@@ -38,6 +38,6 @@ export function ThemeToggle() {
   }
 
   const dark = appearance === "dark" || (appearance === "system" && systemDark);
-  const nextAppearance = appearance === "system" ? "浅色" : appearance === "light" ? "深色" : "跟随系统";
-  return <IconButton icon={appearance === "system" ? "display" : dark ? "moon" : "sun"} label={`外观：${labels[appearance]}，切换为${nextAppearance}`} onPress={toggle} />;
+  const nextAppearance = appearance === "system" ? t("theme.light") : appearance === "light" ? t("theme.dark") : t("theme.system");
+  return <IconButton icon={appearance === "system" ? "display" : dark ? "moon" : "sun"} label={t("theme.toggle", { current: t(`theme.${appearance}`), next: nextAppearance })} onPress={toggle} />;
 }

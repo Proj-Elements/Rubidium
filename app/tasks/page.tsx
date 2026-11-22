@@ -11,19 +11,22 @@ import { Selection } from "@/components/selection";
 import { useResource } from "@/components/use-resource";
 import { useWorkspace } from "@/components/workspace-context";
 import type { Task } from "@/lib/types";
-import { api, errorMessage, PRESET_LABELS } from "@/lib/ui";
+import { api, errorMessage } from "@/lib/ui";
 import { useTime } from "@/components/use-time";
+import { useTranslations } from "@/components/locale-provider";
+import { presetMessageKeys } from "@/lib/i18n";
 
-const filters = [
-  { value: "all", label: "全部提醒" },
-  { value: "active", label: "进行中" },
-  { value: "paused", label: "已暂停" },
-  { value: "completed", label: "排期结束" },
-  { value: "archived", label: "已归档" },
-];
 const PAGE_SIZE = 10;
 
 export default function TasksPage() {
+  const { t, locale } = useTranslations();
+  const filters = [
+    { value: "all", label: t("delivery.filterAll") },
+    { value: "active", label: t("taskStatus.active") },
+    { value: "paused", label: t("taskStatus.paused") },
+    { value: "completed", label: t("taskStatus.completed") },
+    { value: "archived", label: t("taskStatus.archived") },
+  ];
   const { refresh: refreshDashboard, notify, openTask } = useWorkspace();
   const { filter, setFilter, setPage, query, setQuery, search, params, selected, setSelected, clearFilters } = useRecordQuery(PAGE_SIZE, filters);
   const [archive, setArchive] = useState<Task | null>(null);
@@ -43,11 +46,11 @@ export default function TasksPage() {
       await api(`/api/tasks/${task.id}`, {
         method: "PATCH", body: JSON.stringify({ status: task.status === "paused" ? "active" : "paused", revision: task.revision }),
       });
-      notify(task.status === "paused" ? "提醒已恢复，暂停期间不会补发。" : "提醒已暂停，已排队的消息会继续投递。");
+      notify(task.status === "paused" ? t("taskStatus.resumedToast") : t("taskStatus.pausedToast"));
       await refresh();
       void refreshDashboard();
     } catch (error) {
-      notify(errorMessage(error), "error");
+      notify(errorMessage(error, locale), "error");
     } finally {
       setBusy("");
     }
@@ -59,11 +62,11 @@ export default function TasksPage() {
     try {
       await api(`/api/tasks/${archive.id}`, { method: "DELETE", headers: { "if-match": String(archive.revision) } });
       setArchive(null);
-      notify("提醒已归档。投递记录和待发送消息均已保留。");
+      notify(t("taskStatus.archived"));
       await refresh();
       void refreshDashboard();
     } catch (error) {
-      notify(errorMessage(error), "error");
+      notify(errorMessage(error, locale), "error");
     } finally {
       setBusy("");
     }
@@ -78,9 +81,9 @@ export default function TasksPage() {
     try {
       const result = await api<{ results: Array<{ success: boolean; error?: string }> }>("/api/tasks", { method: "PATCH", body: JSON.stringify({ status, items }) });
       const failures = result.results.filter((item) => !item.success);
-      notify(failures.length ? failures.map((item) => item.error).join("；") : "批量操作完成", failures.length ? "error" : "success");
+      notify(failures.length ? failures.map((item) => item.error).join("; ") : t("taskStatus.bulkDone"), failures.length ? "error" : "success");
       setSelected([]); await Promise.all([refresh(), refreshDashboard()]);
-    } catch (error) { notify(errorMessage(error), "error"); }
+    } catch (error) { notify(errorMessage(error, locale), "error"); }
     finally { setConfirmBulkArchive(false); setBusy(""); }
   }
 
@@ -88,9 +91,9 @@ export default function TasksPage() {
     setBusy(task.id);
     try {
       await api(`/api/tasks/${task.id}`, { method: "PATCH", body: JSON.stringify({ status: "active", revision: task.revision }) });
-      notify("提醒已恢复，归档期间不会补发。");
+      notify(t("taskStatus.restored"));
       await Promise.all([refresh(), refreshDashboard()]);
-    } catch (error) { notify(errorMessage(error), "error"); }
+    } catch (error) { notify(errorMessage(error, locale), "error"); }
     finally { setBusy(""); }
   }
 
@@ -99,40 +102,40 @@ export default function TasksPage() {
     setBusy(destroy.id);
     try {
       await api(`/api/tasks/${destroy.id}?permanent=1`, { method: "DELETE", headers: { "if-match": String(destroy.revision) } });
-      setDestroy(null); notify("任务及其投递记录已永久删除。");
+      setDestroy(null); notify(t("taskStatus.deleted"));
       await Promise.all([refresh(), refreshDashboard()]);
-    } catch (error) { notify(errorMessage(error), "error"); }
+    } catch (error) { notify(errorMessage(error, locale), "error"); }
     finally { setBusy(""); }
   }
 
-  const selectPage = <Selection text="选择本页提醒" selected={Boolean(data?.tasks.length && selectedTasks.length === data.tasks.length)} partial={selectedTasks.length > 0 && selectedTasks.length !== data?.tasks.length} disabled={Boolean(busy)} onChange={(value) => setSelected(value ? data?.tasks.map((task) => task.id) ?? [] : [])} />;
+  const selectPage = <Selection text={t("taskStatus.selectPage")} selected={Boolean(data?.tasks.length && selectedTasks.length === data.tasks.length)} partial={selectedTasks.length > 0 && selectedTasks.length !== data?.tasks.length} disabled={Boolean(busy)} onChange={(value) => setSelected(value ? data?.tasks.map((task) => task.id) ?? [] : [])} />;
   function taskActions(task: Task) {
     return <TaskActions task={task} busy={Boolean(busy)} onToggle={() => void toggle(task)} onArchive={() => setArchive(task)} onRestore={() => void restore(task)} onDelete={() => setDestroy(task)} />;
   }
   const columns: DataGridColumn<Task>[] = [
-    { id: "name", header: "提醒事项", isRowHeader: true, minWidth: 200, cell: (task) => <TaskName task={task} /> },
-    { id: "schedule", header: "下次排期", minWidth: 195, cell: (task) => <TaskSchedule task={task} /> },
-    { id: "counts", header: "投递计数", minWidth: 140, cell: (task) => <TaskCounts task={task} /> },
-    { id: "status", header: "状态", width: 110, cell: (task) => <TaskBadge task={task} /> },
-    { id: "actions", header: <span className="sr-only">操作</span>, width: 100, pinned: "end", cell: taskActions },
+    { id: "name", header: t("taskStatus.tableName"), isRowHeader: true, minWidth: 200, cell: (task) => <TaskName task={task} /> },
+    { id: "schedule", header: t("taskStatus.nextRun"), minWidth: 195, cell: (task) => <TaskSchedule task={task} /> },
+    { id: "counts", header: t("taskStatus.deliveryCount"), minWidth: 140, cell: (task) => <TaskCounts task={task} /> },
+    { id: "status", header: t("taskStatus.status"), width: 110, cell: (task) => <TaskBadge task={task} /> },
+    { id: "actions", header: <span className="sr-only">{t("common.actions")}</span>, width: 100, pinned: "end", cell: taskActions },
   ];
 
   return (
     <div className="grid gap-6 pb-12">
-      <PageHeading title="所有提醒" />
-      <RecordList label="提醒状态" searchLabel="搜索提醒" filters={filters} filter={filter} query={query} onFilter={setFilter} onSearch={setQuery}>
-        {error && <Notice action={<Button variant="ghost" onPress={() => void refresh()}>重试</Button>}>{error}</Notice>}
-        {!data ? !error && <Loading>正在读取提醒</Loading> : !data.tasks.length ? <Card>
-          <Empty title={filtered ? "没有匹配的提醒" : "暂无提醒"}
-            icon={filtered ? "search" : "calendar"} action={filtered ? <Button variant="outline" onPress={clearFilters}>清除筛选</Button> : <Button onPress={() => openTask()}>创建提醒</Button>} />
+      <PageHeading title={t("page.reminders")} />
+      <RecordList label={t("taskStatus.filter")} searchLabel={t("taskStatus.search")} filters={filters} filter={filter} query={query} onFilter={setFilter} onSearch={setQuery}>
+        {error && <Notice action={<Button variant="ghost" onPress={() => void refresh()}>{t("common.retry")}</Button>}>{error}</Notice>}
+        {!data ? !error && <Loading>{t("taskStatus.loading")}</Loading> : !data.tasks.length ? <Card>
+          <Empty title={filtered ? t("taskStatus.noMatching") : t("taskStatus.empty")}
+            icon={filtered ? "search" : "calendar"} action={filtered ? <Button variant="outline" onPress={clearFilters}>{t("taskStatus.clearFilters")}</Button> : <Button onPress={() => openTask()}>{t("reminder.create")}</Button>} />
         </Card> : <>
-          <DataGrid aria-label="提醒列表" className="hidden @min-[54rem]/records:block" data={data.tasks} columns={columns} getRowId={(task) => task.id}
+          <DataGrid aria-label={t("taskStatus.reminderList")} className="hidden @min-[54rem]/records:block" data={data.tasks} columns={columns} getRowId={(task) => task.id}
             selectionMode="multiple" showSelectionCheckboxes selectedKeys={new Set(selectedTasks.map(({ id }) => id))}
             disabledKeys={busy ? data.tasks.map(({ id }) => id) : undefined}
             onSelectionChange={(keys) => setSelected(keys === "all" ? data.tasks.map(({ id }) => id) : [...keys].map(String))} />
           <div className="grid gap-3 @min-[54rem]/records:hidden">
             <div className="px-2">{selectPage}</div>
-            <ListView aria-label="提醒列表" items={data.tasks} selectionMode="multiple" selectedKeys={selectedTasks.map(({ id }) => id)}
+            <ListView aria-label={t("taskStatus.reminderList")} items={data.tasks} selectionMode="multiple" selectedKeys={selectedTasks.map(({ id }) => id)}
               disabledKeys={busy ? data.tasks.map(({ id }) => id) : undefined}
               onSelectionChange={(keys) => setSelected(keys === "all" ? data.tasks.map(({ id }) => id) : [...keys].map(String))}>
               {(task) => <ListView.Item id={task.id} textValue={task.name} className="items-start p-4">
@@ -150,71 +153,75 @@ export default function TasksPage() {
         </>}
       </RecordList>
       <BulkActions count={selectedTasks.length} disabled={Boolean(busy)} onClear={() => setSelected([])}>
-        <Button size="sm" variant="ghost" isDisabled={!canPause || Boolean(busy)} onPress={() => void bulk("paused")}>暂停</Button>
-        <Button size="sm" variant="ghost" isDisabled={!canResume || Boolean(busy)} onPress={() => void bulk("active")}>恢复</Button>
-        <Button size="sm" variant="danger-soft" isDisabled={!canArchive || Boolean(busy)} onPress={() => setConfirmBulkArchive(true)}>归档</Button>
+        <Button size="sm" variant="ghost" isDisabled={!canPause || Boolean(busy)} onPress={() => void bulk("paused")}>{t("taskStatus.pause")}</Button>
+        <Button size="sm" variant="ghost" isDisabled={!canResume || Boolean(busy)} onPress={() => void bulk("active")}>{t("taskStatus.resume")}</Button>
+        <Button size="sm" variant="danger-soft" isDisabled={!canArchive || Boolean(busy)} onPress={() => setConfirmBulkArchive(true)}>{t("taskStatus.archive")}</Button>
       </BulkActions>
       {archive && (
-        <Confirm title={`归档「${archive.name}」？`} confirmLabel="确认归档" onClose={() => setArchive(null)} onConfirm={() => void archiveTask()} busy={busy === archive.id}>
-          <p>未来的排期将停止。已经到期的提醒会继续投递，全部历史记录都会保留，你也可以随时复制为新提醒。</p>
+        <Confirm title={t("taskStatus.archiveTitle", { name: archive.name })} confirmLabel={t("taskStatus.archiveConfirm")} onClose={() => setArchive(null)} onConfirm={() => void archiveTask()} busy={busy === archive.id}>
+          <p>{t("taskStatus.archiveDescription")}</p>
         </Confirm>
       )}
-      {confirmBulkArchive && <Confirm title="归档选中的提醒？" confirmLabel="确认批量归档" onClose={() => setConfirmBulkArchive(false)} onConfirm={() => void bulk("archived")} busy={busy === "bulk"}>
-        <p>这些提醒的未来排期将停止，已到期的消息和历史记录会保留。</p>
+      {confirmBulkArchive && <Confirm title={t("taskStatus.bulkArchiveTitle")} confirmLabel={t("taskStatus.bulkArchiveConfirm")} onClose={() => setConfirmBulkArchive(false)} onConfirm={() => void bulk("archived")} busy={busy === "bulk"}>
+        <p>{t("taskStatus.bulkArchiveDescription")}</p>
       </Confirm>}
-      {destroy && <Confirm title={`永久删除「${destroy.name}」？`} confirmLabel="永久删除" onClose={() => setDestroy(null)} onConfirm={() => void removePermanently()} busy={busy === destroy.id}><p>任务、待投递消息和全部尝试历史都会删除，此操作无法撤销。</p></Confirm>}
+      {destroy && <Confirm title={t("taskStatus.deleteTitle", { name: destroy.name })} confirmLabel={t("taskStatus.delete")} onClose={() => setDestroy(null)} onConfirm={() => void removePermanently()} busy={busy === destroy.id}><p>{t("taskStatus.deleteDescription")}</p></Confirm>}
     </div>
   );
 }
 
 function TaskName({ task }: { task: Task }) {
+  const { t } = useTranslations();
   return <div className="min-w-0 space-y-1">
     <strong className="line-clamp-2 text-sm font-semibold break-words">{task.name}</strong>
     {task.description && <p className="line-clamp-2 text-xs leading-relaxed break-words text-muted">{task.description}</p>}
-    {task.lastError && <p className="line-clamp-2 text-xs break-words text-warning-soft-foreground">{task.pendingCount > 0 ? "有消息等待处理" : task.lastError}</p>}
+    {task.lastError && <p className="line-clamp-2 text-xs break-words text-warning-soft-foreground">{task.pendingCount > 0 ? t("taskStatus.messagesWaiting") : task.lastError}</p>}
   </div>;
 }
 
 function TaskSchedule({ task }: { task: Task }) {
   const { formatTime } = useTime();
+  const { t } = useTranslations();
   return <div className="space-y-1 text-sm tabular-nums">
-    {task.status === "active" && task.nextRunAt ? <time dateTime={task.nextRunAt}>{formatTime(task.nextRunAt)}</time> : <p>{task.status === "paused" ? "恢复后继续" : "—"}</p>}
-    <p className="text-xs text-muted">{PRESET_LABELS[task.preset]} · {task.timeZone}</p>
+    {task.status === "active" && task.nextRunAt ? <time dateTime={task.nextRunAt}>{formatTime(task.nextRunAt)}</time> : <p>{task.status === "paused" ? t("taskStatus.resumeAfterPause") : "—"}</p>}
+    <p className="text-xs text-muted">{t(presetMessageKeys[task.preset])} · {task.timeZone}</p>
     {task.preset === "custom" && <code className="text-xs text-muted">{task.cron}</code>}
   </div>;
 }
 
 function TaskCounts({ task }: { task: Task }) {
+  const { t } = useTranslations();
   return <div className="space-y-1 text-xs text-muted tabular-nums">
-    <p className="text-sm text-foreground">{task.sentCount} 次已接收</p>
-    <p>排期 {task.queuedCount}{task.repeatCount ? ` / ${task.repeatCount}` : task.endDate ? ` · 截至 ${task.endDate}` : ""}</p>
-    {task.pendingCount > 0 && <p>{task.pendingCount} 条待投递</p>}
+    <p className="text-sm text-foreground">{t("taskStatus.sentCount", { count: task.sentCount })}</p>
+    <p>{task.repeatCount ? t("taskStatus.queuedOf", { queued: task.queuedCount, total: task.repeatCount }) : task.endDate ? `${t("taskStatus.queuedCount", { queued: task.queuedCount })}${t("taskStatus.endsAt", { date: task.endDate })}` : t("taskStatus.queuedCount", { queued: task.queuedCount })}</p>
+    {task.pendingCount > 0 && <p>{t("taskStatus.pendingCount", { count: task.pendingCount })}</p>}
   </div>;
 }
 
 function TaskActions({ task, busy, onToggle, onArchive, onRestore, onDelete }: { task: Task; busy: boolean; onToggle: () => void; onArchive: () => void; onRestore: () => void; onDelete: () => void }) {
+  const { t } = useTranslations();
   const { openTask } = useWorkspace();
   const editable = task.status === "active" || task.status === "paused";
   return (
     <div className="flex shrink-0 items-center justify-end gap-1">
-      {editable && <IconButton label={`编辑 ${task.name}`} icon="edit" onPress={() => openTask(task)} isDisabled={busy} />}
+      {editable && <IconButton label={t("taskStatus.editNamed", { name: task.name })} icon="edit" onPress={() => openTask(task)} isDisabled={busy} />}
       <Dropdown>
-        <IconButton label={`更多操作 ${task.name}`} icon="more" isDisabled={busy} />
+        <IconButton label={t("taskStatus.moreNamed", { name: task.name })} icon="more" isDisabled={busy} />
         <Dropdown.Popover>
-          <Dropdown.Menu aria-label={`${task.name}的操作`} onAction={(key) => {
+          <Dropdown.Menu aria-label={t("taskStatus.moreNamed", { name: task.name })} onAction={(key) => {
             if (key === "toggle") onToggle();
             if (key === "copy") openTask(task, true);
             if (key === "archive") onArchive();
             if (key === "restore") onRestore();
             if (key === "delete") onDelete();
           }}>
-            {editable && <Dropdown.Item id="toggle" textValue={task.status === "paused" ? "恢复提醒" : "暂停提醒"}>
-              <Glyph name={task.status === "paused" ? "play" : "pause"} /><Label>{task.status === "paused" ? "恢复提醒" : "暂停提醒"}</Label>
+            {editable && <Dropdown.Item id="toggle" textValue={task.status === "paused" ? t("taskStatus.resume") : t("taskStatus.pause")}>
+              <Glyph name={task.status === "paused" ? "play" : "pause"} /><Label>{task.status === "paused" ? t("taskStatus.resume") : t("taskStatus.pause")}</Label>
             </Dropdown.Item>}
-            <Dropdown.Item id="copy" textValue="复制为新提醒"><Glyph name="copy" /><Label>复制为新提醒</Label></Dropdown.Item>
-            {task.status !== "archived" && <Dropdown.Item id="archive" textValue="归档提醒"><Glyph name="archive" /><Label>归档提醒</Label></Dropdown.Item>}
-            {task.status === "archived" && <Dropdown.Item id="restore" textValue="恢复归档提醒"><Glyph name="play" /><Label>恢复归档提醒</Label></Dropdown.Item>}
-            {task.status === "archived" && <Dropdown.Item id="delete" textValue="永久删除" variant="danger"><Glyph name="trash" /><Label>永久删除</Label></Dropdown.Item>}
+            <Dropdown.Item id="copy" textValue={t("taskStatus.copy")}><Glyph name="copy" /><Label>{t("taskStatus.copy")}</Label></Dropdown.Item>
+            {task.status !== "archived" && <Dropdown.Item id="archive" textValue={t("taskStatus.archive")}><Glyph name="archive" /><Label>{t("taskStatus.archive")}</Label></Dropdown.Item>}
+            {task.status === "archived" && <Dropdown.Item id="restore" textValue={t("taskStatus.restore")}><Glyph name="play" /><Label>{t("taskStatus.restore")}</Label></Dropdown.Item>}
+            {task.status === "archived" && <Dropdown.Item id="delete" textValue={t("taskStatus.delete")} variant="danger"><Glyph name="trash" /><Label>{t("taskStatus.delete")}</Label></Dropdown.Item>}
           </Dropdown.Menu>
         </Dropdown.Popover>
       </Dropdown>
