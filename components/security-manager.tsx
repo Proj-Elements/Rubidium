@@ -2,7 +2,7 @@
 
 import { Button, Card, Chip, FieldError, Fieldset, Form, Input, Label, Modal, TextField, Tooltip } from "@heroui/react";
 import { ItemCard, ItemCardGroup } from "@heroui-pro/react";
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { SECURITY_SESSION_PAGE_SIZE } from "@/lib/contracts";
 import { api, errorMessage } from "@/lib/ui";
 import { Glyph } from "./icons";
@@ -36,6 +36,7 @@ export function SecurityManager({ active }: { active: boolean }) {
   const [days, setDays] = useState(defaultDays);
   const [expiryTooltipOpen, setExpiryTooltipOpen] = useState(false);
   const [token, setToken] = useState("");
+  const [mcpAddressOpen, setMcpAddressOpen] = useState(false);
   const [revocation, setRevocation] = useState<{ id: string; kind: "session" | "token"; name: string } | null>(null);
   const [busy, setBusy] = useState<"password" | "token" | "revoke" | null>(null);
   const passwordReason = next ? passwordValidationMessage(next) : null;
@@ -138,6 +139,12 @@ export function SecurityManager({ active }: { active: boolean }) {
           </Fieldset>
         </Form>
       </Details>
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+        <a className="workspace-link" href="https://github.com/Proj-Elements/Rubidium/blob/main/docs/api-mcp.md#http-api" target="_blank" rel="noreferrer">API 文档<Glyph name="link" size={14} /></a>
+        <a className="workspace-link" href="https://github.com/Proj-Elements/Rubidium/blob/main/docs/api-mcp.md#mcp-streamable-http" target="_blank" rel="noreferrer">MCP 文档<Glyph name="link" size={14} /></a>
+        <Button variant="outline" className="min-h-11" onPress={() => setMcpAddressOpen((open) => !open)} aria-expanded={mcpAddressOpen}>MCP 地址</Button>
+      </div>
+      {mcpAddressOpen && <McpAddress />}
       {token && <Notice kind="info" action={<Button variant="ghost" onPress={() => setToken("")}>关闭提示</Button>}>
         <p>凭据只显示这一次。请复制保存，在请求头中使用 <code>Authorization: Bearer</code>。</p>
         <div className="workspace-field"><Input aria-label="新 API 凭据" className="font-mono" fullWidth value={token} readOnly onFocus={(event) => event.currentTarget.select()} /></div>
@@ -163,6 +170,19 @@ export function SecurityManager({ active }: { active: boolean }) {
     {revocation && <Confirm title={`撤销「${revocation.name}」？`} confirmLabel="确认撤销" onClose={() => setRevocation(null)} onConfirm={() => void revoke()} busy={busy === "revoke"}>
       <p>{revocation.kind === "token" ? "使用此 API 凭据的客户端将失去访问权限。" : "此会话将立即退出，需要重新登录。"}</p>
     </Confirm>}
+  </div>;
+}
+
+function McpAddress() {
+  const { notify } = useWorkspace();
+  const [address, setAddress] = useState("");
+  useEffect(() => setAddress(`${window.location.origin}/api/mcp`), []);
+  return <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-2">
+    <Input aria-label="MCP 服务地址" className="min-w-0 font-mono" variant="secondary" value={address} readOnly />
+    <IconButton icon="copy" label="复制 MCP 地址" isDisabled={!address} onPress={() => {
+      void navigator.clipboard.writeText(address).then(() => notify("MCP 地址已复制。"))
+        .catch(() => notify("无法访问剪贴板，请检查浏览器权限。", "error"));
+    }} />
   </div>;
 }
 

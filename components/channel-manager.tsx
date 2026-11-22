@@ -1,7 +1,7 @@
 "use client";
 
 import { ItemCard, ItemCardGroup } from "@heroui-pro/react";
-import { Button, Chip, Form, Modal, Separator } from "@heroui/react";
+import { Button, Card, Chip, Form, Modal, Separator } from "@heroui/react";
 import { Fragment, useState, type FormEvent } from "react";
 import type { Channel, ChannelType } from "@/lib/types";
 import { api, errorMessage } from "@/lib/ui";
@@ -148,13 +148,14 @@ export function ChannelManager({ active, onChanged }: { active: boolean; onChang
     !editing || editing.type !== "bark" || (!editing.isDefault && !editing.credentialConfigured) || draft.endpoint !== editing.endpoint
   );
 
-  return <section className="grid min-w-0 gap-4" aria-labelledby="channel-manager-heading">
-    <div className="flex flex-wrap items-center justify-between gap-3">
-      <h2 id="channel-manager-heading" className="text-base font-semibold">通知渠道</h2>
+  return <Card className="grid min-w-0 gap-4 p-4 sm:p-5" aria-labelledby="channel-manager-heading">
+    <Card.Header className="flex-row flex-wrap items-center justify-between gap-3">
+      <Card.Title render={(props) => <h2 {...props} id="channel-manager-heading" />} className="text-base font-semibold">通知渠道</Card.Title>
       <Button className="min-h-11" onPress={openCreate} isDisabled={busy !== null || (data?.channels.length ?? 0) >= 101}>
         <Glyph name="plus" />添加渠道
       </Button>
-    </div>
+    </Card.Header>
+    <Card.Content className="grid min-w-0 gap-4">
     {error && <Notice action={<Button variant="ghost" onPress={() => void refresh()}>重试</Button>}>{error}</Notice>}
     {data ? data.channels.length ? <ItemCardGroup variant="transparent" className="overflow-hidden" role="list" aria-label="通知渠道列表">
       {data.channels.map((channel, index) => {
@@ -234,5 +235,6 @@ export function ChannelManager({ active, onChanged }: { active: boolean; onChang
     {discardConfirmation && <Confirm title="放弃渠道修改？" confirmLabel="放弃修改" cancelLabel="继续编辑" onClose={() => setDiscardConfirmation(false)} onConfirm={finishDialog}>
       <p>本次修改尚未保存。</p>
     </Confirm>}
-  </section>;
+    </Card.Content>
+  </Card>;
 }
