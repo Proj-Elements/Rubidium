@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { claimDelivery, deliverySettings, dueTaskRows, extendEndpointCooldown, isolateInvalidTask, listChannels, markDeliveryFailed, markDeliverySent, queueTaskBatch, readRuntimeState, writeRuntimeState } from "./db";
+import { HISTORY_PRUNE_BATCH_SIZE, claimDelivery, deliverySettings, dueTaskRows, extendEndpointCooldown, isolateInvalidTask, listChannels, markDeliveryFailed, markDeliverySent, pruneHistory, queueTaskBatch, readRuntimeState, readSettings, writeRuntimeState } from "./db";
 import { DeliveryError } from "./bark";
 import { redactSecrets } from "./errors";
 import type { ChannelDeliverySettings } from "./types";
@@ -14,8 +14,28 @@ let lastEnqueueSucceeded = true;
 const MAX_ENQUEUE_PER_CYCLE = 500;
 const MAX_DELIVERIES_PER_CYCLE = 20;
 const DELIVERY_CONCURRENCY = 4;
+const HISTORY_MAINTENANCE_INTERVAL_MS = 60_000;
 const yieldToEventLoop = (): Promise<void> => new Promise((resolve) => setImmediate(resolve));
 const globalWorker = globalThis as typeof globalThis & { barkerSchedulerStarted?: boolean };
+let nextHistoryMaintenanceAt = 0;
+
+function pruneHistoryBatch(now: Date): number {
+  const wallClock = Date.now();
+  if (wallClock < nextHistoryMaintenanceAt) return 0;
+  const retentionDays = readSettings().historyRetentionDays;
+  if (retentionDays === 0) {
+    nextHistoryMaintenanceAt = wallClock + HISTORY_MAINTENANCE_INTERVAL_MS;
+    return 0;
+  }
+  const before = new Date(now.getTime() - retentionDays * 86_400_000).toISOString();
+  const removed = pruneHistory(before, HISTORY_PRUNE_BATCH_SIZE);
+  nextHistoryMaintenanceAt = removed === HISTORY_PRUNE_BATCH_SIZE ? wallClock : wallClock + HISTORY_MAINTENANCE_INTERVAL_MS;
+  return removed;
+}
+
+export function __resetHistoryMaintenanceForTests(): void {
+  nextHistoryMaintenanceAt = 0;
+}
 
 export async function enqueueDueOccurrences(now = new Date()): Promise<number> {
   if (enqueueCycle) return enqueueCycle;
@@ -103,6 +123,8 @@ export async function runSchedulerCycle(now = new Date(), deliver = sendNotifica
   if (cycle) return cycle;
   cycle = (async () => {
     let failure = !lastEnqueueSucceeded;
+    try { pruneHistoryBatch(now); }
+    catch (error) { failure = true; logError("scheduler.history-prune.failed", error); }
     let claimed = 0;
     const worker = async () => {
       while (!stopping && claimed < MAX_DELIVERIES_PER_CYCLE) {

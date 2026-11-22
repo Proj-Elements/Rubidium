@@ -115,6 +115,17 @@ test("settings reject stale revisions and endpoint changes without a new key", a
   assert.equal(database.readSettings().endpoint, previous.endpoint);
 });
 
+test("history retention settings persist and reject values outside the supported range", async () => {
+  const current = database.readSettingsState();
+  const first = await settings.PUT(request("/api/settings", "PUT", { ...current.settings, historyRetentionDays: 45, revision: current.revision }));
+  assert.equal(first.status, 200);
+  assert.equal((await (await settings.GET(request("/api/settings"))).json()).settings.historyRetentionDays, 45);
+
+  const updated = database.readSettingsState();
+  const invalid = await settings.PUT(request("/api/settings", "PUT", { ...updated.settings, historyRetentionDays: 36501, revision: updated.revision }));
+  assert.equal(invalid.status, 400);
+});
+
 test("settings can explicitly remove a stored device key without changing the endpoint", async () => {
   const previous = database.readSettings();
   const revision = database.settingsRevision();
@@ -383,6 +394,30 @@ test("delivery cancellation and attempt history follow authentication and retent
   assert.equal(listing.deliveries[0].taskName, "Cancellation API");
   assert.equal(database.getTask(reminder.id)?.queuedCount, 1);
   assert.equal(database.getTask(reminder.id)?.sentCount, 0);
+});
+
+test("bulk history cleanup crosses bounded batches without deleting retrying deliveries", async () => {
+  const task = database.createTask({ ...input, name: "Batched history cleanup" });
+  const raw = database.__rawDatabaseForTests();
+  const insert = raw.prepare(`INSERT INTO deliveries
+    (id, task_id, occurrence_at, status, attempts, next_attempt_at, created_at, delivered_at, title, body, activity_at, manual_only, device_id, notification)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, '', ?, ?, 'default', '{}')`);
+  const activity = new Date(Date.now() - 10 * 86_400_000).toISOString();
+  for (let index = 0; index < 105; index += 1) {
+    insert.run(`api-old-history-${index}`, task.id, new Date(Date.now() - (20 + index) * 60_000).toISOString(), "sent", 1, activity, activity, activity, "Old history", activity, 0);
+  }
+  insert.run("api-current-retry", task.id, activity, "pending", 3, new Date(Date.now() + 86_400_000).toISOString(), activity, null, "Retry work", activity, 1);
+  raw.prepare("UPDATE tasks SET queued_count = 106, sent_count = 105 WHERE id = ?").run(task.id);
+
+  const before = new Date(Date.now() - 8 * 86_400_000).toISOString();
+  const response = await deliveries.DELETE(request("/api/deliveries", "DELETE", { before, all: true }, true, {
+    origin: "http://localhost:3000", "sec-fetch-site": "same-origin",
+  }));
+  assert.equal(response.status, 200);
+  assert.deepEqual(await response.json(), { removed: 105 });
+  assert.equal(Number(raw.prepare("SELECT COUNT(*) total FROM deliveries WHERE id LIKE 'api-old-history-%'").get()?.total), 0);
+  assert.equal(Number(raw.prepare("SELECT COUNT(*) total FROM deliveries WHERE id = 'api-current-retry'").get()?.total), 1);
+  assert.deepEqual({ queued: database.getTask(task.id)?.queuedCount, sent: database.getTask(task.id)?.sentCount }, { queued: 106, sent: 105 });
 });
 
 test("delivery retry distinguishes a missing record from a state conflict", async () => {

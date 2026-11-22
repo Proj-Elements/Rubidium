@@ -12,6 +12,8 @@ import { auditEvent } from "./db/security";
 export { dataDirectory, databasePath, initializeDatabase, transaction } from "./db/core";
 export { auditEvent, listAuditEvents, persistSession, sessionExists, revokeOtherPasswordSessions, removeSession, securityState, passwordOverride, passwordRevision, savePasswordOverride, saveInitialPasswordOverride, saveApiToken, apiTokenValid, revokeCredential, PERMANENT_CREDENTIAL_EXPIRY } from "./db/security";
 
+export const HISTORY_PRUNE_BATCH_SIZE = 100;
+
 type TaskRow = {
   id: string; name: string; description: string; starts_at: string; preset: Task["preset"];
   cron: string; repeat_count: number | null; end_date: string | null; sent_count: number;
@@ -501,10 +503,11 @@ export function cancelDeliveryResult(id: string, now = new Date()): "cancelled" 
   });
 }
 export function cancelDelivery(id: string, now = new Date()): boolean { return cancelDeliveryResult(id, now) === "cancelled"; }
-export function pruneHistory(before: string, limit = 1000): number {
+export function pruneHistory(before: string, limit = HISTORY_PRUNE_BATCH_SIZE): number {
+  const batchSize = Number.isFinite(limit) ? Math.min(HISTORY_PRUNE_BATCH_SIZE, Math.max(1, Math.floor(limit))) : HISTORY_PRUNE_BATCH_SIZE;
   return transaction(() => {
     const removed = Number(statement(`DELETE FROM deliveries WHERE id IN (SELECT id FROM deliveries WHERE status IN ('sent', 'cancelled', 'expired')
-      AND activity_at < ? ORDER BY activity_at LIMIT ?)`).run(before, Math.min(1000, Math.max(1, limit))).changes);
+      AND activity_at < ? ORDER BY activity_at LIMIT ?)`).run(before, batchSize).changes);
     if (removed) auditEvent("history.prune", `${before}:${removed}`);
     return removed;
   });

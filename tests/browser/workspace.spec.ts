@@ -123,6 +123,7 @@ test("settings only poll the active panel and preserve notification preference d
   test.setTimeout(60_000);
   await page.setViewportSize({ width: 844, height: 390 });
   await login(page);
+  const originalRetentionDays = (await (await page.request.get("/api/settings")).json()).settings.historyRetentionDays;
   const requests: string[] = [];
   page.on("request", (request) => {
     const path = new URL(request.url()).pathname;
@@ -166,7 +167,25 @@ test("settings only poll the active panel and preserve notification preference d
   await expect.poll(() => count("/api/settings")).toBe(settingsRequests + 1);
   await tab("记录维护").click();
   await expect.poll(() => count("/api/audit")).toBe(auditRequests + 1);
+  expect(count("/api/settings")).toBe(settingsRequests + 1);
+  const retentionField = page.getByRole("textbox", { name: /自动保留天数（0 关闭）/ });
+  await expect(retentionField).toHaveValue("0");
+  const retentionControl = retentionField.locator("xpath=ancestor::*[contains(@class, 'number-field__group')][1]");
+  expect((await retentionControl.boundingBox())!.height).toBeGreaterThanOrEqual(44);
+  const saveRetention = page.getByRole("button", { name: "保存保留策略" });
+  await expect(saveRetention).toBeDisabled();
+  await retentionField.focus();
+  await expect(saveRetention).toBeEnabled();
+  await retentionField.fill("45");
+  const saveBounds = await saveRetention.boundingBox();
+  await page.mouse.click(saveBounds!.x + saveBounds!.width / 2, saveBounds!.y + saveBounds!.height / 2);
+  await expect(page.getByText("保留策略已保存。", { exact: true })).toBeVisible();
+  expect((await (await page.request.get("/api/settings")).json()).settings.historyRetentionDays).toBe(45);
+  await page.screenshot({ path: test.info().outputPath("settings-history-landscape-viewport.png"), animations: "disabled" });
   await page.screenshot({ path: test.info().outputPath("settings-history-landscape.png"), fullPage: true, animations: "disabled" });
+
+  const latest = await (await page.request.get("/api/settings")).json();
+  await page.request.put("/api/settings", { data: { ...latest.settings, historyRetentionDays: originalRetentionDays, revision: latest.revision } });
 });
 
 test("a first-load API error replaces the loading state and offers retry", async ({ page }) => {

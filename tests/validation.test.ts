@@ -25,6 +25,14 @@ test("settings allow an empty device key and strip credentials from the endpoint
   assert.equal(badIcon.success, false);
 });
 
+test("history retention accepts disabled or bounded whole-day values", () => {
+  const base = { endpoint: "https://api.day.app", title: "Rubidium 提醒", sound: "1107", group: "Rubidium", icon: "" };
+  assert.equal(settingsSchema.parse(base).historyRetentionDays, 0);
+  assert.equal(settingsSchema.safeParse({ ...base, historyRetentionDays: 0 }).success, true);
+  assert.equal(settingsSchema.safeParse({ ...base, historyRetentionDays: 36500 }).success, true);
+  for (const value of [-1, 1.5, 36501]) assert.equal(settingsSchema.safeParse({ ...base, historyRetentionDays: value }).success, false);
+});
+
 test("impossible dates are rejected as validation issues, not exceptions", () => {
   const base = { name: "喝水", preset: "daily" as const, cron: "30 9 * * *", repeatCount: 10 };
   for (const bad of [

@@ -2,7 +2,7 @@
 
 import { Button, Card, Form, Tabs } from "@heroui/react";
 import { useEffect, useState, type FormEvent } from "react";
-import { CardHeading, Confirm, Details, Field, Loading, Notice, PageHeading } from "@/components/primitives";
+import { CardHeading, Confirm, Details, Field, Loading, Notice, NumericField, PageHeading } from "@/components/primitives";
 import { useUnsaved } from "@/components/use-unsaved";
 import { useResource } from "@/components/use-resource";
 import { useWorkspace } from "@/components/workspace-context";
@@ -17,7 +17,7 @@ type SettingsPayload = { settings: Omit<BarkSettings, "deviceKey">; deviceKeyCon
 
 export default function SettingsPage() {
   const [activePanel, setActivePanel] = useState("channels");
-  const { data, error, refresh } = useResource<SettingsPayload>("/api/settings", 15_000, activePanel === "channels");
+  const { data, error, refresh } = useResource<SettingsPayload>("/api/settings", 15_000, activePanel !== "access");
   const panel = "grid min-w-0 gap-4 p-0 data-[inert]:hidden";
 
   return <div className="@container/settings grid gap-6">
@@ -36,7 +36,7 @@ export default function SettingsPage() {
         {data ? <SettingsForm initial={data} onSaved={refresh} /> : !error && <Loading>正在读取通知偏好</Loading>}
       </Tabs.Panel>
       <Tabs.Panel id="access" shouldForceMount className={panel}><SecurityManager active={activePanel === "access"} /></Tabs.Panel>
-      <Tabs.Panel id="history" shouldForceMount className={panel}><DataTransfer /><HistorySettings /><AuditLog active={activePanel === "history"} /></Tabs.Panel>
+      <Tabs.Panel id="history" shouldForceMount className={panel}><DataTransfer /><HistorySettings initial={data} onSaved={refresh} /><AuditLog active={activePanel === "history"} /></Tabs.Panel>
     </Tabs>
   </div>;
 }
@@ -103,15 +103,62 @@ function SettingsForm({ initial, onSaved }: { initial: SettingsPayload; onSaved:
   </Card>;
 }
 
-function HistorySettings() {
+function HistorySettings({ initial, onSaved }: { initial: SettingsPayload | null; onSaved: () => Promise<void> }) {
   const { refresh, notify } = useWorkspace();
+  const [days, setDays] = useState(initial?.settings.historyRetentionDays ?? 0);
+  const [savedDays, setSavedDays] = useState(initial?.settings.historyRetentionDays ?? 0);
+  const [revision, setRevision] = useState(initial?.revision ?? 0);
+  const [editingDays, setEditingDays] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [pruning, setPruning] = useState(false);
   const [confirmPrune, setConfirmPrune] = useState(false);
+  const [feedback, setFeedback] = useState<{ message: string; kind: "error" | "success" } | null>(null);
+  const dirty = days !== savedDays;
+  const conflict = Boolean(initial && initial.revision > revision);
+
+  useEffect(() => {
+    if (!initial || dirty || initial.revision <= revision) return;
+    const timer = setTimeout(() => {
+      setDays(initial.settings.historyRetentionDays);
+      setSavedDays(initial.settings.historyRetentionDays);
+      setRevision(initial.revision);
+    }, 0);
+    return () => clearTimeout(timer);
+  }, [initial, dirty, revision]);
+
+  function reload() {
+    if (!initial) return;
+    setDays(initial.settings.historyRetentionDays);
+    setSavedDays(initial.settings.historyRetentionDays);
+    setRevision(initial.revision);
+    setFeedback(null);
+  }
+
+  async function save(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!initial || saving || conflict || !dirty) return;
+    setSaving(true);
+    setFeedback(null);
+    try {
+      const result = await api<{ revision: number }>("/api/settings", {
+        method: "PUT",
+        body: JSON.stringify({ ...initial.settings, historyRetentionDays: days, revision }),
+      });
+      setSavedDays(days);
+      setRevision(result.revision);
+      setFeedback({ message: "保留策略已保存。", kind: "success" });
+      void onSaved();
+    } catch (error) {
+      setFeedback({ message: errorMessage(error), kind: "error" });
+      void onSaved().catch(() => undefined);
+    } finally { setSaving(false); }
+  }
+
   async function prune() {
     setPruning(true);
     try {
-      const result = await api<{ removed: number }>("/api/deliveries", { method: "DELETE", body: JSON.stringify({ before: new Date(Date.now() - 30 * 86_400_000).toISOString(), all: true, compact: true }) });
-      notify(`已清理 ${result.removed} 条结束记录，并回收数据库空间。`);
+      const result = await api<{ removed: number }>("/api/deliveries", { method: "DELETE", body: JSON.stringify({ before: new Date(Date.now() - 30 * 86_400_000).toISOString(), all: true }) });
+      notify(`已清理 ${result.removed} 条结束记录。`);
       setConfirmPrune(false);
       void refresh();
     } catch (error) { notify(errorMessage(error), "error"); }
@@ -120,7 +167,16 @@ function HistorySettings() {
 
   return <Card className="gap-4 p-5 sm:p-6">
     <CardHeading title="历史记录维护" />
-    <Card.Footer><Button variant="danger-soft" onPress={() => setConfirmPrune(true)}>清理旧记录</Button></Card.Footer>
+    {initial ? <Form className="grid gap-4" onSubmit={save}>
+      {conflict && <Notice kind="warning" action={<Button type="button" variant="ghost" isDisabled={saving} onPress={reload}>载入最新设置</Button>}>保留设置已在其他页面更新。</Notice>}
+      <NumericField label="自动保留天数（0 关闭）" value={days} onChange={setDays} onFocus={() => setEditingDays(true)} onBlur={() => setEditingDays(false)} minValue={0} maxValue={36500} isRequired isDisabled={saving} />
+      {feedback && <Notice kind={feedback.kind}>{feedback.message}</Notice>}
+      <div className="flex flex-wrap items-center justify-end gap-2">
+        <Button type="button" variant="ghost" isDisabled={!dirty || saving} onPress={reload}>取消修改</Button>
+        <Button type="submit" isPending={saving} isDisabled={(!dirty && !editingDays) || conflict}>保存保留策略</Button>
+      </div>
+    </Form> : <Loading>正在读取保留设置</Loading>}
+    <Card.Footer><Button variant="danger-soft" onPress={() => setConfirmPrune(true)}>清理 30 天前记录</Button></Card.Footer>
     {confirmPrune && <Confirm title="清理 30 天前的结束记录？" confirmLabel="清理记录" onClose={() => setConfirmPrune(false)} onConfirm={() => void prune()} busy={pruning}>
       <p>相应消息正文和尝试历史将永久删除。待投递和发送中的消息不会被清理。</p>
     </Confirm>}

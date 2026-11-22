@@ -61,7 +61,7 @@ curl -sS https://rubidium.example/api/tasks \
 | --- | --- | --- | --- |
 | `GET /api/deliveries` | 普通数据 API | `page`、`pageSize`（最多 50）、`status`（`pending`、`sending`、`sent`、`retrying`、`cancelled`、`expired`）、`q`（最多 200 字）。 | `{ deliveries, total, page, pageSize }`。错误：`400` 参数无效。 |
 | `PATCH /api/deliveries` | 写权限 | `{ action: "cancel" | "retry", ids: [id, ...] }`；每批 1–50 项。 | `{ results: [{ id, success }] }`。错误：`400` 参数无效。 |
-| `DELETE /api/deliveries` | 写权限 | `{ before: ISO 时间, all?: boolean, compact?: boolean }`；只能清理至少七天前已结束的记录。 | `{ removed }`。`all` 表示分批清理；`compact` 同时执行 SQLite VACUUM。错误：`400` 截止时间过近或无效。 |
+| `DELETE /api/deliveries` | 写权限 | `{ before: ISO 时间, all?: boolean, compact?: boolean }`；只能清理至少七天前已结束的记录。 | `{ removed }`。每个事务最多删除 100 条；`all` 会逐批清理并在批次间让出事件循环。只清理 `sent`、`cancelled`、`expired`，不修改任务累计计数；待投递（包括重试）和发送中状态不会删除。`compact` 显式请求 SQLite `VACUUM`，可能耗时，不用于自动保留清理。错误：`400` 截止时间过近或无效。 |
 | `PATCH /api/deliveries/{id}` | 写权限 | `{ title, body, updatedAt }`；标题与正文总计最多 3000 UTF-8 字节。 | `{ saved: true }`。错误：`400` 输入无效，`409` 记录状态或版本已变化。 |
 | `GET /api/deliveries/{id}/attempts` | 普通数据 API | 无 | `{ attempts }`，最多 100 条尝试；存储错误文本会脱敏。 |
 | `POST /api/deliveries/{id}/retry` | 写权限 | `{}` | `{ queued: true }`。错误：`404` 记录不存在，`409` 已送达、发送中、已取消或过期。 |
@@ -71,8 +71,8 @@ curl -sS https://rubidium.example/api/tasks \
 
 | 方法与路径 | 鉴权 | 输入 | 成功结果与常见错误 |
 | --- | --- | --- | --- |
-| `GET /api/settings` | 普通数据 API | 无 | `{ settings, revision, deviceKeyConfigured, dataDir }`。返回绝对数据目录但不返回 Device Key。 |
-| `PUT /api/settings` | 写权限 | `displayTimeZone`、`endpoint`、`deviceKey`、`title`、`sound`、`group`、`icon`、必填 `revision`；另有 `clearDeviceKey?: boolean`。Endpoint 支持不含用户信息、查询串或锚点的 HTTP(S) URL。 | `{ saved: true, revision }`。空白 `deviceKey` 保留已有密钥；显式清除用 `clearDeviceKey: true`。错误：`400` 输入无效，`409` 修订冲突，`428` 缺少修订号。 |
+| `GET /api/settings` | 普通数据 API | 无 | `{ settings, revision, deviceKeyConfigured, dataDir }`。返回 `historyRetentionDays` 设置但不返回 Device Key。 |
+| `PUT /api/settings` | 写权限 | `displayTimeZone`、`historyRetentionDays`（整数 `0–36500`，`0` 关闭自动清理）、`endpoint`、`deviceKey`、`title`、`sound`、`group`、`icon`、必填 `revision`；另有 `clearDeviceKey?: boolean`。Endpoint 支持不含用户信息、查询串或锚点的 HTTP(S) URL。 | `{ saved: true, revision }`。保留策略只删除超期已结束记录，每批最多 100 条；待投递、重试和发送中记录不受影响。空白 `deviceKey` 保留已有密钥；显式清除用 `clearDeviceKey: true`。错误：`400` 输入无效，`409` 修订冲突，`428` 缺少修订号。 |
 | `POST /api/settings/test` | 写权限 | `{}` | `{ delivered: true }`。会真实发送一条测试 Bark 通知；错误：`400` 尚未配置 Device Key，`502` 上游失败（错误内容会脱敏）。 |
 | `GET /api/devices` | 普通数据 API | 无 | `{ devices }`；兼容旧版 Bark 设备契约，只返回密钥配置状态，不返回密钥。 |
 | `POST /api/devices` | 写权限 | `{ name, endpoint, deviceKey, id?, revision? }`。创建不传 `id`；更新必须传 `id` 和 `revision`，可留空 `deviceKey` 以保留现有密钥。 | `{ device }`。错误：`400` 输入/密钥无效，`404` ID 不存在，`409` 数量上限或设备冲突，`428` 更新缺少修订号。 |

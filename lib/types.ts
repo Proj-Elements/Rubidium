@@ -78,6 +78,7 @@ export interface Dashboard {
 
 export const DEFAULT_SETTINGS: BarkSettings = {
   displayTimeZone: SCHEDULE_TIME_ZONE,
+  historyRetentionDays: 0,
   endpoint: "https://api.day.app",
   deviceKey: "",
   title: "Rubidium 提醒",

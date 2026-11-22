@@ -199,7 +199,7 @@ test("history pruning preserves cumulative scheduling budgets and pending messag
 test("a bad optional setting preserves the endpoint and device key, including after rotation", (context) => {
   const messages: string[] = [];
   context.mock.method(console, "error", (message: string) => messages.push(message));
-  const valid = { endpoint: "https://bark.test", deviceKey: "legacy/key", title: "Barker", sound: "", group: "", icon: "" };
+  const valid = { endpoint: "https://bark.test", deviceKey: "legacy/key", title: "Barker", sound: "", group: "", icon: "", historyRetentionDays: 0 };
   db.__rawDatabaseForTests().prepare("UPDATE settings SET value = ? WHERE key = 'default'").run(JSON.stringify({ ...valid, icon: "bad icon" }));
   assert.equal(db.readSettings().endpoint, valid.endpoint);
   assert.equal(db.readSettings().deviceKey, valid.deviceKey);
@@ -235,4 +235,41 @@ test("channel credential rotation and deletion replace the active log secret", (
   } finally {
     try { db.removeChannel(channel.id, channel.revision); } catch {}
   }
+});
+
+test("automatic history retention removes one bounded batch and preserves retrying work and counters", async () => {
+  const raw = db.__rawDatabaseForTests();
+  const task = db.createTask({ ...input, startsAt: "2040-10-19T01:30:00Z", repeatCount: null }, created);
+  db.writeSettings({ ...db.readSettings(), historyRetentionDays: 30 });
+  const insertDelivery = raw.prepare(`INSERT INTO deliveries
+    (id, task_id, occurrence_at, status, attempts, next_attempt_at, created_at, delivered_at, title, body, activity_at, manual_only, device_id, notification)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, '', ?, ?, 'default', '{}')`);
+  const oldActivity = "2028-01-01T00:00:00.000Z";
+  for (let index = 0; index < 150; index += 1) {
+    const status = index % 3 === 0 ? "sent" : index % 3 === 1 ? "cancelled" : "expired";
+    const activity = new Date(Date.UTC(2027, 0, 1, 0, index)).toISOString();
+    insertDelivery.run(`retention-ended-${index}`, task.id, activity, status,
+      status === "sent" ? 1 : 0, oldActivity, oldActivity, status === "sent" ? activity : null, "Ended history", activity, 0);
+  }
+  insertDelivery.run("retention-retrying", task.id, "2028-01-01T04:00:00.000Z", "pending", 3, "2040-01-01T00:00:00.000Z", oldActivity, null, "Retrying", oldActivity, 1);
+  insertDelivery.run("retention-sending", task.id, "2028-01-01T04:01:00.000Z", "sending", 1, "2040-01-01T00:00:00.000Z", oldActivity, null, "Sending", oldActivity, 0);
+  raw.prepare("UPDATE deliveries SET lease_until = '2040-01-01T00:00:00.000Z' WHERE id = 'retention-sending'").run();
+  raw.prepare("UPDATE tasks SET queued_count = 152, sent_count = 50 WHERE id = ?").run(task.id);
+  raw.prepare(`INSERT INTO delivery_attempts (id, delivery_id, lease_token, started_at, finished_at, outcome)
+    VALUES ('retention-attempt', 'retention-ended-0', 'retention-lease', ?, ?, 'sent')`).run("2027-01-01T00:00:00.000Z", "2027-01-01T00:00:00.000Z");
+
+  scheduler.__resetHistoryMaintenanceForTests();
+  const now = new Date("2030-10-21T00:00:00Z");
+  const started = performance.now();
+  await scheduler.runSchedulerCycle(now, async () => {});
+  assert.ok(performance.now() - started < 1000, "a history cleanup batch must not stall the scheduler for seconds");
+  assert.equal(Number(raw.prepare("SELECT COUNT(*) total FROM deliveries WHERE id LIKE 'retention-ended-%'").get()?.total), 50);
+  assert.equal(Number(raw.prepare("SELECT COUNT(*) total FROM delivery_attempts WHERE id = 'retention-attempt'").get()?.total), 0);
+  assert.equal(Number(raw.prepare("SELECT COUNT(*) total FROM deliveries WHERE id IN ('retention-retrying', 'retention-sending')").get()?.total), 2);
+  assert.deepEqual(db.getTask(task.id) && { queued: db.getTask(task.id)!.queuedCount, sent: db.getTask(task.id)!.sentCount }, { queued: 152, sent: 50 });
+
+  await scheduler.runSchedulerCycle(now, async () => {});
+  assert.equal(Number(raw.prepare("SELECT COUNT(*) total FROM deliveries WHERE id LIKE 'retention-ended-%'").get()?.total), 0);
+  assert.equal(Number(raw.prepare("SELECT COUNT(*) total FROM deliveries WHERE id IN ('retention-retrying', 'retention-sending')").get()?.total), 2);
+  assert.deepEqual(db.getTask(task.id) && { queued: db.getTask(task.id)!.queuedCount, sent: db.getTask(task.id)!.sentCount }, { queued: 152, sent: 50 });
 });

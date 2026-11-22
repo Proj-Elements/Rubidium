@@ -52,6 +52,7 @@ export const deliverySchema = z.object({
 
 export const settingsFields = z.object({
   displayTimeZone: timeZoneSchema.optional().default("Asia/Shanghai"),
+  historyRetentionDays: z.number().int().min(0).max(36500).default(0),
   endpoint: z.string().trim().min(1, "请输入完整的 Bark API 地址").max(300, "Bark API 地址过长").refine((value) => {
     try {
       const url = new URL(value);

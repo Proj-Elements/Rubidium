@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { requestIsAuthorized } from "@/lib/auth";
-import { cancelDelivery, compactDatabase, listDeliveries, pruneHistory, retryDelivery } from "@/lib/db";
+import { HISTORY_PRUNE_BATCH_SIZE, cancelDelivery, compactDatabase, listDeliveries, pruneHistory, retryDelivery } from "@/lib/db";
 import { apiRoute, jsonError, jsonObjectBody, requestBody, requireSameOriginMutation } from "@/lib/http";
 import type { DeliveryFilter } from "@/lib/types";
 
@@ -35,7 +35,7 @@ export const DELETE = apiRoute(async (request: Request): Promise<NextResponse> =
     batch = pruneHistory(before.toISOString());
     removed += batch;
     await new Promise<void>((resolve) => setImmediate(resolve));
-  } while (body.all === true && batch === 1000);
+  } while (body.all === true && batch === HISTORY_PRUNE_BATCH_SIZE);
   if (body.compact === true) compactDatabase();
   return NextResponse.json({ removed });
 });
