@@ -2,8 +2,10 @@ import { randomBytes, randomUUID, createHmac, scryptSync } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
 import { DatabaseSync } from "node:sqlite";
 import { join, resolve } from "node:path";
+import { getEnvironmentVariable } from "../lib/environment.mjs";
 
-const MIN_PASSWORD_LENGTH = 16;
+const MIN_PASSWORD_LENGTH = 8;
+const MIN_SECRET_LENGTH = 16;
 const MAX_PASSWORD_LENGTH = 300;
 
 function readStoredSecret(directory, name) {
@@ -12,25 +14,25 @@ function readStoredSecret(directory, name) {
   return readFileSync(path, "utf8").trim();
 }
 
-function configuredSecret(environmentName, directory, fileName) {
-  const value = process.env[environmentName]?.trim() || readStoredSecret(directory, fileName);
-  if (value && (value.length < MIN_PASSWORD_LENGTH || value.length > MAX_PASSWORD_LENGTH)) {
-    throw new Error(`${environmentName} or ${fileName} must contain 16–300 characters`);
+function configuredSecret(environmentName, directory, fileName, minLength) {
+  const value = getEnvironmentVariable(environmentName)?.trim() || readStoredSecret(directory, fileName);
+  if (value && (value.length < minLength || value.length > MAX_PASSWORD_LENGTH)) {
+    throw new Error(`RUBIDIUM_${environmentName} or ${fileName} must contain ${minLength}–${MAX_PASSWORD_LENGTH} characters`);
   }
   return value;
 }
 
-export function resetPassword(password, dataDirectory = process.env.BARKER_DATA_DIR || "./data") {
+export function resetPassword(password, dataDirectory = getEnvironmentVariable("DATA_DIR") || "./data") {
   if (typeof password !== "string" || password.length < MIN_PASSWORD_LENGTH || password.length > MAX_PASSWORD_LENGTH || password.trim() !== password) {
-    throw new Error("Password must contain 16–300 characters and have no leading or trailing spaces");
+    throw new Error("Password must contain 8–300 characters and have no leading or trailing spaces");
   }
 
   const directory = resolve(dataDirectory);
   const databasePath = join(directory, "barker.sqlite");
   if (!existsSync(databasePath)) throw new Error(`Rubidium database does not exist at ${databasePath}; no data was changed`);
-  const sessionSecret = configuredSecret("BARKER_SESSION_SECRET", directory, "session-secret.txt");
+  const sessionSecret = configuredSecret("SESSION_SECRET", directory, "session-secret.txt", MIN_SECRET_LENGTH);
   if (!sessionSecret) throw new Error("Session signing secret is missing; no data was changed");
-  const runtimePassword = configuredSecret("BARKER_PASSWORD", directory, "access-password.txt");
+  const runtimePassword = configuredSecret("PASSWORD", directory, "access-password.txt", MIN_PASSWORD_LENGTH);
   const source = runtimePassword ? createHmac("sha256", sessionSecret).update(runtimePassword).digest("hex") : "setup";
   const salt = randomBytes(32).toString("hex");
   const override = JSON.stringify({ source, salt, hash: scryptSync(password, salt, 32).toString("hex") });
@@ -90,7 +92,7 @@ function promptHidden(label) {
 
 async function main() {
   if (process.argv.length > 2) throw new Error("不要通过命令参数传递密码，请使用无回显的交互输入。");
-  const password = await promptHidden("新访问密码（16-300 个字符）: ");
+  const password = await promptHidden("新访问密码（8-300 个字符）: ");
   const confirmation = await promptHidden("再次输入访问密码: ");
   if (password !== confirmation) throw new Error("两次输入不一致，未修改数据。");
   resetPassword(password);

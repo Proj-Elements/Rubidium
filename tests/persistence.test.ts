@@ -8,7 +8,7 @@ import { test } from "node:test";
 
 function run(directory: string, code: string): Record<string, unknown> {
   const result = spawnSync(process.execPath, ["--import", "tsx", "--input-type=module", "--eval", code], {
-    cwd: process.cwd(), env: { ...process.env, BARKER_DATA_DIR: directory }, encoding: "utf8",
+    cwd: process.cwd(), env: { ...process.env, RUBIDIUM_DATA_DIR: directory }, encoding: "utf8",
   });
   assert.equal(result.status, 0, result.stderr);
   return JSON.parse(result.stdout.trim());

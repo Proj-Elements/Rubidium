@@ -28,7 +28,7 @@ COPY . .
 ENV NEXT_TELEMETRY_DISABLED=1
 # Ensure `public` exists so the runner stage COPY never fails when no static assets are present
 RUN mkdir -p public \
- && BARKER_DATA_DIR=/tmp/rubidium-build BARKER_DISABLE_SCHEDULER=1 pnpm run build \
+ && RUBIDIUM_DATA_DIR=/tmp/rubidium-build RUBIDIUM_DISABLE_SCHEDULER=1 pnpm run build \
  && rm -rf /tmp/rubidium-build
 
 # --- runner: minimal production runtime ---
@@ -40,7 +40,6 @@ ENV NEXT_TELEMETRY_DISABLED=1
 ENV TZ=Asia/Shanghai
 ENV PORT=3000
 ENV HOSTNAME=0.0.0.0
-ENV BARKER_DATA_DIR=/app/data
 
 RUN addgroup --system --gid 1001 nodejs \
  && adduser --system --uid 1001 nextjs
@@ -51,6 +50,7 @@ COPY --from=builder --chown=nextjs:nodejs /app/public ./public
 COPY --from=builder --chown=nextjs:nodejs /app/LICENSE /app/THIRD_PARTY_NOTICES.md ./
 COPY --from=builder --chown=nextjs:nodejs /app/scripts/start-server.mjs ./scripts/start-server.mjs
 COPY --from=builder --chown=nextjs:nodejs /app/scripts/runtime-paths.mjs ./scripts/runtime-paths.mjs
+COPY --from=builder --chown=nextjs:nodejs /app/lib/environment.mjs ./lib/environment.mjs
 COPY --from=builder --chown=nextjs:nodejs /app/scripts/data-tools.mjs ./scripts/data-tools.mjs
 COPY --from=builder --chown=nextjs:nodejs /app/scripts/password-reset.mjs ./scripts/password-reset.mjs
 

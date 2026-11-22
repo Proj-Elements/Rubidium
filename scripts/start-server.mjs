@@ -2,11 +2,12 @@ import { spawn } from "node:child_process";
 import { cpSync, existsSync } from "node:fs";
 import { resolve } from "node:path";
 import { checkLegacyData, loadRuntimeEnvironment, runtimeDirectory } from "./runtime-paths.mjs";
+import { getEnvironmentVariable } from "../lib/environment.mjs";
 
 const [entry, ...argumentsList] = process.argv.slice(2);
 if (!entry) throw new Error("Usage: node scripts/start-server.mjs SERVER_ENTRY [ARGUMENTS]");
 loadRuntimeEnvironment();
-process.env.BARKER_DATA_DIR = runtimeDirectory();
+process.env.RUBIDIUM_DATA_DIR = runtimeDirectory();
 if (resolve(entry) === resolve(".next/standalone/server.js")) {
   checkLegacyData();
   cpSync(".next/static", ".next/standalone/.next/static", { recursive: true });
@@ -32,7 +33,7 @@ function shutdown(signal) {
   stoppingSignal = signal;
   deadline = setTimeout(forwardSignal, 20_000);
   deadline.unref();
-  if (!child.connected || process.env.BARKER_DISABLE_SCHEDULER === "1") return forwardSignal();
+  if (!child.connected || getEnvironmentVariable("DISABLE_SCHEDULER") === "1") return forwardSignal();
   child.send({ type: "barker:shutdown" }, (error) => { if (error) forwardSignal(); });
 }
 

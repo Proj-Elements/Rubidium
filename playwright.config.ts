@@ -1,6 +1,6 @@
 import { defineConfig } from "@playwright/test";
 
-const port = process.env.BARKER_BROWSER_PORT || "3129";
+const port = process.env.RUBIDIUM_BROWSER_PORT || "3129";
 export default defineConfig({
   testDir: "./tests/browser",
   forbidOnly: Boolean(process.env.CI),

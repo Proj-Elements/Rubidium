@@ -71,7 +71,10 @@
   .sidebar__menu-item-content { min-height: 2.75rem; }
   .sidebar__menu-item[data-current="true"] .sidebar__menu-item-content { background: var(--surface); box-shadow: var(--surface-shadow); }
   .sidebar__menu-item[data-current="true"] :is(.sidebar__menu-label, .sidebar__menu-icon) { color: var(--accent); }
-  .sidebar[data-state="collapsed"] .sidebar__content { padding-inline: 0.5rem; }
+  .sidebar[data-state="collapsed"] .sidebar__header { align-items: center !important; justify-content: center !important; padding-inline: 0 !important; }
+  .sidebar[data-state="collapsed"] .sidebar__header .brand { width: 100%; justify-content: center; }
+  .sidebar[data-state="collapsed"] .sidebar__header .brand > :not(.brand-mark) { display: none; }
+  .sidebar[data-state="collapsed"] .sidebar__content { padding-inline: 0 !important; }
   .sidebar[data-state="collapsed"] .sidebar__menu { align-items: center; }
   .sidebar[data-state="collapsed"] .sidebar__menu-item { width: 3rem; min-width: 3rem; }
   .sidebar[data-state="collapsed"] .sidebar__menu-item-content { width: 3rem; min-width: 3rem; height: 3rem; min-height: 3rem; margin-inline: 0; padding: 0; border-radius: 1rem; background: transparent; }

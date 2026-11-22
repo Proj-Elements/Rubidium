@@ -9,7 +9,13 @@ test("password changes require a matching confirmation", async ({ page }) => {
   await page.getByRole("tab", { name: "访问安全", exact: true }).click();
 
   await page.getByLabel("当前访问密码").fill("browser-regression-password");
-  await page.getByLabel("新访问密码", { exact: true }).fill("confirmed-password-2030");
+  const nextPassword = page.getByLabel("新访问密码", { exact: true });
+  await nextPassword.fill("short");
+  await expect(page.getByText("至少需要 8 个字符（当前 5 个）")).toBeVisible();
+  await expect(page.getByRole("button", { name: "修改访问密码" })).toBeDisabled();
+  await nextPassword.fill(" leading-password");
+  await expect(page.getByText("密码不能以空格开头或结尾")).toBeVisible();
+  await nextPassword.fill("confirmed-password-2030");
   const confirmation = page.getByLabel("确认新访问密码");
   await confirmation.fill("different-password-2030");
   await expect(page.getByText("两次输入的新访问密码不一致")).toBeVisible();
@@ -62,6 +68,18 @@ test("API credentials can remain valid indefinitely and display the selected exp
   await days.fill("0");
 
   const info = page.getByRole("button", { name: "有效天数说明", exact: true });
+  const permissionLabel = page.locator(".credential-scope > .label");
+  const expiryLabel = page.locator(".credential-scope").locator("xpath=following-sibling::div[1]").getByText("有效天数", { exact: true });
+  const permissionBounds = await permissionLabel.boundingBox();
+  const expiryBounds = await expiryLabel.boundingBox();
+  expect(permissionBounds).not.toBeNull();
+  expect(expiryBounds).not.toBeNull();
+  expect(Math.abs(permissionBounds!.y + permissionBounds!.height / 2 - expiryBounds!.y - expiryBounds!.height / 2)).toBeLessThanOrEqual(2);
+  const permissionControl = page.locator(".credential-scope .select__trigger");
+  const expiryControl = page.locator(".credential-scope").locator("xpath=following-sibling::div[1]").locator(".number-field__group");
+  const permissionControlBounds = await permissionControl.boundingBox();
+  const expiryControlBounds = await expiryControl.boundingBox();
+  expect(Math.abs(permissionControlBounds!.y - expiryControlBounds!.y)).toBeLessThanOrEqual(2);
   const infoBounds = await info.boundingBox();
   expect(infoBounds?.width).toBeGreaterThanOrEqual(44);
   expect(infoBounds?.height).toBeGreaterThanOrEqual(44);

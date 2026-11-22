@@ -235,7 +235,7 @@ function createServer(authorization: string): McpServer {
 
   server.registerTool("delete_channel", {
     title: "删除通知渠道",
-    description: "按 revision 删除未被任务或待投递记录引用的渠道。默认 Bark 渠道不可删除。",
+    description: "按 revision 删除未被任务或待投递记录引用的渠道。默认通知渠道不可删除。",
     inputSchema: channelDeleteSchema,
     annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true },
   }, async ({ id, revision }) => callApi(

@@ -17,7 +17,7 @@ function startInitializer(dataDirectory = directory): Promise<{ code: number | n
       "import('./lib/db.ts').then((db) => { db.initializeDatabase(); process.exit(0); }).catch((error) => { console.error(error); process.exit(1); });",
     ], {
       cwd: process.cwd(),
-      env: { ...process.env, BARKER_DATA_DIR: dataDirectory },
+      env: { ...process.env, RUBIDIUM_DATA_DIR: dataDirectory },
       stdio: ["ignore", "ignore", "pipe"],
     });
     let error = "";
@@ -34,7 +34,7 @@ test("parallel process startup waits for SQLite schema initialization", async ()
 test("importing server modules creates no database, directories or secrets", () => {
   const missing = join(directory, "import-only");
   const result = spawnSync(process.execPath, ["--import", "tsx", "--eval", "Promise.all([import('./lib/db.ts'), import('./lib/auth.ts'), import('./lib/scheduler.ts')])"], {
-    cwd: process.cwd(), env: { ...process.env, BARKER_DATA_DIR: missing }, encoding: "utf8",
+    cwd: process.cwd(), env: { ...process.env, RUBIDIUM_DATA_DIR: missing }, encoding: "utf8",
   });
   assert.equal(result.status, 0, result.stderr);
   assert.equal(existsSync(missing), false);
@@ -69,7 +69,7 @@ test("a migration failure leaves a shared connection open", () => {
     assert.equal(globalThis.barkerDb, connection);
     assert.equal(connection.prepare('PRAGMA user_version').get().user_version, 99);
     connection.close();
-  `], { env: { ...process.env, BARKER_DATA_DIR: directory }, encoding: "utf8" });
+  `], { env: { ...process.env, RUBIDIUM_DATA_DIR: directory }, encoding: "utf8" });
   assert.equal(result.status, 0, result.stderr);
 });
 

@@ -83,7 +83,7 @@ export function Details({ title, children }: { title: string; children: ReactNod
 
 const taskLabels = { active: "进行中", paused: "已暂停", completed: "排期结束", archived: "已归档" };
 export const deliveryLabels: Record<Delivery["status"], string> = {
-  pending: "待投递", sending: "发送中", sent: "Bark 已接收", cancelled: "已取消", expired: "已过期",
+  pending: "待投递", sending: "发送中", sent: "已接收", cancelled: "已取消", expired: "已过期",
 };
 
 export function TaskBadge({ task }: { task: Task }) {

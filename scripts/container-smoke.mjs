@@ -46,8 +46,8 @@ try {
   docker("run", "-d", "--init", "--name", name, "--label", `rubidium.smoke=${name}`, "-p", "127.0.0.1::3000",
     ...(process.platform === "linux" ? ["--add-host", "host.docker.internal:host-gateway"] : []),
     "--mount", `type=volume,source=${volume},target=/app/data`,
-    "--env", `BARKER_SETUP_TOKEN=${setupToken}`,
-    ...(process.env.BARKER_SMOKE_PLATFORM ? ["--platform", process.env.BARKER_SMOKE_PLATFORM] : []), image);
+    "--env", `RUBIDIUM_SETUP_TOKEN=${setupToken}`,
+    ...(process.env.RUBIDIUM_SMOKE_PLATFORM ? ["--platform", process.env.RUBIDIUM_SMOKE_PLATFORM] : []), image);
   created = true;
   const address = () => `http://127.0.0.1:${docker("port", name, "3000/tcp").split(":").at(-1)}`;
   let base = address();

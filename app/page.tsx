@@ -70,11 +70,11 @@ export default function OverviewPage() {
       </KPIGroup>
     </section>
 
-    {dashboard && !dashboard.deviceKeyConfigured && <Alert status="warning" className="overview-device-warning items-start" role="status">
+    {dashboard?.defaultChannel.type === "bark" && !dashboard.defaultChannel.credentialConfigured && <Alert status="warning" className="overview-device-warning items-start" role="status">
       <Alert.Indicator />
       <Alert.Content className="gap-2">
-        <Alert.Title>默认设备尚未连接</Alert.Title>
-        <WorkspaceLink className="workspace-link" href="/settings">连接设备<Glyph name="arrow" size={14} /></WorkspaceLink>
+        <Alert.Title>默认 Bark 渠道尚未配置 Device Key</Alert.Title>
+        <WorkspaceLink className="workspace-link" href="/settings">前往通知渠道设置<Glyph name="arrow" size={14} /></WorkspaceLink>
       </Alert.Content>
     </Alert>}
 
@@ -144,7 +144,7 @@ export default function OverviewPage() {
           {dashboard && !activity.some((item) => item.sent > 0) ? <Empty title="最近七天暂无投递" icon="send" /> : activity.length ? <div className="grid gap-3">
             {activity.map((item, index) => {
               const label = index === activity.length - 1 ? "今天" : item.date.slice(5).replace("-", "/");
-              return <Meter key={item.date} aria-label={`${item.date} Bark 接收数量`} value={item.sent} maxValue={dailyMaximum} valueLabel={`${item.sent} 条`} className="activity-meter items-center gap-3 text-xs tabular-nums" size="sm">
+              return <Meter key={item.date} aria-label={`${item.date} 通知接收数量`} value={item.sent} maxValue={dailyMaximum} valueLabel={`${item.sent} 条`} className="activity-meter items-center gap-3 text-xs tabular-nums" size="sm">
                 <span className="text-muted">{label}</span><Meter.Track><Meter.Fill /></Meter.Track><Meter.Output>{item.sent}</Meter.Output>
               </Meter>;
             })}

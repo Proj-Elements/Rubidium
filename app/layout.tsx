@@ -7,7 +7,7 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: { default: "工作概览 - Rubidium", template: "%s - Rubidium" },
-  description: "一个持久记录投递状态的 Bark 提醒工作空间。安排周期任务，追踪每次尝试并按策略重试。",
+  description: "一个持久记录投递状态的通知提醒工作空间。安排周期任务，追踪每次尝试并按策略重试。",
 };
 
 export default async function RootLayout({ children }: { children: ReactNode }) {

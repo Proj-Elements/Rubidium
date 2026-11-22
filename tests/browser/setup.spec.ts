@@ -12,7 +12,7 @@ test("first-visit setup stays usable in touch landscape and confirms the passwor
     await route.fulfill({ json: { authenticated: false, initialized: false, setupEnabled: true, setupTokenRequired: true } });
   });
   await page.route("**/api/overview", (route) => route.fulfill({ json: {
-    tasks: [], upcoming: [], upcomingDays: [], deviceKeyConfigured: false, endpoint: "https://api.day.app",
+    tasks: [], upcoming: [], upcomingDays: [], deviceKeyConfigured: false, defaultChannel: { type: "bark", credentialConfigured: false }, endpoint: "https://api.day.app",
     deliveries: { pending: 0, retrying: 0, nextRetryAt: null },
     stats: { active: 0, paused: 0, todaySent: 0, totalSent: 0 }, activity: [], recent: [], serverTime: new Date().toISOString(),
   } }));
@@ -54,6 +54,7 @@ test("first-visit setup stays usable in touch landscape and confirms the passwor
   await page.goto("/");
   await page.getByLabel("部署引导令牌").fill("browser-bootstrap-token-secret-2030");
   await page.getByLabel("设置访问密码").fill("landscape-setup-password-2030");
+  await expect(page.getByText("请再次输入密码以确认")).toBeVisible();
   await page.getByLabel("确认访问密码").fill("different-password-value");
   await expect(page.getByText("两次输入的密码不一致")).toBeVisible();
   await expect(page.getByRole("button", { name: "完成初始化" })).toBeDisabled();

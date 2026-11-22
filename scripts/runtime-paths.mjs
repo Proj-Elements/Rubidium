@@ -1,5 +1,6 @@
 import { existsSync } from "node:fs";
 import { resolve, sep } from "node:path";
+import { getEnvironmentVariable } from "../lib/environment.mjs";
 
 /** Resolve before Next's standalone entry changes cwd. Shell settings win. */
 export function loadRuntimeEnvironment(directory = process.cwd()) {
@@ -9,9 +10,9 @@ export function loadRuntimeEnvironment(directory = process.cwd()) {
   }
 }
 
-export function runtimeDirectory(directory = process.cwd(), configured = process.env.BARKER_DATA_DIR) {
+export function runtimeDirectory(directory = process.cwd(), configured = getEnvironmentVariable("DATA_DIR")) {
   const data = resolve(directory, configured || "data");
-  if (data.split(sep).includes(".next")) throw new Error("BARKER_DATA_DIR must be outside .next; builds remove that directory");
+  if (data.split(sep).includes(".next")) throw new Error("RUBIDIUM_DATA_DIR must be outside .next; builds remove that directory");
   return data;
 }
 

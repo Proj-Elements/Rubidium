@@ -35,7 +35,7 @@ function draftFromChannel(channel: Channel): ChannelDraft {
 
 function channelStatus(channel: Channel): { label: string; color: "success" | "warning" | "default" } {
   if (channel.credentialConfigured) return { label: "凭据已配置", color: "success" };
-  return channel.type === "bark" ? { label: "未配置密钥", color: "warning" } : { label: "未配置令牌", color: "default" };
+  return channel.type === "bark" ? { label: "未配置密钥", color: "warning" } : { label: "无需令牌", color: "default" };
 }
 
 export function ChannelManager({ active, onChanged }: { active: boolean; onChanged: () => Promise<void> }) {
@@ -51,7 +51,6 @@ export function ChannelManager({ active, onChanged }: { active: boolean; onChang
   const [discardConfirmation, setDiscardConfirmation] = useState(false);
   const [feedback, setFeedback] = useState<{ message: string; kind: "error" | "success" } | null>(null);
   const dirty = JSON.stringify(draft) !== JSON.stringify(baseline);
-  const isDefault = editing?.isDefault === true;
   const conflict = Boolean(editing && data?.channels.find((channel) => channel.id === editing.id)?.revision !== editing.revision);
   useUnsaved(dialogOpen && dirty);
 
@@ -168,6 +167,7 @@ export function ChannelManager({ active, onChanged }: { active: boolean; onChang
               <ItemCard.Title className="flex min-w-0 flex-wrap items-center gap-2">
                 <span className="[overflow-wrap:anywhere]">{channel.name}</span>
                 <Chip size="sm" variant="soft" color="accent"><Chip.Label>{channel.type === "bark" ? "Bark" : "Ntfy"}</Chip.Label></Chip>
+                {channel.isDefault && <Chip size="sm" variant="soft" color="accent"><Chip.Label>默认</Chip.Label></Chip>}
                 <Chip size="sm" variant="soft" color={status.color}><Chip.Label>{status.label}</Chip.Label></Chip>
               </ItemCard.Title>
               <ItemCard.Description className="block min-w-0 [overflow-wrap:anywhere]">
@@ -196,8 +196,8 @@ export function ChannelManager({ active, onChanged }: { active: boolean; onChang
               <Modal.CloseTrigger aria-label="关闭渠道编辑" className="static size-11 shrink-0" isDisabled={busy === "save"} />
             </Modal.Header>
             <Modal.Body className="grid min-h-0 content-start gap-4 px-5 py-4 sm:px-6">
-              {!isDefault && <Field label="渠道名称" value={draft.name} onChange={(event) => update("name", event.target.value)} maxLength={80} required disabled={busy === "save"} />}
-              <Pick label="渠道类型" value={draft.type} onChange={updateType} isDisabled={busy === "save" || isDefault} options={[
+              <Field label="渠道名称" value={draft.name} onChange={(event) => update("name", event.target.value)} maxLength={80} required disabled={busy === "save"} />
+              <Pick label="渠道类型" value={draft.type} onChange={updateType} isDisabled={busy === "save"} options={[
                 { value: "bark", label: "Bark" }, { value: "ntfy", label: "Ntfy" },
               ]} />
               <Field label="服务地址" value={draft.endpoint} onChange={(event) => update("endpoint", event.target.value)} placeholder={draft.type === "bark" ? "https://api.day.app" : "https://ntfy.sh"} type="url" maxLength={300} required disabled={busy === "save"} />

@@ -75,7 +75,7 @@ jobs:
           pnpm exec next typegen
           pnpm typecheck
           pnpm lint
-          BARKER_DATA_DIR="$(mktemp -d)" BARKER_DISABLE_SCHEDULER=1 pnpm build
+          RUBIDIUM_DATA_DIR="$(mktemp -d)" RUBIDIUM_DISABLE_SCHEDULER=1 pnpm build
 
       - name: Check container startup and durable retry
         id: container

@@ -19,6 +19,12 @@ test("database changes verify backups and new server modules receive owning chec
   assert.ok(selectChecks(["lib/new-module.ts"]).tests.includes("tests/api.test.ts"));
 });
 
+test("environment helper changes run their compatibility tests and container smoke", () => {
+  assert.deepEqual(selectChecks(["lib/environment.mjs"]), {
+    tests: ["tests/environment.test.ts"], source: true, container: true, browser: false,
+  });
+});
+
 test("UI-only changes build the app without running backend suites", () => {
   assert.deepEqual(selectChecks(["components/nav.tsx", "app/globals.css"]), { tests: ["tests/ui.test.ts"], source: true, container: false, browser: true });
 });

@@ -173,6 +173,12 @@ test("settings only poll the active panel and preserve notification preference d
   const retentionControl = retentionField.locator("xpath=ancestor::*[contains(@class, 'number-field__group')][1]");
   expect((await retentionControl.boundingBox())!.height).toBeGreaterThanOrEqual(44);
   const saveRetention = page.getByRole("button", { name: "保存保留策略" });
+  const retentionBounds = await retentionControl.boundingBox();
+  const saveBounds = await saveRetention.boundingBox();
+  expect(retentionBounds).not.toBeNull();
+  expect(saveBounds).not.toBeNull();
+  expect(Math.abs(retentionBounds!.y + retentionBounds!.height - saveBounds!.y - saveBounds!.height)).toBeLessThanOrEqual(2);
+  expect(saveBounds!.x - retentionBounds!.x - retentionBounds!.width).toBeLessThan(240);
   await expect(saveRetention).toBeDisabled();
   await retentionField.focus();
   await expect(saveRetention).toBeEnabled();
@@ -309,7 +315,7 @@ test("clearing a configured Bark credential requires an empty replacement field"
   const saved = await page.request.put("/api/settings", { data: { ...before.settings, revision: before.revision, deviceKey: "browser-connected-key" } });
   expect(saved.status()).toBe(200);
   await page.goto("/settings");
-  await page.getByRole("button", { name: "编辑 默认 Bark", exact: true }).click();
+  await page.getByRole("button", { name: "编辑 主要通知", exact: true }).click();
   const key = page.getByLabel("Device Key", { exact: true });
   await key.fill("unsaved-key");
   const clear = page.getByRole("button", { name: "清除已保存凭据", exact: true });

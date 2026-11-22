@@ -7,11 +7,11 @@ import { join } from "node:path";
 import { after, before, test } from "node:test";
 
 const directory = mkdtempSync(join(tmpdir(), "rubidium-password-reset-"));
-process.env.BARKER_DATA_DIR = directory;
-process.env.BARKER_SESSION_SECRET = "rubidium-password-reset-session";
-delete process.env.BARKER_PASSWORD;
-process.env.BARKER_SETUP_TOKEN = "";
-process.env.BARKER_ALLOW_SETUP = "";
+process.env.RUBIDIUM_DATA_DIR = directory;
+process.env.RUBIDIUM_SESSION_SECRET = "rubidium-password-reset-session";
+delete process.env.RUBIDIUM_PASSWORD;
+process.env.RUBIDIUM_SETUP_TOKEN = "";
+process.env.RUBIDIUM_ALLOW_SETUP = "";
 
 let auth: typeof import("../lib/auth");
 let database: typeof import("../lib/db");
@@ -48,7 +48,7 @@ test("Docker reset rotates the password and revokes access without changing task
 });
 
 test("reset rejects weak passwords and missing databases without creating data", () => {
-  assert.throws(() => resetPassword("short", directory), /16–300/);
+  assert.throws(() => resetPassword("short", directory), /8–300/);
   const emptyDirectory = mkdtempSync(join(tmpdir(), "rubidium-password-reset-empty-"));
   try {
     assert.throws(() => resetPassword("valid-reset-password-2030", emptyDirectory), /database does not exist/);
@@ -62,7 +62,7 @@ test("interactive reset refuses non-TTY input without echoing or persisting it",
   try {
     const result = spawnSync(process.execPath, ["scripts/password-reset.mjs"], {
       cwd: process.cwd(), input: `${secret}\n${secret}\n`, encoding: "utf8",
-      env: { ...process.env, BARKER_DATA_DIR: emptyDirectory, BARKER_PASSWORD: "", BARKER_SESSION_SECRET: "" },
+      env: { ...process.env, RUBIDIUM_DATA_DIR: emptyDirectory, RUBIDIUM_PASSWORD: "", RUBIDIUM_SESSION_SECRET: "" },
     });
     assert.equal(result.status, 1);
     assert.match(result.stderr, /必须通过交互终端运行/);

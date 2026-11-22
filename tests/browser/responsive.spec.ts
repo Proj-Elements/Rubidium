@@ -47,10 +47,18 @@ test("landscape workspace sidebar collapses accessibly and releases list width",
     expect((await sidebar.boundingBox())!.width).toBe(48);
     expect((await page.locator(".sidebar__main").boundingBox())!.width - expandedMainWidth).toBe(192);
     expect(await expand.evaluate((button) => button.matches(":focus-visible"))).toBe(true);
+    const sidebarBounds = await sidebar.boundingBox();
+    const brandBounds = await sidebar.locator(".brand-mark").boundingBox();
+    expect(brandBounds).not.toBeNull();
+    expect(Math.abs(brandBounds!.width - brandBounds!.height)).toBeLessThanOrEqual(1);
+    expect(brandBounds!.x).toBeGreaterThanOrEqual(sidebarBounds!.x);
+    expect(brandBounds!.x + brandBounds!.width).toBeLessThanOrEqual(sidebarBounds!.x + sidebarBounds!.width);
     for (const item of await sidebar.locator(".sidebar__menu-item").all()) {
       const bounds = await item.locator(".sidebar__menu-item-content").boundingBox();
       expect(bounds?.width).toBe(48);
       expect(bounds?.height).toBe(48);
+      expect(bounds!.x).toBeGreaterThanOrEqual(sidebarBounds!.x);
+      expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(sidebarBounds!.x + sidebarBounds!.width);
     }
     await expect(sidebar.getByText(/Asia\//)).toHaveCount(0);
 

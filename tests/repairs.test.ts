@@ -10,10 +10,10 @@ import { calendarDays, previewSchedule, upcomingWeekDetails } from "../lib/cron"
 import type { Task, TaskInput } from "../lib/types";
 
 const directory = mkdtempSync(join(tmpdir(), "barker-repairs-"));
-process.env.BARKER_DATA_DIR = directory;
-process.env.BARKER_PASSWORD = "regression-password-value";
-process.env.BARKER_SETUP_TOKEN = "";
-process.env.BARKER_ALLOW_SETUP = "";
+process.env.RUBIDIUM_DATA_DIR = directory;
+process.env.RUBIDIUM_PASSWORD = "regression-password-value";
+process.env.RUBIDIUM_SETUP_TOKEN = "";
+process.env.RUBIDIUM_ALLOW_SETUP = "";
 let db: typeof import("../lib/db");
 let scheduler: typeof import("../lib/scheduler");
 let auth: typeof import("../lib/auth");

@@ -5,10 +5,10 @@ import { join } from "node:path";
 import { after, before, test } from "node:test";
 
 const directory = mkdtempSync(join(tmpdir(), "barker-api-"));
-process.env.BARKER_DATA_DIR = directory;
-process.env.BARKER_PASSWORD = "api-test-password-1234";
-process.env.BARKER_SETUP_TOKEN = "";
-process.env.BARKER_ALLOW_SETUP = "";
+process.env.RUBIDIUM_DATA_DIR = directory;
+process.env.RUBIDIUM_PASSWORD = "api-test-password-1234";
+process.env.RUBIDIUM_SETUP_TOKEN = "";
+process.env.RUBIDIUM_ALLOW_SETUP = "";
 let auth: typeof import("../lib/auth");
 let tasks: typeof import("../app/api/tasks/route");
 let task: typeof import("../app/api/tasks/[id]/route");
@@ -268,7 +268,47 @@ test("channel API protects credentials, checks revisions, and tests without queu
     id: "default", name: configuredDefault.name, type: "bark", endpoint: configuredDefault.endpoint, topic: "", credential: "", clearCredential: true, revision: configuredDefault.revision,
   }));
   assert.equal(clearedDefault.status, 200);
-  assert.equal((await clearedDefault.json()).channel.credentialConfigured, false);
+  const defaultBark = (await clearedDefault.json()).channel;
+  assert.equal(defaultBark.credentialConfigured, false);
+
+  const switchedToNtfyResponse = await channels.PUT(request("/api/channels", "PUT", {
+    id: "default", name: "Primary Ntfy", type: "ntfy", endpoint: "https://ntfy.default.example", topic: "primary_alerts", credential: "", revision: defaultBark.revision,
+  }));
+  assert.equal(switchedToNtfyResponse.status, 200);
+  const defaultNtfy = (await switchedToNtfyResponse.json()).channel;
+  assert.equal(defaultNtfy.name, "Primary Ntfy");
+  assert.equal(defaultNtfy.type, "ntfy");
+  assert.equal(database.deliverySettings("default").channelType, "ntfy");
+
+  fetchMock.mock.mockImplementation(async (url: string | URL | Request, init?: RequestInit) => {
+    assert.equal(String(url), "https://ntfy.default.example/primary_alerts");
+    assert.equal(new Headers(init?.headers).get("authorization"), null);
+    return new Response(null, { status: 200 });
+  });
+  const defaultTest = await channelTest.POST(request("/api/channels/default/test", "POST", {}), { params: Promise.resolve({ id: "default" }) });
+  assert.equal(defaultTest.status, 200);
+
+  const legacyDeviceUpdate = await devices.POST(request("/api/devices", "POST", {
+    id: "default", name: "Legacy Bark", endpoint: "https://legacy-bark.example", deviceKey: "legacy-compatible-device-key", revision: defaultNtfy.revision,
+  }));
+  assert.equal(legacyDeviceUpdate.status, 200);
+  assert.equal(database.readSettings().endpoint, "https://legacy-bark.example");
+  assert.equal(database.listChannels()[0].type, "ntfy", "legacy Bark configuration must not replace the active Ntfy channel");
+  assert.equal(database.listDevices()[0].deviceKeyConfigured, true);
+
+  const restoredSettings = database.readSettingsState();
+  const legacySettingsUpdate = await settings.PUT(request("/api/settings", "PUT", {
+    ...restoredSettings.settings, group: "Legacy-compatible preference", revision: restoredSettings.revision,
+  }));
+  assert.equal(legacySettingsUpdate.status, 200);
+  assert.equal(database.listChannels()[0].type, "ntfy", "legacy settings writes must leave the active default channel unchanged");
+
+  const switchedBack = await channels.PUT(request("/api/channels", "PUT", {
+    id: "default", name: "Primary Bark", type: "bark", endpoint: "https://legacy-bark.example", topic: "", credential: "legacy-compatible-device-key", revision: database.listChannels()[0].revision,
+  }));
+  assert.equal(switchedBack.status, 200);
+  assert.equal((await switchedBack.json()).channel.type, "bark");
+  assert.equal(database.deliverySettings("default").deviceKey, "legacy-compatible-device-key");
 });
 
 test("API credentials support permanent validity without changing finite expiry", async () => {
@@ -343,13 +383,13 @@ test("browser sessions are capped, expired entries are cleaned, and listings are
 });
 
 test("health requires a writable database and a fresh enabled scheduler", async () => {
-  const previous = process.env.BARKER_DISABLE_SCHEDULER;
+  const previous = process.env.RUBIDIUM_DISABLE_SCHEDULER;
   const raw = database.__rawDatabaseForTests();
   try {
-    process.env.BARKER_DISABLE_SCHEDULER = "1";
+    process.env.RUBIDIUM_DISABLE_SCHEDULER = "1";
     database.writeRuntimeState("scheduler_heartbeat", String(Date.now()));
     assert.equal((await health.GET()).status, 503);
-    delete process.env.BARKER_DISABLE_SCHEDULER;
+    delete process.env.RUBIDIUM_DISABLE_SCHEDULER;
     assert.equal((await health.GET()).status, 200);
     raw.exec("PRAGMA query_only=ON");
     assert.equal((await health.GET()).status, 503);
@@ -360,8 +400,8 @@ test("health requires a writable database and a fresh enabled scheduler", async 
     assert.equal((await health.GET()).status, 503);
   } finally {
     raw.exec("PRAGMA query_only=OFF");
-    if (previous === undefined) delete process.env.BARKER_DISABLE_SCHEDULER;
-    else process.env.BARKER_DISABLE_SCHEDULER = previous;
+    if (previous === undefined) delete process.env.RUBIDIUM_DISABLE_SCHEDULER;
+    else process.env.RUBIDIUM_DISABLE_SCHEDULER = previous;
   }
 });
 

@@ -12,6 +12,7 @@ import { useResource } from "./use-resource";
 import { useTime } from "./use-time";
 import { useUnsaved } from "./use-unsaved";
 import { useWorkspace } from "./workspace-context";
+import { MIN_PASSWORD_LENGTH, passwordValidationMessage } from "@/lib/password-policy";
 
 interface Security {
   sessions: Array<{ id: string; expiresAt: number }>;
@@ -37,7 +38,8 @@ export function SecurityManager({ active }: { active: boolean }) {
   const [token, setToken] = useState("");
   const [revocation, setRevocation] = useState<{ id: string; kind: "session" | "token"; name: string } | null>(null);
   const [busy, setBusy] = useState<"password" | "token" | "revoke" | null>(null);
-  const passwordMismatch = confirmNext.length > 0 && next !== confirmNext;
+  const passwordReason = next ? passwordValidationMessage(next) : null;
+  const passwordMismatch = next.length > 0 && next !== confirmNext;
   useUnsaved(Boolean(current || next || confirmNext || name || scope !== "read" || days !== defaultDays));
 
   async function mutate(action: NonNullable<typeof busy>, fields: object, message: string) {
@@ -55,7 +57,7 @@ export function SecurityManager({ active }: { active: boolean }) {
 
   async function password(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!current || !next || !confirmNext || next !== confirmNext) return;
+    if (!current || !next || !confirmNext || passwordReason || next !== confirmNext) return;
     if (await mutate("password", { current, next }, "访问密码已更新。")) { setCurrent(""); setNext(""); setConfirmNext(""); }
   }
 
@@ -83,14 +85,18 @@ export function SecurityManager({ active }: { active: boolean }) {
         <Fieldset className="min-w-0 gap-4" disabled={busy !== null}>
           <Fieldset.Group className="security-password-fields @min-[52rem]/settings:grid-cols-2">
             <Field label="当前访问密码" type="password" value={current} onChange={(event) => setCurrent(event.target.value)} maxLength={300} autoComplete="current-password" required />
-            <Field label="新访问密码" type="password" value={next} onChange={(event) => setNext(event.target.value)} minLength={16} maxLength={300} autoComplete="new-password" required />
+            <TextField className="workspace-field" fullWidth isRequired isDisabled={busy !== null} isInvalid={Boolean(passwordReason)}>
+              <Label>新访问密码</Label>
+              <Input variant="secondary" fullWidth className="h-11" type="password" value={next} onChange={(event) => setNext(event.target.value)} minLength={MIN_PASSWORD_LENGTH} maxLength={300} autoComplete="new-password" />
+              {passwordReason && <FieldError>{passwordReason}</FieldError>}
+            </TextField>
             <TextField className="workspace-field" fullWidth name="confirmNewPassword" type="password" isRequired isDisabled={busy !== null} isInvalid={passwordMismatch}>
               <Label>确认新访问密码</Label>
               <Input variant="secondary" fullWidth className="h-11" autoComplete="new-password" value={confirmNext} onChange={(event) => setConfirmNext(event.target.value)} maxLength={300} />
-              {passwordMismatch && <FieldError>两次输入的新访问密码不一致</FieldError>}
+              {passwordMismatch && <FieldError>{confirmNext ? "两次输入的新访问密码不一致" : "请再次输入新访问密码以确认"}</FieldError>}
             </TextField>
           </Fieldset.Group>
-          <Fieldset.Actions><Button type="submit" isPending={busy === "password"} isDisabled={busy !== null || !current || !next || !confirmNext || passwordMismatch}>修改访问密码</Button></Fieldset.Actions>
+          <Fieldset.Actions><Button type="submit" isPending={busy === "password"} isDisabled={busy !== null || !current || !next || !confirmNext || Boolean(passwordReason) || passwordMismatch}>修改访问密码</Button></Fieldset.Actions>
         </Fieldset>
       </Form>
     </Card>
@@ -112,7 +118,7 @@ export function SecurityManager({ active }: { active: boolean }) {
             <Fieldset.Group>
               <Field label="凭据名称" value={name} onChange={(event) => setName(event.target.value)} maxLength={80} required />
               <div className="grid grid-cols-2 items-start gap-4">
-                <Pick label="凭据权限" value={scope} onChange={setScope} options={scopes} isDisabled={busy !== null} />
+                <Pick label="凭据权限" value={scope} onChange={setScope} className="credential-scope" options={scopes} isDisabled={busy !== null} />
                 <div className="grid content-start gap-1">
                   <div className="flex min-h-11 items-center gap-1">
                     <span className="label font-medium text-foreground">有效天数</span>

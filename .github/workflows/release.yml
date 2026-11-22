@@ -57,7 +57,7 @@ jobs:
       - name: Test new version candidate
         if: github.event_name == 'push' && github.ref_type == 'tag' && github.event.created
         run: pnpm test
-      - run: BARKER_DATA_DIR="$(mktemp -d)" BARKER_DISABLE_SCHEDULER=1 pnpm build
+      - run: RUBIDIUM_DATA_DIR="$(mktemp -d)" RUBIDIUM_DISABLE_SCHEDULER=1 pnpm build
       - name: Test browser interactions for new candidate
         if: github.event_name == 'push' && github.ref_type == 'tag' && github.event.created
         run: |
@@ -105,7 +105,7 @@ jobs:
               --label "org.opencontainers.image.revision=$GITHUB_SHA" \
               --label "org.opencontainers.image.version=$VERSION" \
               --label "org.opencontainers.image.licenses=AGPL-3.0-only" .
-            BARKER_SMOKE_PLATFORM="linux/$architecture" node scripts/container-smoke.mjs "rubidium:candidate-$architecture"
+            RUBIDIUM_SMOKE_PLATFORM="linux/$architecture" node scripts/container-smoke.mjs "rubidium:candidate-$architecture"
           done
       - name: Recheck registry before publication
         id: candidate
@@ -148,7 +148,7 @@ jobs:
           set -euo pipefail
           for architecture in amd64 arm64; do
             docker pull --platform "linux/$architecture" "$IMAGE@$DIGEST"
-            BARKER_SMOKE_PLATFORM="linux/$architecture" node scripts/container-smoke.mjs "$IMAGE@$DIGEST"
+            RUBIDIUM_SMOKE_PLATFORM="linux/$architecture" node scripts/container-smoke.mjs "$IMAGE@$DIGEST"
           done
       - name: Promote tested digest to stable channels
         env:

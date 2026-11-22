@@ -6,7 +6,7 @@ import { after, before, beforeEach, test } from "node:test";
 import { BarkDeliveryError } from "../lib/bark";
 
 const directory = mkdtempSync(join(tmpdir(), "barker-scheduler-"));
-process.env.BARKER_DATA_DIR = directory;
+process.env.RUBIDIUM_DATA_DIR = directory;
 after(() => rmSync(directory, { recursive: true, force: true }));
 
 let db: typeof import("../lib/db");

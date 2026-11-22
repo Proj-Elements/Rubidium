@@ -165,18 +165,18 @@ function HistorySettings({ initial, onSaved }: { initial: SettingsPayload | null
     finally { setPruning(false); }
   }
 
-  return <Card className="gap-4 p-5 sm:p-6">
+  return <Card className="history-settings-card">
     <CardHeading title="历史记录维护" />
-    {initial ? <Form className="grid gap-4" onSubmit={save}>
-      {conflict && <Notice kind="warning" action={<Button type="button" variant="ghost" isDisabled={saving} onPress={reload}>载入最新设置</Button>}>保留设置已在其他页面更新。</Notice>}
+    {initial ? <Form className="history-settings-form" onSubmit={save}>
+      {conflict && <div className="basis-full"><Notice kind="warning" action={<Button type="button" variant="ghost" isDisabled={saving} onPress={reload}>载入最新设置</Button>}>保留设置已在其他页面更新。</Notice></div>}
       <NumericField label="自动保留天数（0 关闭）" value={days} onChange={setDays} onFocus={() => setEditingDays(true)} onBlur={() => setEditingDays(false)} minValue={0} maxValue={36500} isRequired isDisabled={saving} />
-      {feedback && <Notice kind={feedback.kind}>{feedback.message}</Notice>}
-      <div className="flex flex-wrap items-center justify-end gap-2">
+      {feedback && <div className="basis-full"><Notice kind={feedback.kind}>{feedback.message}</Notice></div>}
+      <div className="history-settings-actions">
         <Button type="button" variant="ghost" isDisabled={!dirty || saving} onPress={reload}>取消修改</Button>
         <Button type="submit" isPending={saving} isDisabled={(!dirty && !editingDays) || conflict}>保存保留策略</Button>
       </div>
     </Form> : <Loading>正在读取保留设置</Loading>}
-    <Card.Footer><Button variant="danger-soft" onPress={() => setConfirmPrune(true)}>清理 30 天前记录</Button></Card.Footer>
+    <Button className="history-prune-action" variant="danger-soft" onPress={() => setConfirmPrune(true)}>清理 30 天前记录</Button>
     {confirmPrune && <Confirm title="清理 30 天前的结束记录？" confirmLabel="清理记录" onClose={() => setConfirmPrune(false)} onConfirm={() => void prune()} busy={pruning}>
       <p>相应消息正文和尝试历史将永久删除。待投递和发送中的消息不会被清理。</p>
     </Confirm>}

@@ -170,10 +170,10 @@ export function TaskEditor({ task, duplicate = false, onClose }: { task?: Task; 
             </Fieldset>
 
             <div className="grid gap-3">
-              <Pick label="通知渠道" value={deviceId} onChange={setDeviceId} options={(channels?.channels ?? [{ id: "default", name: "默认 Bark", type: "bark" }]).map((channel) => ({
+              <Pick label="通知渠道" value={deviceId} onChange={setDeviceId} options={(channels?.channels ?? [{ id: "default", name: "主要通知", type: "bark" }]).map((channel) => ({
                 value: channel.id, label: `${channel.name} · ${channel.type === "ntfy" ? "Ntfy" : "Bark"}`,
               }))} />
-              {dashboard && !dashboard.deviceKeyConfigured && deviceId === "default" && <Notice kind="info" action={<WorkspaceLink href="/settings" className="workspace-link">前往设置</WorkspaceLink>}>默认渠道未配置 Device Key。</Notice>}
+              {dashboard?.defaultChannel.type === "bark" && !dashboard.defaultChannel.credentialConfigured && deviceId === "default" && <Notice kind="info" action={<WorkspaceLink href="/settings" className="workspace-link">前往设置</WorkspaceLink>}>默认 Bark 渠道未配置 Device Key。</Notice>}
             </div>
 
             <Details title="时区、节假日与通知策略">

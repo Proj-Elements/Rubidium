@@ -57,7 +57,7 @@ function WorkspaceToolbar() {
 function SidebarSections({ mobile = false }: { mobile?: boolean }) {
   const path = usePathname();
   const { isOpen, setMobileOpen } = useSidebar();
-  const { dashboard, logout, notify } = useWorkspace();
+  const { logout, notify } = useWorkspace();
   const [confirmLogout, setConfirmLogout] = useState(false);
   const collapsed = !mobile && !isOpen;
   const footerGap = collapsed ? "gap-1" : mobile ? "gap-2" : "gap-3";
@@ -66,7 +66,7 @@ function SidebarSections({ mobile = false }: { mobile?: boolean }) {
 
   return <>
     {mobile && <Sheet.Heading className="sr-only">工作空间导航</Sheet.Heading>}
-    <Sidebar.Header className={`flex-row items-center justify-between px-5 ${mobile ? "py-3" : "pt-6 pb-8"}`}>
+    <Sidebar.Header className={`flex-row items-center ${collapsed ? "justify-center px-0" : "justify-between px-5"} ${mobile ? "py-3" : "pt-6 pb-8"}`}>
       <WorkspaceLink href="/" className="w-fit no-underline hover:no-underline" aria-label="Rubidium 工作概览" onNavigate={close}><Brand /></WorkspaceLink>
       {mobile && <IconButton icon="close" label="关闭导航" onPress={close} />}
     </Sidebar.Header>
@@ -82,9 +82,6 @@ function SidebarSections({ mobile = false }: { mobile?: boolean }) {
       </Sidebar.Group>
     </Sidebar.Content>
     <Sidebar.Footer className={`${footerGap}${collapsed ? " sidebar-footer-collapsed" : ""}`}>
-      {!mobile && !collapsed && dashboard?.displayTimeZone && <p className="flex items-center gap-2 px-3 text-xs text-muted" aria-label={`显示时区：${dashboard.displayTimeZone}`}>
-        <Glyph name="globe" size={15} />{dashboard.displayTimeZone}
-      </p>}
       {collapsed ? <>
         <Tooltip delay={350}>
           <Button isIconOnly variant="danger-soft" aria-label="退出登录" className="sidebar-compact-action size-11" onPress={requestLogout}>

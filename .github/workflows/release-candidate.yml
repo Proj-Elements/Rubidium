@@ -32,5 +32,5 @@ jobs:
               --label "org.opencontainers.image.source=https://github.com/$GITHUB_REPOSITORY" \
               --label "org.opencontainers.image.revision=$GITHUB_SHA" \
               --label "org.opencontainers.image.licenses=AGPL-3.0-only" .
-            BARKER_SMOKE_PLATFORM="linux/$architecture" node scripts/container-smoke.mjs "rubidium:preflight-$architecture"
+            RUBIDIUM_SMOKE_PLATFORM="linux/$architecture" node scripts/container-smoke.mjs "rubidium:preflight-$architecture"
           done

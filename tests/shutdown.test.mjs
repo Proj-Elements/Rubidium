@@ -8,17 +8,17 @@ import { test } from "node:test";
 
 test("disabled scheduler initializes auth without generating or logging a password", { timeout: 10_000 }, () => {
   const directory = mkdtempSync(join(tmpdir(), "barker-disabled-scheduler-"));
-  const env = { ...process.env, NEXT_RUNTIME: "nodejs", BARKER_DATA_DIR: directory, BARKER_DISABLE_SCHEDULER: "1" };
-  delete env.BARKER_PASSWORD;
-  delete env.BARKER_SETUP_TOKEN;
-  delete env.BARKER_ALLOW_SETUP;
-  delete env.BARKER_SESSION_SECRET;
+  const env = { ...process.env, NEXT_RUNTIME: "nodejs", RUBIDIUM_DATA_DIR: directory, RUBIDIUM_DISABLE_SCHEDULER: "1" };
+  delete env.RUBIDIUM_PASSWORD;
+  delete env.RUBIDIUM_SETUP_TOKEN;
+  delete env.RUBIDIUM_ALLOW_SETUP;
+  delete env.RUBIDIUM_SESSION_SECRET;
   try {
     const result = spawnSync(process.execPath, ["--import", "tsx", "--eval", "import('./instrumentation.ts').then(({ register }) => register())"], {
       cwd: process.cwd(), env, encoding: "utf8", timeout: 8_000,
     });
     assert.equal(result.status, 0, result.stderr);
-    assert.doesNotMatch(`${result.stdout}\n${result.stderr}`, /Rubidium access password|BARKER_PASSWORD/);
+    assert.doesNotMatch(`${result.stdout}\n${result.stderr}`, /Rubidium access password|RUBIDIUM_PASSWORD/);
     assert.equal(existsSync(join(directory, "session-secret.txt")), true);
     assert.equal(existsSync(join(directory, "access-password.txt")), false);
   } finally { rmSync(directory, { recursive: true, force: true }); }
@@ -48,7 +48,7 @@ test("the server supervisor drains an in-flight delivery before forwarding SIGTE
     await cycle;
   `);
   const child = spawn(process.execPath, ["scripts/start-server.mjs", "--import", "tsx", entry], {
-    cwd: process.cwd(), env: { ...process.env, BARKER_DATA_DIR: directory, BARKER_DISABLE_SCHEDULER: "" }, stdio: ["ignore", "pipe", "pipe"],
+    cwd: process.cwd(), env: { ...process.env, RUBIDIUM_DATA_DIR: directory, RUBIDIUM_DISABLE_SCHEDULER: "" }, stdio: ["ignore", "pipe", "pipe"],
   });
   let stdout = "";
   let stderr = "";
@@ -80,7 +80,7 @@ for (const signal of ["SIGTERM", "SIGKILL"]) {
     mkdirSync(join(directory, ".next/standalone"), { recursive: true });
     writeFileSync(entry, `
       process.once('SIGTERM', () => process.exit(0));
-      console.log('READY:' + JSON.stringify({ pid: process.pid, directory: process.env.BARKER_DATA_DIR }));
+      console.log('READY:' + JSON.stringify({ pid: process.pid, directory: process.env.RUBIDIUM_DATA_DIR }));
       setInterval(() => {}, 1000);
     `);
     const child = spawn(process.execPath, [resolve("scripts/browser-server.mjs")], {

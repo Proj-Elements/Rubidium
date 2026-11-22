@@ -6,11 +6,11 @@ import { join } from "node:path";
 import { after, before, test } from "node:test";
 
 const directory = mkdtempSync(join(tmpdir(), "rubidium-setup-"));
-process.env.BARKER_DATA_DIR = directory;
-process.env.BARKER_SESSION_SECRET = "rubidium-setup-session-secret";
-delete process.env.BARKER_PASSWORD;
-delete process.env.BARKER_SETUP_TOKEN;
-delete process.env.BARKER_ALLOW_SETUP;
+process.env.RUBIDIUM_DATA_DIR = directory;
+process.env.RUBIDIUM_SESSION_SECRET = "rubidium-setup-session-secret";
+delete process.env.RUBIDIUM_PASSWORD;
+delete process.env.RUBIDIUM_SETUP_TOKEN;
+delete process.env.RUBIDIUM_ALLOW_SETUP;
 
 let auth: typeof import("../lib/auth");
 let session: typeof import("../app/api/session/route");
@@ -38,14 +38,15 @@ test("first boot requires one-time setup and persists only a password hash", asy
   assert.equal(auth.passwordIsConfigured(), false);
 
   const setupToken = "first-install-bootstrap-token-2030";
-  process.env.BARKER_SETUP_TOKEN = setupToken;
+  process.env.RUBIDIUM_SETUP_TOKEN = setupToken;
   assert.deepEqual(await (await session.GET(request())).json(), { authenticated: false, initialized: false, setupEnabled: true, setupTokenRequired: true });
   assert.equal((await session.POST(request({ mode: "setup", password: "first-install-password-2030" }))).status, 403);
   assert.equal((await session.POST(request({ mode: "setup", password: "first-install-password-2030", setupToken: "wrong-bootstrap-token-2030" }))).status, 403);
   assert.equal(auth.passwordIsConfigured(), false);
 
-  const weak = await session.POST(request({ mode: "setup", password: "too-short", setupToken }));
+  const weak = await session.POST(request({ mode: "setup", password: "short", setupToken }));
   assert.equal(weak.status, 400);
+  assert.match((await weak.json()).error, /至少需要 8 个字符/);
   assert.equal(auth.passwordIsConfigured(), false);
   assert.equal((await session.POST(request({ mode: "setup", password: "first-install-password-2030", setupToken, timeZone: "Invalid/Zone" }))).status, 400);
   assert.equal(auth.passwordIsConfigured(), false);
@@ -67,7 +68,7 @@ test("first boot requires one-time setup and persists only a password hash", asy
   const token = auth.getCookieValue(cookie);
   assert.ok(token);
   const restored = spawnSync(process.execPath, ["--import", "tsx", "--input-type=module", "--eval", `const auth = await import('./lib/auth.ts'); console.log(JSON.stringify({ configured: auth.passwordIsConfigured(), accepted: auth.verifyPassword(${JSON.stringify(password)}), session: auth.isValidSessionToken(${JSON.stringify(token)}) }));`], {
-    cwd: process.cwd(), env: { ...process.env, BARKER_DATA_DIR: directory, BARKER_PASSWORD: "", BARKER_SESSION_SECRET: "rubidium-setup-session-secret" }, encoding: "utf8",
+    cwd: process.cwd(), env: { ...process.env, RUBIDIUM_DATA_DIR: directory, RUBIDIUM_PASSWORD: "", RUBIDIUM_SESSION_SECRET: "rubidium-setup-session-secret" }, encoding: "utf8",
   });
   assert.equal(restored.status, 0, restored.stderr);
   assert.deepEqual(JSON.parse(restored.stdout.trim()), { configured: true, accepted: true, session: true });
@@ -92,7 +93,7 @@ test("explicit setup override enables initialization without a bootstrap token",
   `;
   try {
     const result = spawnSync(process.execPath, ["--import", "tsx", "--input-type=module", "--eval", code], {
-      cwd: process.cwd(), env: { ...process.env, BARKER_DATA_DIR: allowDirectory, BARKER_PASSWORD: "", BARKER_SETUP_TOKEN: "", BARKER_ALLOW_SETUP: "1", BARKER_SESSION_SECRET: "rubidium-setup-allow-session" }, encoding: "utf8",
+      cwd: process.cwd(), env: { ...process.env, RUBIDIUM_DATA_DIR: allowDirectory, RUBIDIUM_PASSWORD: "", RUBIDIUM_SETUP_TOKEN: "", RUBIDIUM_ALLOW_SETUP: "1", RUBIDIUM_SESSION_SECRET: "rubidium-setup-allow-session" }, encoding: "utf8",
     });
     assert.equal(result.status, 0, result.stderr);
     assert.deepEqual(JSON.parse(result.stdout.trim()), {
@@ -107,7 +108,7 @@ test("existing generated password files remain valid for upgraded installs", () 
   writeFileSync(join(legacyDirectory, "access-password.txt"), `${password}\n`, { mode: 0o600 });
   try {
     const result = spawnSync(process.execPath, ["--import", "tsx", "--input-type=module", "--eval", `const auth = await import('./lib/auth.ts'); console.log(JSON.stringify({ configured: auth.passwordIsConfigured(), accepted: auth.verifyPassword(${JSON.stringify(password)}) }));`], {
-      cwd: process.cwd(), env: { ...process.env, BARKER_DATA_DIR: legacyDirectory, BARKER_PASSWORD: "", BARKER_SESSION_SECRET: "rubidium-legacy-session-secret" }, encoding: "utf8",
+      cwd: process.cwd(), env: { ...process.env, RUBIDIUM_DATA_DIR: legacyDirectory, RUBIDIUM_PASSWORD: "", RUBIDIUM_SESSION_SECRET: "rubidium-legacy-session-secret" }, encoding: "utf8",
     });
     assert.equal(result.status, 0, result.stderr);
     assert.deepEqual(JSON.parse(result.stdout.trim()), { configured: true, accepted: true });
@@ -118,7 +119,7 @@ function runSetupWorker(dataDir: string, password: string): Promise<{ initialize
   return new Promise((resolve, reject) => {
     const code = `const auth = await import('./lib/auth.ts'); const initialized = auth.initializePassword(${JSON.stringify(password)}); console.log(JSON.stringify({ initialized, accepted: auth.verifyPassword(${JSON.stringify(password)}) }));`;
     const child = spawn(process.execPath, ["--import", "tsx", "--input-type=module", "--eval", code], {
-      cwd: process.cwd(), env: { ...process.env, BARKER_DATA_DIR: dataDir, BARKER_PASSWORD: "", BARKER_SESSION_SECRET: "rubidium-race-session-secret" },
+      cwd: process.cwd(), env: { ...process.env, RUBIDIUM_DATA_DIR: dataDir, RUBIDIUM_PASSWORD: "", RUBIDIUM_SESSION_SECRET: "rubidium-race-session-secret" },
     });
     let stdout = "";
     let stderr = "";
@@ -155,7 +156,7 @@ test("concurrent setup requests with the bootstrap token have one winner", () =>
   `;
   try {
     const result = spawnSync(process.execPath, ["--import", "tsx", "--input-type=module", "--eval", code], {
-      cwd: process.cwd(), env: { ...process.env, BARKER_DATA_DIR: raceDirectory, BARKER_PASSWORD: "", BARKER_SETUP_TOKEN: "route-race-bootstrap-token-secret-2030", BARKER_ALLOW_SETUP: "", BARKER_SESSION_SECRET: "rubidium-setup-route-race-session" }, encoding: "utf8",
+      cwd: process.cwd(), env: { ...process.env, RUBIDIUM_DATA_DIR: raceDirectory, RUBIDIUM_PASSWORD: "", RUBIDIUM_SETUP_TOKEN: "route-race-bootstrap-token-secret-2030", RUBIDIUM_ALLOW_SETUP: "", RUBIDIUM_SESSION_SECRET: "rubidium-setup-route-race-session" }, encoding: "utf8",
     });
     assert.equal(result.status, 0, result.stderr);
     assert.deepEqual(JSON.parse(result.stdout.trim()), [200, 409]);

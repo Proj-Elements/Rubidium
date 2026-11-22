@@ -7,7 +7,8 @@ test("API clients reject HTML or structurally invalid success payloads", () => {
   assert.equal(validApiPayload("/api/tasks", { tasks: [] }), true);
   assert.equal(validApiPayload("/api/overview", {
     tasks: [], upcoming: [], upcomingDays: [], recent: [], activity: [], stats: { active: 0, paused: 0, todaySent: 0, totalSent: 0 },
-    deliveries: { pending: 0, retrying: 0, nextRetryAt: null }, endpoint: "https://api.day.app", deviceKeyConfigured: false, serverTime: "2030-01-01T00:00:00Z",
+    deliveries: { pending: 0, retrying: 0, nextRetryAt: null }, endpoint: "https://api.day.app", deviceKeyConfigured: false,
+    defaultChannel: { type: "bark", credentialConfigured: false }, serverTime: "2030-01-01T00:00:00Z",
   }), true);
   assert.equal(validApiPayload("/api/tasks", {}), false);
   assert.equal(validApiPayload("/api/session", { authenticated: false }), true);
@@ -19,6 +20,11 @@ test("API clients reject HTML or structurally invalid success payloads", () => {
   assert.equal(validApiPayload("/api/tasks/preview", { dates: ["2030-02-28T01:00:00Z"] }), true);
   assert.equal(validApiPayload("/api/settings/test", { delivered: false }), false);
   assert.equal(validApiPayload("/api/overview", { tasks: [], upcoming: [], upcomingDays: [], recent: [], activity: [], stats: {}, deliveries: {}, serverTime: "2030-01-01T00:00:00Z" }), false);
+  assert.equal(validApiPayload("/api/overview", {
+    tasks: [], upcoming: [], upcomingDays: [], recent: [], activity: [], stats: { active: 0, paused: 0, todaySent: 0, totalSent: 0 },
+    deliveries: { pending: 0, retrying: 0, nextRetryAt: null }, endpoint: "https://api.day.app", deviceKeyConfigured: false,
+    defaultChannel: { type: "smtp", credentialConfigured: false }, serverTime: "2030-01-01T00:00:00Z",
+  }), false);
   assert.equal(validApiPayload("/api/settings", { tasks: [] }), false);
   assert.equal(validApiPayload("/api/tasks", { tasks: [{ id: "incomplete" }] }), false);
   assert.equal(validApiPayload("/api/deliveries", { deliveries: [], total: 0, page: Infinity, pageSize: 12 }), false);

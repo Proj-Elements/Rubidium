@@ -35,6 +35,40 @@ test("Bark and Ntfy channels are manageable and selectable in touch landscape", 
   await expect(page.getByRole("tab", { name: "更多设备", exact: true })).toHaveCount(0);
   await expect(page.getByRole("heading", { name: "通知预览", exact: true })).toHaveCount(0);
   await noHorizontalOverflow(page);
+  const initialDefault = existing.channels.find((item: { isDefault: boolean }) => item.isDefault);
+  expect(initialDefault).toBeTruthy();
+  const initialDefaultName = initialDefault.name as string;
+  const defaultCard = () => page.getByRole("listitem").filter({ has: page.getByRole("button", { name: `编辑 ${initialDefaultName}`, exact: true }) });
+  await expect(defaultCard()).toContainText("默认");
+  await defaultCard().getByRole("button", { name: `编辑 ${initialDefaultName}`, exact: true }).click();
+  let defaultDialog = page.getByRole("dialog", { name: "编辑通知渠道", exact: true });
+  await defaultDialog.getByLabel("渠道名称", { exact: true }).fill("Primary Ntfy");
+  await defaultDialog.locator(".select__trigger").click();
+  await page.getByRole("option", { name: "Ntfy", exact: true }).click();
+  await defaultDialog.getByLabel("服务地址", { exact: true }).fill("https://ntfy.default.example");
+  await defaultDialog.getByLabel("Ntfy 主题", { exact: true }).fill("primary-alerts");
+  await defaultDialog.getByRole("button", { name: "保存渠道", exact: true }).click();
+  const defaultNtfyCard = page.getByRole("listitem").filter({ has: page.getByRole("button", { name: "编辑 Primary Ntfy", exact: true }) });
+  await expect(defaultNtfyCard).toContainText("Ntfy");
+  await expect(defaultNtfyCard.getByText("默认", { exact: true })).toBeVisible();
+  await expect(defaultNtfyCard.getByRole("button", { name: "发送测试", exact: true })).toBeEnabled();
+  await page.screenshot({ path: test.info().outputPath("default-ntfy-landscape-844x390.png"), animations: "disabled" });
+
+  await defaultNtfyCard.getByRole("button", { name: "编辑 Primary Ntfy", exact: true }).click();
+  defaultDialog = page.getByRole("dialog", { name: "编辑通知渠道", exact: true });
+  await defaultDialog.getByLabel("渠道名称", { exact: true }).fill(initialDefaultName);
+  await defaultDialog.locator(".select__trigger").click();
+  await page.getByRole("option", { name: "Bark", exact: true }).click();
+  await defaultDialog.getByLabel("服务地址", { exact: true }).fill(initialDefault.endpoint);
+  await defaultDialog.getByLabel("Device Key", { exact: true }).fill("browser-default-bark-key");
+  await defaultDialog.getByRole("button", { name: "保存渠道", exact: true }).click();
+  const restoredSettings = await (await page.request.get("/api/settings")).json();
+  const cleared = await page.request.put("/api/settings", { data: { ...restoredSettings.settings, revision: restoredSettings.revision, clearDeviceKey: true } });
+  expect(cleared.status()).toBe(200);
+  await page.reload();
+  await expect(page.getByRole("heading", { name: "通知渠道", exact: true })).toBeVisible();
+  await expect(page.getByRole("listitem").filter({ has: page.getByRole("button", { name: `编辑 ${initialDefaultName}`, exact: true }) })).toContainText("Bark");
+
   await page.screenshot({ path: test.info().outputPath("channels-landscape-844x390.png"), animations: "disabled" });
 
   await page.getByRole("button", { name: "添加渠道", exact: true }).click();

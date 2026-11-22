@@ -5,6 +5,7 @@ import { redactSecrets } from "./errors";
 import type { ChannelDeliverySettings } from "./types";
 import { logError } from "./logging";
 import { sendNotification } from "./notification";
+import { getEnvironmentVariable } from "./environment.mjs";
 
 let cycle: Promise<void> | null = null;
 let enqueueCycle: Promise<number> | null = null;
@@ -146,7 +147,7 @@ export async function runSchedulerCycle(now = new Date(), deliver = sendNotifica
 }
 
 export function schedulerHealth(now = Date.now()): boolean {
-  if (process.env.BARKER_DISABLE_SCHEDULER === "1") return false;
+  if (getEnvironmentVariable("DISABLE_SCHEDULER") === "1") return false;
   if (!lastEnqueueSucceeded) return false;
   if (readRuntimeState("scheduler_error") || readRuntimeState("scheduler_enqueue_error")) return false;
   const heartbeat = Number(readRuntimeState("scheduler_heartbeat") ?? 0);
@@ -163,7 +164,7 @@ export async function stopScheduler(): Promise<void> {
 }
 
 export function startScheduler(): void {
-  if (process.env.BARKER_DISABLE_SCHEDULER === "1" || globalWorker.barkerSchedulerStarted) return;
+  if (getEnvironmentVariable("DISABLE_SCHEDULER") === "1" || globalWorker.barkerSchedulerStarted) return;
   stopping = false;
   globalWorker.barkerSchedulerStarted = true;
   const tick = () => {

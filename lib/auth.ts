@@ -6,6 +6,8 @@ import { timeZoneSchema } from "./contracts";
 import { DomainError } from "./errors";
 import { initializeStorage, privateFile, runtimeDataDir } from "./storage";
 import { setLogSecret } from "./logging";
+import { MIN_PASSWORD_LENGTH, passwordValidationMessage } from "./password-policy";
+import { getEnvironmentVariable } from "./environment.mjs";
 
 const AUTH_COOKIE = "barker_session";
 const SESSION_DURATION_SECONDS = 12 * 60 * 60;
@@ -79,12 +81,12 @@ let credentialSource: string | undefined;
 let knownPasswordOverride: { source: string; hash: string; password: string } | null = null;
 
 function loadConfiguredPassword(): string | null {
-  const configured = process.env.BARKER_PASSWORD?.trim();
+  const configured = getEnvironmentVariable("PASSWORD")?.trim();
   if (configured) {
-    if (configured.length < MIN_SECRET_LENGTH) {
-      throw new Error(`Rubidium secret BARKER_PASSWORD must be at least ${MIN_SECRET_LENGTH} characters`);
+    if (configured.length < MIN_PASSWORD_LENGTH) {
+      throw new Error(`RUBIDIUM_PASSWORD must be at least ${MIN_PASSWORD_LENGTH} characters`);
     }
-    if (configured.length > MAX_SECRET_LENGTH) throw new Error(`Rubidium secret BARKER_PASSWORD must be at most ${MAX_SECRET_LENGTH} characters`);
+    if (configured.length > MAX_SECRET_LENGTH) throw new Error(`RUBIDIUM_PASSWORD must be at most ${MAX_SECRET_LENGTH} characters`);
     return configured;
   }
 
@@ -92,17 +94,16 @@ function loadConfiguredPassword(): string | null {
   privateFile(path);
   const existing = readSecretFile(path);
   if (existing === null) return null;
-  if (existing.length < MIN_SECRET_LENGTH || existing.length > MAX_SECRET_LENGTH) {
-    throw new Error(`Rubidium secret file ${path} is empty, too short, or too long`);
-  }
+  const invalidPassword = passwordValidationMessage(existing);
+  if (invalidPassword) throw new Error(`Rubidium access password file ${path}: ${invalidPassword}`);
   return existing;
 }
 
 function loadSetupToken(): string | null {
-  const configured = process.env.BARKER_SETUP_TOKEN?.trim();
+  const configured = getEnvironmentVariable("SETUP_TOKEN")?.trim();
   if (!configured) return null;
   if (configured.length < MIN_SETUP_TOKEN_LENGTH || configured.length > MAX_SECRET_LENGTH) {
-    throw new Error(`Rubidium secret BARKER_SETUP_TOKEN must be ${MIN_SETUP_TOKEN_LENGTH}-${MAX_SECRET_LENGTH} characters`);
+    throw new Error(`RUBIDIUM_SETUP_TOKEN must be ${MIN_SETUP_TOKEN_LENGTH}-${MAX_SECRET_LENGTH} characters`);
   }
   return configured;
 }
@@ -114,7 +115,7 @@ function enabledByEnvironment(value: string | undefined): boolean {
 export function initializeAuth(): void {
   if (!initialized) {
     initializeStorage();
-    sessionSecret = loadOrCreateSecret("session-secret.txt", process.env.BARKER_SESSION_SECRET);
+    sessionSecret = loadOrCreateSecret("session-secret.txt", getEnvironmentVariable("SESSION_SECRET"));
     setLogSecret("auth:session-secret", sessionSecret);
     initialized = true;
   }
@@ -155,7 +156,7 @@ const failedLogins = new Map<string, { count: number; firstFailureAt: number; lo
 const FAILED_LOGIN_WINDOW_MS = 10 * 60_000;
 const FAILED_LOGIN_LOCKOUT_MS = 10 * 60_000;
 const GLOBAL_FAILED_LOGIN_LOCKOUT_MS = 30_000;
-// With BARKER_TRUST_PROXY an attacker can rotate client keys freely, so keep the
+// With trusted proxy headers an attacker can rotate client keys freely, so keep the
 // in-memory limiter bounded instead of letting it grow with every new address.
 const MAX_FAILED_LOGIN_ENTRIES = 1000;
 let globalFailures = { count: 0, firstFailureAt: 0, lockedUntil: 0 };
@@ -194,7 +195,7 @@ export function setupConfiguration(): { enabled: boolean; tokenRequired: boolean
   if (passwordIsConfigured()) return { enabled: false, tokenRequired: false };
   const tokenRequired = loadSetupToken() !== null;
   return {
-    enabled: tokenRequired || enabledByEnvironment(process.env.BARKER_ALLOW_SETUP),
+    enabled: tokenRequired || enabledByEnvironment(getEnvironmentVariable("ALLOW_SETUP")),
     tokenRequired,
   };
 }
@@ -211,9 +212,8 @@ export function verifySetupToken(candidate: unknown): boolean {
 export function initializePassword(password: string, timeZone?: string): boolean {
   initializeAuth();
   if (passwordIsConfigured()) return false;
-  if (password.length < MIN_SECRET_LENGTH || password.length > MAX_SECRET_LENGTH || password.trim() !== password) {
-    throw new DomainError("新密码应为 16–300 字符且不能有首尾空格");
-  }
+  const invalidPassword = passwordValidationMessage(password);
+  if (invalidPassword) throw new DomainError(invalidPassword);
   const salt = randomBytes(32).toString("hex");
   const hash = scryptSync(password, salt, 32).toString("hex");
   if (timeZone !== undefined && !timeZoneSchema.safeParse(timeZone).success) throw new DomainError("时区必须是有效的 IANA 时区");
@@ -326,7 +326,8 @@ export function requestIsAuthorized(request: Request): boolean {
 }
 
 export function changePassword(current: string, next: string, clientKey: string): void {
-  if (next.length < MIN_SECRET_LENGTH || next.length > MAX_SECRET_LENGTH || next.trim() !== next) throw new DomainError("新密码应为 16–300 字符且不能有首尾空格");
+  const invalidPassword = passwordValidationMessage(next);
+  if (invalidPassword) throw new DomainError(invalidPassword);
   if (!verifyPassword(current, Date.now(), clientKey)) throw new DomainError("当前密码错误或尝试次数过多", loginRetryAfter(clientKey) ? 429 : 403);
   const salt = randomBytes(32).toString("hex");
   const source = runtimePassword ? createHmac("sha256", sessionSecret).update(runtimePassword).digest("hex") : "setup";
@@ -344,7 +345,7 @@ export function createApiToken(name: string, scope: "read" | "write", days: numb
 }
 
 export function trustsProxyHeaders(): boolean {
-  const value = process.env.BARKER_TRUST_PROXY?.trim().toLowerCase();
+  const value = getEnvironmentVariable("TRUST_PROXY")?.trim().toLowerCase();
   return value === "1" || value === "true" || value === "yes";
 }
 
@@ -361,8 +362,8 @@ export function clientKeyFor(request: Request): string {
 export function requestUsesHttps(request: Request): boolean {
   // `request.url` is built by Next from x-forwarded-proto, i.e. attacker-spoofable,
   // so never derive Secure-cookie decisions from it. Only an explicitly trusted
-  // proxy (or the BARKER_COOKIE_SECURE override) may claim HTTPS.
-  const forced = process.env.BARKER_COOKIE_SECURE?.trim().toLowerCase();
+  // proxy (or the cookie-secure override) may claim HTTPS.
+  const forced = getEnvironmentVariable("COOKIE_SECURE")?.trim().toLowerCase();
   if (forced === "1" || forced === "true" || forced === "yes") return true;
   if (!trustsProxyHeaders()) return false;
   const forwarded = request.headers.get("x-forwarded-proto")?.split(",")[0]?.trim();

@@ -6,10 +6,10 @@ import { join } from "node:path";
 import { after, before, test } from "node:test";
 
 const directory = mkdtempSync(join(tmpdir(), "barker-auth-"));
-process.env.BARKER_DATA_DIR = directory;
-process.env.BARKER_PASSWORD = "test-access-password";
-process.env.BARKER_SETUP_TOKEN = "";
-process.env.BARKER_ALLOW_SETUP = "";
+process.env.RUBIDIUM_DATA_DIR = directory;
+process.env.RUBIDIUM_PASSWORD = "test-access-password";
+process.env.RUBIDIUM_SETUP_TOKEN = "";
+process.env.RUBIDIUM_ALLOW_SETUP = "";
 after(() => rmSync(directory, { recursive: true, force: true }));
 
 let auth: typeof import("../lib/auth");
@@ -57,7 +57,7 @@ test("logout revokes the persisted session", () => {
 test("changing the password invalidates persisted sessions across process restarts", () => {
   const dir = mkdtempSync(join(tmpdir(), "barker-password-rotation-"));
   const execute = (password: string, code: string) => spawnSync(process.execPath, ["--import", "tsx", "--input-type=module", "--eval", code], {
-    cwd: process.cwd(), env: { ...process.env, BARKER_DATA_DIR: dir, BARKER_PASSWORD: password, BARKER_SESSION_SECRET: "rotation-session-secret" }, encoding: "utf8",
+    cwd: process.cwd(), env: { ...process.env, RUBIDIUM_DATA_DIR: dir, RUBIDIUM_PASSWORD: password, RUBIDIUM_SESSION_SECRET: "rotation-session-secret" }, encoding: "utf8",
   });
   try {
     const first = execute("first-password-value", "const auth = await import('./lib/auth.ts'); console.log(auth.createSessionToken());");
@@ -78,7 +78,7 @@ test("password rotation replaces its log secret and does not register the supers
   const next = "replacement-password-for-log-test";
   const run = (code: string) => spawnSync(process.execPath, ["--import", "tsx", "--input-type=module", "--eval", code], {
     cwd: process.cwd(),
-    env: { ...process.env, BARKER_DATA_DIR: dir, BARKER_PASSWORD: previous, BARKER_SETUP_TOKEN: "", BARKER_SESSION_SECRET: "password-log-session-secret" },
+    env: { ...process.env, RUBIDIUM_DATA_DIR: dir, RUBIDIUM_PASSWORD: previous, RUBIDIUM_SETUP_TOKEN: "", RUBIDIUM_SESSION_SECRET: "password-log-session-secret" },
     encoding: "utf8",
   });
   try {
@@ -88,9 +88,9 @@ test("password rotation replaces its log secret and does not register the supers
       const messages = [];
       console.error = (message) => messages.push(message);
       auth.initializeAuth();
-      logging.logError('before-rotation', new Error(process.env.BARKER_PASSWORD));
-      auth.changePassword(process.env.BARKER_PASSWORD, ${JSON.stringify(next)}, 'log-rotation-test');
-      logging.logError('after-rotation', new Error(process.env.BARKER_PASSWORD + '|' + ${JSON.stringify(next)}));
+      logging.logError('before-rotation', new Error(process.env.RUBIDIUM_PASSWORD));
+      auth.changePassword(process.env.RUBIDIUM_PASSWORD, ${JSON.stringify(next)}, 'log-rotation-test');
+      logging.logError('after-rotation', new Error(process.env.RUBIDIUM_PASSWORD + '|' + ${JSON.stringify(next)}));
       console.log(JSON.stringify({ messages, sources: logging.__logSecretSourceCountForTests('auth:password') }));
     `);
     assert.equal(rotated.status, 0, rotated.stderr);
@@ -106,7 +106,7 @@ test("password rotation replaces its log secret and does not register the supers
       const messages = [];
       console.error = (message) => messages.push(message);
       auth.initializeAuth();
-      logging.logError('after-restart', new Error(process.env.BARKER_PASSWORD));
+      logging.logError('after-restart', new Error(process.env.RUBIDIUM_PASSWORD));
       console.log(JSON.stringify({ messages, sources: logging.__logSecretSourceCountForTests('auth:password') }));
     `);
     assert.equal(restarted.status, 0, restarted.stderr);
@@ -133,7 +133,7 @@ test("initial setup password is redacted and replaced when it rotates", () => {
     console.log(JSON.stringify({ messages, sources: logging.__logSecretSourceCountForTests('auth:password') }));
   `], {
     cwd: process.cwd(),
-    env: { ...process.env, BARKER_DATA_DIR: dir, BARKER_PASSWORD: "", BARKER_SETUP_TOKEN: "", BARKER_ALLOW_SETUP: "1", BARKER_SESSION_SECRET: "setup-log-session-secret" },
+    env: { ...process.env, RUBIDIUM_DATA_DIR: dir, RUBIDIUM_PASSWORD: "", RUBIDIUM_SETUP_TOKEN: "", RUBIDIUM_ALLOW_SETUP: "1", RUBIDIUM_SESSION_SECRET: "setup-log-session-secret" },
     encoding: "utf8",
   });
   try {
@@ -149,7 +149,7 @@ test("initial setup password is redacted and replaced when it rotates", () => {
 test("oversized configured passwords fail startup instead of creating an unusable login", () => {
   const dir = mkdtempSync(join(tmpdir(), "barker-long-password-"));
   try {
-    const result = runAuthModule(dir, { BARKER_PASSWORD: "x".repeat(301) });
+    const result = runAuthModule(dir, { RUBIDIUM_PASSWORD: "x".repeat(301) });
     assert.notEqual(result.status, 0);
     assert.match(result.stderr, /at most 300/);
   } finally { rmSync(dir, { recursive: true, force: true }); }
@@ -166,14 +166,14 @@ test("proxy headers are ignored unless explicitly trusted", () => {
   const request = new Request("http://localhost:3000", {
     headers: { "x-forwarded-proto": "https", "x-forwarded-for": "1.2.3.4, 5.6.7.8", "x-real-ip": "9.9.9.9" },
   });
-  delete process.env.BARKER_TRUST_PROXY;
+  delete process.env.RUBIDIUM_TRUST_PROXY;
   assert.equal(auth.requestUsesHttps(request), false);
   assert.equal(auth.clientKeyFor(request), "local");
-  process.env.BARKER_TRUST_PROXY = "1";
+  process.env.RUBIDIUM_TRUST_PROXY = "1";
   assert.equal(auth.requestUsesHttps(request), true);
   assert.equal(auth.clientKeyFor(request), "9.9.9.9");
   assert.equal(auth.clientKeyFor(new Request("http://localhost:3000", { headers: { "x-forwarded-for": "1.2.3.4, 5.6.7.8" } })), "5.6.7.8");
-  delete process.env.BARKER_TRUST_PROXY;
+  delete process.env.RUBIDIUM_TRUST_PROXY;
 });
 
 function runAuthModule(dir: string, extraEnv: Record<string, string>) {
@@ -182,7 +182,7 @@ function runAuthModule(dir: string, extraEnv: Record<string, string>) {
     ["--import", "tsx", "--eval", "import('./lib/auth.ts').then((auth) => auth.initializeAuth()).catch((error) => { console.error(error.message); process.exit(1); });"],
     {
       cwd: process.cwd(),
-      env: { ...process.env, BARKER_DATA_DIR: dir, BARKER_PASSWORD: "test-access-password", BARKER_SESSION_SECRET: "", ...extraEnv },
+      env: { ...process.env, RUBIDIUM_DATA_DIR: dir, RUBIDIUM_PASSWORD: "test-access-password", RUBIDIUM_SESSION_SECRET: "", ...extraEnv },
       encoding: "utf8",
     },
   );
@@ -193,7 +193,7 @@ function runAuthProcess(env: NodeJS.ProcessEnv): Promise<string> {
   return new Promise((resolve, reject) => {
     const child = spawn(
       process.execPath,
-      ["--import", "tsx", "--eval", "import('./lib/auth.ts').then((auth) => { auth.initializeAuth(); const { readFileSync } = require('node:fs'); console.log(readFileSync(process.env.BARKER_DATA_DIR + '/session-secret.txt', 'utf8').trim()); }).catch((error) => { console.error(error); process.exitCode = 1; });"],
+      ["--import", "tsx", "--eval", "import('./lib/auth.ts').then((auth) => { auth.initializeAuth(); const { readFileSync } = require('node:fs'); console.log(readFileSync(process.env.RUBIDIUM_DATA_DIR + '/session-secret.txt', 'utf8').trim()); }).catch((error) => { console.error(error); process.exitCode = 1; });"],
       { cwd: process.cwd(), env },
     );
     let stdout = "";
@@ -214,7 +214,7 @@ test("empty or weak secret files fail fast instead of allowing a login bypass", 
   assert.match(empty.stderr, /empty or too short/);
 
   const weakEnvDir = mkdtempSync(join(tmpdir(), "barker-secret-env-"));
-  const weak = runAuthModule(weakEnvDir, { BARKER_SESSION_SECRET: "short" });
+  const weak = runAuthModule(weakEnvDir, { RUBIDIUM_SESSION_SECRET: "short" });
   rmSync(weakEnvDir, { recursive: true, force: true });
   assert.notEqual(weak.status, 0);
   assert.match(weak.stderr, /at least 16 characters/);
@@ -222,7 +222,7 @@ test("empty or weak secret files fail fast instead of allowing a login bypass", 
 
 test("concurrent first boot agrees on a single generated session secret", async () => {
   const dir = mkdtempSync(join(tmpdir(), "barker-secret-race-"));
-  const env = { ...process.env, BARKER_DATA_DIR: dir, BARKER_PASSWORD: "test-access-password", BARKER_SESSION_SECRET: "" };
+  const env = { ...process.env, RUBIDIUM_DATA_DIR: dir, RUBIDIUM_PASSWORD: "test-access-password", RUBIDIUM_SESSION_SECRET: "" };
   let secrets: string[] = [];
   try {
     secrets = await Promise.all(Array.from({ length: 4 }, () => runAuthProcess(env)));
@@ -235,13 +235,13 @@ test("concurrent first boot agrees on a single generated session secret", async 
 
 test("Secure cookie only follows an explicit trust decision", () => {
   const request = new Request("http://localhost:3000", { headers: { "x-forwarded-proto": "https" } });
-  delete process.env.BARKER_TRUST_PROXY;
-  delete process.env.BARKER_COOKIE_SECURE;
+  delete process.env.RUBIDIUM_TRUST_PROXY;
+  delete process.env.RUBIDIUM_COOKIE_SECURE;
   assert.equal(auth.requestUsesHttps(request), false, "spoofable header alone must not force Secure");
-  process.env.BARKER_COOKIE_SECURE = "1";
+  process.env.RUBIDIUM_COOKIE_SECURE = "1";
   assert.equal(auth.requestUsesHttps(request), true);
-  delete process.env.BARKER_COOKIE_SECURE;
-  process.env.BARKER_TRUST_PROXY = "1";
+  delete process.env.RUBIDIUM_COOKIE_SECURE;
+  process.env.RUBIDIUM_TRUST_PROXY = "1";
   assert.equal(auth.requestUsesHttps(request), true);
-  delete process.env.BARKER_TRUST_PROXY;
+  delete process.env.RUBIDIUM_TRUST_PROXY;
 });

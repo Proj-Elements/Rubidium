@@ -136,7 +136,9 @@ export function validApiPayload(url: string, data: unknown): boolean {
     && Array.isArray(object.activity) && object.activity.every((item) => objectValue(item) && dateValue(item.date) && nonNegativeInteger(item.sent))
     && objectValue(object.stats) && ["active", "paused", "todaySent", "totalSent"].every((key) => nonNegativeInteger((object.stats as Record<string, unknown>)[key]))
     && objectValue(object.deliveries) && nonNegativeInteger(object.deliveries.pending) && nonNegativeInteger(object.deliveries.retrying) && nullableTimestamp(object.deliveries.nextRetryAt)
-    && typeof object.endpoint === "string" && typeof object.deviceKeyConfigured === "boolean" && timestampValue(object.serverTime);
+    && typeof object.endpoint === "string" && typeof object.deviceKeyConfigured === "boolean"
+    && objectValue(object.defaultChannel) && (object.defaultChannel.type === "bark" || object.defaultChannel.type === "ntfy")
+    && typeof object.defaultChannel.credentialConfigured === "boolean" && timestampValue(object.serverTime);
   if (path === "/api/tasks/preview") return Array.isArray(object.dates) && object.dates.every((value) => timestampSchema.safeParse(value).success);
   if (path === "/api/settings") {
     if (!Number.isSafeInteger(object.revision) || Number(object.revision) < 1) return false;

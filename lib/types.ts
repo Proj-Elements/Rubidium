@@ -63,6 +63,7 @@ export interface DeliveryAttempt {
 export interface Dashboard {
   forecastTruncated?: boolean;
   displayTimeZone?: string;
+  defaultChannel: Pick<Channel, "type" | "credentialConfigured">;
   taskTotal?: number;
   tasks: Task[];
   upcoming: Array<{ taskId: string; occurrenceAt: string }>;

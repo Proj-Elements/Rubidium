@@ -60,7 +60,7 @@ function parseSettings(raw: string | null): BarkSettings {
     if (result.success) Object.assign(settings, { [key]: result.data });
   }
   if (!settingsSchema.shape.endpoint.safeParse(parsed.endpoint ?? DEFAULT_SETTINGS.endpoint).success) settings.deviceKey = "";
-  setLogSecret("channel:default", settings.deviceKey);
+  setLogSecret("channel:default-legacy", settings.deviceKey);
   return settings;
 }
 export function readSettingsState(): { settings: BarkSettings; revision: number } {
@@ -73,38 +73,54 @@ export function readSettings(): BarkSettings { return readSettingsState().settin
 export function settingsRevision(): number {
   return readSettingsState().revision;
 }
+function redactStoredSecret(secret: string): void {
+  if (!secret) return;
+  let encoded = secret;
+  try { encoded = encodeURIComponent(secret); } catch { encoded = secret; }
+  for (const [table, column] of [["tasks", "last_error"], ["deliveries", "last_error"], ["delivery_attempts", "error"]]) {
+    for (const variant of new Set([secret, encoded, JSON.stringify(secret).slice(1, -1)])) {
+      statement(`UPDATE ${table} SET ${column} = REPLACE(${column}, ?, '[redacted]') WHERE INSTR(${column}, ?) > 0`).run(variant, variant);
+    }
+  }
+}
+
+function persistSettingsUnlocked(settings: BarkSettings, expected: number, recordAudit: boolean): number {
+  const revision = settingsRevision();
+  checkRevision(revision, expected);
+  const previous = readSettings();
+  const defaultChannelType = (statement("SELECT type FROM devices WHERE id = 'default'").get() as { type: ChannelType } | undefined)?.type;
+  if (previous.deviceKey !== settings.deviceKey) redactStoredSecret(previous.deviceKey);
+  statement("INSERT INTO settings (key, value) VALUES ('default', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value").run(JSON.stringify(settings));
+  const nextRevision = revision + 1;
+  statement("INSERT INTO settings (key, value) VALUES ('revision', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value").run(String(nextRevision));
+  if (defaultChannelType === "bark") {
+    statement("UPDATE devices SET endpoint = ?, device_key = ?, revision = ? WHERE id = 'default'")
+      .run(settings.endpoint, settings.deviceKey, nextRevision);
+  }
+  if (defaultChannelType !== "ntfy" && (previous.endpoint !== settings.endpoint || previous.deviceKey !== settings.deviceKey)) {
+    statement("UPDATE deliveries SET next_attempt_at = ?, manual_only = 0 WHERE status = 'pending' AND device_id = 'default'").run(new Date().toISOString());
+  }
+  if (recordAudit) auditEvent("settings.update", "default");
+  return nextRevision;
+}
+
 export function writeSettings(settings: BarkSettings, expected?: number): number {
   const nextRevision = transaction(() => {
     const revision = settingsRevision();
     checkRevision(revision, expected);
-    const previous = readSettings();
-    const previousKey = previous.deviceKey;
-    if (previousKey && previousKey !== settings.deviceKey) {
-      let encodedKey = previousKey;
-      try { encodedKey = encodeURIComponent(previousKey); } catch { encodedKey = previousKey; }
-      for (const [table, column] of [["tasks", "last_error"], ["deliveries", "last_error"], ["delivery_attempts", "error"]]) {
-        for (const variant of new Set([previousKey, encodedKey, JSON.stringify(previousKey).slice(1, -1)])) {
-          statement(`UPDATE ${table} SET ${column} = REPLACE(${column}, ?, '[redacted]') WHERE INSTR(${column}, ?) > 0`).run(variant, variant);
-        }
-      }
-    }
-    statement("INSERT INTO settings (key, value) VALUES ('default', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value").run(JSON.stringify(settings));
-    statement("INSERT INTO settings (key, value) VALUES ('revision', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value").run(String(revision + 1));
-    if (previous.endpoint !== settings.endpoint || previousKey !== settings.deviceKey) {
-      statement("UPDATE deliveries SET next_attempt_at = ?, manual_only = 0 WHERE status = 'pending' AND device_id = 'default'").run(new Date().toISOString());
-    }
-    auditEvent("settings.update", "default");
-    return revision + 1;
+    return persistSettingsUnlocked(settings, revision, true);
   });
-  setLogSecret("channel:default", settings.deviceKey);
+  refreshChannelLogSecrets();
   return nextRevision;
 }
 
 export function refreshChannelLogSecrets(): void {
   const settings = readSettingsState().settings;
-  const rows = statement("SELECT id, device_key FROM devices").all() as Array<{ id: string; device_key: string }>;
+  const defaultChannel = statement("SELECT type, device_key FROM devices WHERE id = 'default'").get() as { type: ChannelType; device_key: string } | undefined;
+  const rows = statement("SELECT id, device_key FROM devices WHERE id <> 'default'").all() as Array<{ id: string; device_key: string }>;
   replaceLogSecrets("channel:", [
-    ["channel:default", settings.deviceKey],
+    ["channel:default", defaultChannel?.device_key ?? settings.deviceKey],
+    ["channel:default-legacy", defaultChannel?.type === "ntfy" ? settings.deviceKey : ""],
     ...rows.map(({ id, device_key }) => [`channel:${id}`, device_key] as const),
   ]);
 }
@@ -520,18 +536,23 @@ export function compactDatabase(): void {
 
 export function listDevices(): Device[] {
   const settings = readSettingsState();
-  const rows = statement("SELECT id, name, endpoint, device_key, revision FROM devices WHERE type = 'bark' ORDER BY name, id").all() as Array<{ id: string; name: string; endpoint: string; device_key: string; revision: number }>;
+  const rows = statement("SELECT id, name, endpoint, device_key, revision FROM devices WHERE type = 'bark' AND id <> 'default' ORDER BY name, id").all() as Array<{ id: string; name: string; endpoint: string; device_key: string; revision: number }>;
   return [{ id: "default", name: "默认设备", endpoint: settings.settings.endpoint, deviceKeyConfigured: Boolean(settings.settings.deviceKey), revision: settings.revision },
     ...rows.map(({ device_key, ...row }) => ({ ...row, deviceKeyConfigured: Boolean(device_key) }))];
 }
 
 export function listChannels(): Channel[] {
   const settings = readSettingsState();
-  const rows = statement("SELECT id, name, type, endpoint, topic, device_key, revision FROM devices ORDER BY name, id").all() as Array<{
+  const defaultRow = statement("SELECT name, type, endpoint, topic, device_key FROM devices WHERE id = 'default'").get() as {
+    name: string; type: ChannelType; endpoint: string; topic: string; device_key: string;
+  } | undefined;
+  const rows = statement("SELECT id, name, type, endpoint, topic, device_key, revision FROM devices WHERE id <> 'default' ORDER BY name, id").all() as Array<{
     id: string; name: string; type: ChannelType; endpoint: string; topic: string; device_key: string; revision: number;
   }>;
   return [
-    { id: "default", name: "默认 Bark", type: "bark", endpoint: settings.settings.endpoint, topic: "", credentialConfigured: Boolean(settings.settings.deviceKey), revision: settings.revision, isDefault: true },
+    defaultRow
+      ? { id: "default", name: defaultRow.name, type: defaultRow.type, endpoint: defaultRow.endpoint, topic: defaultRow.topic, credentialConfigured: Boolean(defaultRow.device_key), revision: settings.revision, isDefault: true }
+      : { id: "default", name: "主要通知", type: "bark", endpoint: settings.settings.endpoint, topic: "", credentialConfigured: Boolean(settings.settings.deviceKey), revision: settings.revision, isDefault: true },
     ...rows.map(({ device_key, ...row }) => ({ ...row, credentialConfigured: Boolean(device_key), isDefault: false })),
   ];
 }
@@ -545,7 +566,14 @@ export function deliverySettings(deviceId: string, notification = "{}"): Channel
   let target = defaults;
   let channelType: ChannelType = "bark";
   let topic = "";
-  if (deviceId !== "default") {
+  if (deviceId === "default") {
+    const device = statement("SELECT endpoint, device_key deviceKey, type, topic FROM devices WHERE id = 'default'").get() as { endpoint: string; deviceKey: string; type: ChannelType; topic: string } | undefined;
+    if (device) {
+      target = { ...defaults, ...device };
+      channelType = device.type;
+      topic = device.topic;
+    }
+  } else {
     const device = statement("SELECT endpoint, device_key deviceKey, type, topic FROM devices WHERE id = ?").get(deviceId) as { endpoint: string; deviceKey: string; type: ChannelType; topic: string } | undefined;
     if (!device) throw new DomainError("目标渠道已删除", 409);
     target = { ...defaults, ...device };
@@ -566,15 +594,42 @@ export function saveChannel(input: ChannelInput & { id?: string; revision?: numb
   const value = parsed.data;
   const id = input.id ?? randomUUID();
   if (id === "default") {
-    if (value.type !== "bark") throw new DomainError("默认渠道只能使用 Bark");
-    const current = readSettingsState();
-    checkRevision(current.revision, input.revision);
-    if (value.endpoint !== current.settings.endpoint && !value.credential) throw new DomainError("更换 Bark 地址需要填写新的 Device Key");
-    if (input.clearCredential && value.endpoint !== current.settings.endpoint) throw new DomainError("更换 Bark 地址时不能同时清除 Device Key");
-    const credential = input.clearCredential ? "" : value.credential || current.settings.deviceKey;
-    const result = settingsSchema.safeParse({ ...current.settings, endpoint: value.endpoint, deviceKey: credential });
-    if (!result.success) throw new DomainError("Bark 地址或 Device Key 格式无效");
-    writeSettings({ ...current.settings, endpoint: result.data.endpoint, deviceKey: result.data.deviceKey }, current.revision);
+    transaction(() => {
+      const current = readSettingsState();
+      checkRevision(current.revision, input.revision);
+      const existing = statement("SELECT type, endpoint, topic, device_key FROM devices WHERE id = 'default'").get() as {
+        type: ChannelType; endpoint: string; topic: string; device_key: string;
+      } | undefined;
+      const currentType = existing?.type ?? "bark";
+      const currentEndpoint = existing?.endpoint ?? current.settings.endpoint;
+      let credential = "";
+      let revision: number;
+
+      if (value.type === "bark") {
+        if (currentType !== "bark" && !value.credential) throw new DomainError("切换为 Bark 时请输入 Device Key");
+        if (value.endpoint !== currentEndpoint && !value.credential) throw new DomainError("更换 Bark 地址需要填写新的 Device Key");
+        if (input.clearCredential && value.endpoint !== currentEndpoint) throw new DomainError("更换 Bark 地址时不能同时清除 Device Key");
+        credential = input.clearCredential ? "" : value.credential || current.settings.deviceKey;
+        const result = settingsSchema.safeParse({ ...current.settings, endpoint: value.endpoint, deviceKey: credential });
+        if (!result.success) throw new DomainError("Bark 地址或 Device Key 格式无效");
+        revision = persistSettingsUnlocked({ ...current.settings, endpoint: result.data.endpoint, deviceKey: result.data.deviceKey }, current.revision, false);
+      } else {
+        credential = input.clearCredential ? "" : value.credential || (existing?.type === "ntfy" ? existing.device_key : "");
+        revision = current.revision + 1;
+        statement("INSERT INTO settings (key, value) VALUES ('revision', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value").run(String(revision));
+      }
+
+      if (existing?.device_key && existing.device_key !== credential) redactStoredSecret(existing.device_key);
+      statement(`INSERT INTO devices (id, name, type, endpoint, topic, device_key, revision) VALUES ('default', ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(id) DO UPDATE SET name=excluded.name, type=excluded.type, endpoint=excluded.endpoint, topic=excluded.topic,
+        device_key=excluded.device_key, revision=excluded.revision`)
+        .run(value.name, value.type, value.endpoint, value.topic, credential, revision);
+      if (!existing || existing.endpoint !== value.endpoint || existing.device_key !== credential || existing.type !== value.type || existing.topic !== value.topic) {
+        statement("UPDATE deliveries SET next_attempt_at = ?, manual_only = 0 WHERE device_id = 'default' AND status = 'pending'").run(new Date().toISOString());
+      }
+      auditEvent("channel.update", "default");
+    });
+    refreshChannelLogSecrets();
     return listChannels()[0];
   }
 
@@ -582,7 +637,7 @@ export function saveChannel(input: ChannelInput & { id?: string; revision?: numb
     const existing = statement("SELECT endpoint, device_key, type, topic, revision FROM devices WHERE id = ?").get(id) as {
       endpoint: string; device_key: string; type: ChannelType; topic: string; revision: number;
     } | undefined;
-    if (!existing && (statement("SELECT COUNT(*) total FROM devices").get() as { total: number }).total >= 100) throw new DomainError("最多配置 100 个额外渠道", 409);
+    if (!existing && (statement("SELECT COUNT(*) total FROM devices WHERE id <> 'default'").get() as { total: number }).total >= 100) throw new DomainError("最多配置 100 个额外渠道", 409);
     if (input.id && !existing) throw new DomainError("设备不存在", 404);
     if (existing) checkRevision(existing.revision, input.revision);
     if (existing && existing.type === "bark" && value.type === "bark" && existing.endpoint !== value.endpoint && !value.credential) throw new DomainError("更换 Bark 地址需要填写新的 Device Key");
@@ -596,13 +651,7 @@ export function saveChannel(input: ChannelInput & { id?: string; revision?: numb
       ON CONFLICT(id) DO UPDATE SET name=excluded.name, type=excluded.type, endpoint=excluded.endpoint, topic=excluded.topic,
       device_key=excluded.device_key, revision=excluded.revision`)
       .run(id, value.name, value.type, value.endpoint, value.topic, credential, revision);
-    if (existing?.device_key && existing.device_key !== credential) {
-      for (const [table, column] of [["tasks", "last_error"], ["deliveries", "last_error"], ["delivery_attempts", "error"]]) {
-        for (const variant of new Set([existing.device_key, encodeURIComponent(existing.device_key), JSON.stringify(existing.device_key).slice(1, -1)])) {
-          statement(`UPDATE ${table} SET ${column} = REPLACE(${column}, ?, '[redacted]') WHERE INSTR(${column}, ?) > 0`).run(variant, variant);
-        }
-      }
-    }
+    if (existing?.device_key && existing.device_key !== credential) redactStoredSecret(existing.device_key);
     if (existing && (existing.endpoint !== value.endpoint || existing.device_key !== credential || existing.type !== value.type || existing.topic !== value.topic)) {
       statement("UPDATE deliveries SET next_attempt_at = ?, manual_only = 0 WHERE device_id = ? AND status = 'pending'").run(new Date().toISOString(), id);
     }
@@ -618,7 +667,19 @@ export function saveChannel(input: ChannelInput & { id?: string; revision?: numb
 
 export function saveDevice(input: { id?: string; name: string; endpoint: string; deviceKey: string; revision?: number }): Device {
   if (input.id !== undefined && !input.id.trim()) throw new DomainError("设备 ID 不能为空");
-  if (input.id && statement("SELECT type FROM devices WHERE id = ?").get(input.id)?.type !== "bark") throw new DomainError("设备不存在", 404);
+  if (input.id === "default" && (statement("SELECT type FROM devices WHERE id = 'default'").get() as { type: ChannelType } | undefined)?.type === "ntfy") {
+    const current = readSettingsState();
+    checkRevision(current.revision, input.revision);
+    const endpoint = input.endpoint.trim().replace(/\/+$/, "");
+    if (endpoint !== current.settings.endpoint && !input.deviceKey.trim()) throw new DomainError("更换 Bark 地址需要填写新的 Device Key");
+    const parsed = settingsSchema.safeParse({
+      ...current.settings, endpoint, deviceKey: input.deviceKey.trim() || current.settings.deviceKey,
+    });
+    if (!parsed.success) throw new DomainError("Bark 地址或 Device Key 格式无效");
+    const revision = writeSettings({ ...current.settings, endpoint: parsed.data.endpoint, deviceKey: parsed.data.deviceKey }, current.revision);
+    return { id: "default", name: input.name, endpoint: parsed.data.endpoint, deviceKeyConfigured: Boolean(parsed.data.deviceKey), revision };
+  }
+  if (input.id && input.id !== "default" && statement("SELECT type FROM devices WHERE id = ?").get(input.id)?.type !== "bark") throw new DomainError("设备不存在", 404);
   const channel = saveChannel({ ...input, type: "bark", topic: "", credential: input.deviceKey });
   return { id: channel.id, name: channel.name, endpoint: channel.endpoint, revision: channel.revision, deviceKeyConfigured: channel.credentialConfigured };
 }

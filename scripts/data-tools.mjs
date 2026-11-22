@@ -5,6 +5,7 @@ import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "nod
 import { tmpdir } from "node:os";
 import { pipeline } from "node:stream/promises";
 import { loadRuntimeEnvironment, runtimeDirectory } from "./runtime-paths.mjs";
+import { getEnvironmentVariable } from "../lib/environment.mjs";
 
 const names = ["barker.sqlite", "access-password.txt", "session-secret.txt"];
 const encryptedMagic = Buffer.from("RUBIDIUM-OPS-BACKUP-1\n", "ascii");
@@ -78,20 +79,20 @@ function createPrivateDirectory(path) {
 }
 
 function validateBackupKey(password) {
-  if (typeof password !== "string") throw new Error("BARKER_BACKUP_KEY must contain a string passphrase");
+  if (typeof password !== "string") throw new Error("RUBIDIUM_BACKUP_KEY must contain a string passphrase");
   const passwordBytes = Buffer.byteLength(password);
   if (passwordBytes < MIN_BACKUP_KEY_BYTES || passwordBytes > MAX_BACKUP_KEY_BYTES) {
-    throw new Error(`BARKER_BACKUP_KEY must contain ${MIN_BACKUP_KEY_BYTES} to ${MAX_BACKUP_KEY_BYTES} UTF-8 bytes`);
+    throw new Error(`RUBIDIUM_BACKUP_KEY must contain ${MIN_BACKUP_KEY_BYTES} to ${MAX_BACKUP_KEY_BYTES} UTF-8 bytes`);
   }
 }
 
 function backupKeyFromEnvironment() {
-  const path = process.env.BARKER_BACKUP_KEY_FILE;
-  if (!path) return process.env.BARKER_BACKUP_KEY;
+  const path = getEnvironmentVariable("BACKUP_KEY_FILE");
+  if (!path) return getEnvironmentVariable("BACKUP_KEY");
   regularFile(path);
   const metadata = lstatSync(path);
-  if ((metadata.mode & 0o077) !== 0) throw new Error("BARKER_BACKUP_KEY_FILE must not be accessible by group or other users");
-  if (metadata.size > MAX_BACKUP_KEY_BYTES) throw new Error(`BARKER_BACKUP_KEY_FILE exceeds ${MAX_BACKUP_KEY_BYTES} bytes`);
+  if ((metadata.mode & 0o077) !== 0) throw new Error("RUBIDIUM_BACKUP_KEY_FILE must not be accessible by group or other users");
+  if (metadata.size > MAX_BACKUP_KEY_BYTES) throw new Error(`RUBIDIUM_BACKUP_KEY_FILE exceeds ${MAX_BACKUP_KEY_BYTES} bytes`);
   return readFileSync(path, "utf8");
 }
 

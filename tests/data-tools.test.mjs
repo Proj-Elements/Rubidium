@@ -78,7 +78,7 @@ test("CLI backs up and restores a real current application database", () => {
     const task = createTask({ name: "Backup task", startsAt: "2035-01-01T09:00:00+08:00", timeZone: "Asia/Shanghai", preset: "daily", cron: "0 9 * * *", repeatCount: 2, deviceId: channel.id }, new Date("2034-01-01T00:00:00Z"));
     console.log(JSON.stringify({ version: CURRENT_SCHEMA_VERSION, taskId: task.id }));
   `;
-  const environment = { ...process.env, BARKER_DATA_DIR: source };
+  const environment = { ...process.env, RUBIDIUM_DATA_DIR: source };
   try {
     const setup = spawnSync(process.execPath, ["--import", "tsx", "--eval", setupCode], { cwd: process.cwd(), env: environment, encoding: "utf8" });
     assert.equal(setup.status, 0, setup.stderr);
@@ -209,7 +209,7 @@ test("encrypted backup CLI reads passphrases from the environment or a private k
   const { root, source } = fixture();
   const backup = join(root, "encrypted-cli-backup");
   const restored = join(root, "encrypted-cli-restored");
-  const environment = { ...process.env, BARKER_BACKUP_KEY: backupKey };
+  const environment = { ...process.env, RUBIDIUM_BACKUP_KEY: backupKey };
   try {
     const backedUp = spawnSync(process.execPath, ["scripts/data-tools.mjs", "backup-encrypted", backup, source], { cwd: process.cwd(), env: environment, encoding: "utf8" });
     assert.equal(backedUp.status, 0, backedUp.stderr);
@@ -223,8 +223,8 @@ test("encrypted backup CLI reads passphrases from the environment or a private k
     const fileBackup = join(root, "encrypted-file-key-backup");
     const fileRestored = join(root, "encrypted-file-key-restored");
     writeFileSync(keyFile, backupKey, { mode: 0o600 });
-    const fileEnvironment = { ...process.env, BARKER_BACKUP_KEY_FILE: keyFile };
-    delete fileEnvironment.BARKER_BACKUP_KEY;
+    const fileEnvironment = { ...process.env, RUBIDIUM_BACKUP_KEY_FILE: keyFile };
+    delete fileEnvironment.RUBIDIUM_BACKUP_KEY;
     const fileBackupResult = spawnSync(process.execPath, ["scripts/data-tools.mjs", "backup-encrypted", fileBackup, source], { cwd: process.cwd(), env: fileEnvironment, encoding: "utf8" });
     assert.equal(fileBackupResult.status, 0, fileBackupResult.stderr);
     assert.doesNotMatch(fileBackupResult.stdout, new RegExp(backupKey));
