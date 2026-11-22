@@ -4,6 +4,7 @@ import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, before, test } from "node:test";
+import { logError } from "../lib/logging";
 
 const directory = mkdtempSync(join(tmpdir(), "rubidium-transfer-"));
 const snapshotPath = join(directory, "snapshot.sqlite");
@@ -22,6 +23,7 @@ before(async () => {
   core = await import("../lib/db/core");
   transfer = await import("../lib/data-transfer");
   database.initializeDatabase();
+  database.saveChannel({ name: "Snapshot Ntfy", type: "ntfy", endpoint: "https://ntfy.example", topic: "snapshot", credential: "imported-channel-credential-2035" });
   const task = database.createTask({ name: "导出提醒", startsAt: "2035-01-01T09:00:00+00:00", preset: "once", cron: "0 9 * * *", repeatCount: 1, endDate: null, timeZone: "UTC" }, new Date("2030-01-01T00:00:00Z"));
   snapshotTaskId = task.id;
   core.statement("INSERT INTO settings (key, value) VALUES ('password_override', 'snapshot-password-hash')").run();
@@ -48,7 +50,11 @@ test("encrypted exports use authenticated encryption and reject wrong passwords 
   assert.throws(() => transfer.decryptExport({ ...encrypted, schemaVersion: 99 }, passphrase), /不兼容/);
 });
 
-test("validated imports replace task data atomically while preserving active security state", async () => {
+test("validated imports replace task data atomically and refresh active channel log secrets", async (context) => {
+  const messages: string[] = [];
+  context.mock.method(console, "error", (message: string) => messages.push(message));
+  const activeSecret = "current-channel-credential-2035";
+  database.saveChannel({ name: "Current Ntfy", type: "ntfy", endpoint: "https://ntfy.example", topic: "current", credential: activeSecret });
   const currentSession = "current-session";
   const currentToken = "current-token";
   core.statement("DELETE FROM sessions").run();
@@ -61,6 +67,11 @@ test("validated imports replace task data atomically while preserving active sec
   database.createTask({ name: "仅当前数据", startsAt: "2035-02-01T09:00:00+00:00", preset: "once", cron: "0 9 * * *", repeatCount: 1, endDate: null, timeZone: "UTC" }, new Date("2030-01-01T00:00:00Z"));
 
   transfer.importDatabaseSnapshot(snapshotPath);
+
+  logError("test.imported-channel-secret", new Error(`active=${activeSecret}; imported=imported-channel-credential-2035`));
+  const log = messages.pop() ?? "";
+  assert.match(log, new RegExp(activeSecret));
+  assert.doesNotMatch(log, /imported-channel-credential-2035/);
 
   assert.deepEqual(database.listTasks().map((task) => task.name), ["导出提醒"]);
   assert.equal(core.statement("SELECT value FROM settings WHERE key = 'password_override'").get()?.value, "current-password-hash");

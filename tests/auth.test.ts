@@ -72,6 +72,80 @@ test("changing the password invalidates persisted sessions across process restar
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });
 
+test("password rotation replaces its log secret and does not register the superseded environment password after restart", () => {
+  const dir = mkdtempSync(join(tmpdir(), "barker-password-log-rotation-"));
+  const previous = "previous-password-for-log-test";
+  const next = "replacement-password-for-log-test";
+  const run = (code: string) => spawnSync(process.execPath, ["--import", "tsx", "--input-type=module", "--eval", code], {
+    cwd: process.cwd(),
+    env: { ...process.env, BARKER_DATA_DIR: dir, BARKER_PASSWORD: previous, BARKER_SETUP_TOKEN: "", BARKER_SESSION_SECRET: "password-log-session-secret" },
+    encoding: "utf8",
+  });
+  try {
+    const rotated = run(`
+      const auth = await import('./lib/auth.ts');
+      const logging = await import('./lib/logging.ts');
+      const messages = [];
+      console.error = (message) => messages.push(message);
+      auth.initializeAuth();
+      logging.logError('before-rotation', new Error(process.env.BARKER_PASSWORD));
+      auth.changePassword(process.env.BARKER_PASSWORD, ${JSON.stringify(next)}, 'log-rotation-test');
+      logging.logError('after-rotation', new Error(process.env.BARKER_PASSWORD + '|' + ${JSON.stringify(next)}));
+      console.log(JSON.stringify({ messages, sources: logging.__logSecretSourceCountForTests('auth:password') }));
+    `);
+    assert.equal(rotated.status, 0, rotated.stderr);
+    const first = JSON.parse(rotated.stdout.trim()) as { messages: string[]; sources: number };
+    assert.equal(first.sources, 1);
+    assert.doesNotMatch(first.messages[0], new RegExp(previous));
+    assert.match(first.messages[1], new RegExp(previous));
+    assert.doesNotMatch(first.messages[1], new RegExp(next));
+
+    const restarted = run(`
+      const auth = await import('./lib/auth.ts');
+      const logging = await import('./lib/logging.ts');
+      const messages = [];
+      console.error = (message) => messages.push(message);
+      auth.initializeAuth();
+      logging.logError('after-restart', new Error(process.env.BARKER_PASSWORD));
+      console.log(JSON.stringify({ messages, sources: logging.__logSecretSourceCountForTests('auth:password') }));
+    `);
+    assert.equal(restarted.status, 0, restarted.stderr);
+    const second = JSON.parse(restarted.stdout.trim()) as { messages: string[]; sources: number };
+    assert.equal(second.sources, 0);
+    assert.match(second.messages[0], new RegExp(previous));
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
+test("initial setup password is redacted and replaced when it rotates", () => {
+  const dir = mkdtempSync(join(tmpdir(), "barker-setup-log-rotation-"));
+  const first = "initial-password-for-log-test";
+  const next = "rotated-setup-password-for-log-test";
+  const result = spawnSync(process.execPath, ["--import", "tsx", "--input-type=module", "--eval", `
+    const auth = await import('./lib/auth.ts');
+    const logging = await import('./lib/logging.ts');
+    const messages = [];
+    console.error = (message) => messages.push(message);
+    auth.initializeAuth();
+    auth.initializePassword(${JSON.stringify(first)});
+    logging.logError('setup-password', new Error(${JSON.stringify(first)}));
+    auth.changePassword(${JSON.stringify(first)}, ${JSON.stringify(next)}, 'setup-log-rotation');
+    logging.logError('rotated-password', new Error(${JSON.stringify(first)} + '|' + ${JSON.stringify(next)}));
+    console.log(JSON.stringify({ messages, sources: logging.__logSecretSourceCountForTests('auth:password') }));
+  `], {
+    cwd: process.cwd(),
+    env: { ...process.env, BARKER_DATA_DIR: dir, BARKER_PASSWORD: "", BARKER_SETUP_TOKEN: "", BARKER_ALLOW_SETUP: "1", BARKER_SESSION_SECRET: "setup-log-session-secret" },
+    encoding: "utf8",
+  });
+  try {
+    assert.equal(result.status, 0, result.stderr);
+    const output = JSON.parse(result.stdout.trim()) as { messages: string[]; sources: number };
+    assert.equal(output.sources, 1);
+    assert.doesNotMatch(output.messages[0], new RegExp(first));
+    assert.match(output.messages[1], new RegExp(first));
+    assert.doesNotMatch(output.messages[1], new RegExp(next));
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
 test("oversized configured passwords fail startup instead of creating an unusable login", () => {
   const dir = mkdtempSync(join(tmpdir(), "barker-long-password-"));
   try {

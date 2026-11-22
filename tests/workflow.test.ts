@@ -3,6 +3,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, before, beforeEach, test } from "node:test";
+import { logError } from "../lib/logging";
 
 const directory = mkdtempSync(join(tmpdir(), "barker-workflow-"));
 process.env.BARKER_DATA_DIR = directory;
@@ -195,7 +196,9 @@ test("history pruning preserves cumulative scheduling budgets and pending messag
   assert.equal(db.getTask(task.id)?.queuedCount, 3);
 });
 
-test("a bad optional setting preserves the endpoint and device key, including after rotation", () => {
+test("a bad optional setting preserves the endpoint and device key, including after rotation", (context) => {
+  const messages: string[] = [];
+  context.mock.method(console, "error", (message: string) => messages.push(message));
   const valid = { endpoint: "https://bark.test", deviceKey: "legacy/key", title: "Barker", sound: "", group: "", icon: "" };
   db.__rawDatabaseForTests().prepare("UPDATE settings SET value = ? WHERE key = 'default'").run(JSON.stringify({ ...valid, icon: "bad icon" }));
   assert.equal(db.readSettings().endpoint, valid.endpoint);
@@ -205,4 +208,31 @@ test("a bad optional setting preserves the endpoint and device key, including af
   db.__rawDatabaseForTests().prepare("UPDATE tasks SET last_error = ? WHERE id = ?").run(`upstream exposed ${valid.deviceKey} ${encodeURIComponent(valid.deviceKey)}`, task.id);
   db.writeSettings({ ...valid, deviceKey: "replacement-key" });
   assert.doesNotMatch(db.getTask(task.id)?.lastError ?? "", /legacy/);
+  logError("test.default-channel-secret", new Error("legacy/key replacement-key"));
+  const logged = messages.pop() ?? "";
+  assert.match(logged, /legacy\/key/);
+  assert.doesNotMatch(logged, /replacement-key/);
+});
+
+test("channel credential rotation and deletion replace the active log secret", (context) => {
+  const messages: string[] = [];
+  context.mock.method(console, "error", (message: string) => messages.push(message));
+  let channel = db.saveChannel({ name: "Rotating Bark", type: "bark", endpoint: "https://bark.example", topic: "", credential: "first-channel-device-key" });
+  const first = "first-channel-device-key";
+  const second = "second-channel-device-key";
+  const capture = (value: string) => {
+    logError("test.channel-secret", new Error(value));
+    return messages.pop() ?? "";
+  };
+  try {
+    assert.doesNotMatch(capture(first), new RegExp(first));
+    channel = db.saveChannel({ id: channel.id, name: channel.name, type: "bark", endpoint: channel.endpoint, topic: "", credential: second, revision: channel.revision });
+    const rotated = capture(`${first} ${second}`);
+    assert.match(rotated, new RegExp(first));
+    assert.doesNotMatch(rotated, new RegExp(second));
+    db.removeChannel(channel.id, channel.revision);
+    assert.match(capture(second), new RegExp(second));
+  } finally {
+    try { db.removeChannel(channel.id, channel.revision); } catch {}
+  }
 });

@@ -3,6 +3,7 @@ import { gunzipSync, gzipSync } from "node:zlib";
 import { DatabaseSync } from "node:sqlite";
 import { DomainError } from "./errors";
 import { CURRENT_SCHEMA_VERSION, connection, transaction } from "./db/core";
+import { refreshChannelLogSecrets } from "./db";
 import { auditEvent } from "./db/security";
 import { deliverySchema, taskSchema, timestampSchema } from "./contracts";
 import { settingsSchema, taskInputSchema } from "./validation";
@@ -212,5 +213,6 @@ export function importDatabaseSnapshot(path: string): void {
       if (database.prepare("PRAGMA foreign_key_check").all().length) throw new DomainError("导入后的数据完整性校验失败");
       auditEvent("data.import", "encrypted-export");
     });
+    refreshChannelLogSecrets();
   } finally { database.exec("DETACH DATABASE rubidium_import"); }
 }

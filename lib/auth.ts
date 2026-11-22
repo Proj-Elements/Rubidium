@@ -5,7 +5,7 @@ import { apiTokenValid, auditEvent, passwordOverride, passwordRevision, persistS
 import { timeZoneSchema } from "./contracts";
 import { DomainError } from "./errors";
 import { initializeStorage, privateFile, runtimeDataDir } from "./storage";
-import { registerLogSecret } from "./logging";
+import { setLogSecret } from "./logging";
 
 const AUTH_COOKIE = "barker_session";
 const SESSION_DURATION_SECONDS = 12 * 60 * 60;
@@ -76,6 +76,7 @@ let initialized = false;
 let credential: { hash: string; salt: string } | null = null;
 let credentialRevision: number | undefined;
 let credentialSource: string | undefined;
+let knownPasswordOverride: { source: string; hash: string; password: string } | null = null;
 
 function loadConfiguredPassword(): string | null {
   const configured = process.env.BARKER_PASSWORD?.trim();
@@ -114,25 +115,33 @@ export function initializeAuth(): void {
   if (!initialized) {
     initializeStorage();
     sessionSecret = loadOrCreateSecret("session-secret.txt", process.env.BARKER_SESSION_SECRET);
-    registerLogSecret(sessionSecret);
+    setLogSecret("auth:session-secret", sessionSecret);
     initialized = true;
   }
   const setupToken = loadSetupToken();
-  if (setupToken) registerLogSecret(setupToken);
   runtimePassword = loadConfiguredPassword() ?? "";
-  if (runtimePassword) registerLogSecret(runtimePassword);
-  refreshCredential();
+  refreshCredential(setupToken);
 }
 
-function refreshCredential(): void {
+function refreshCredential(setupToken = loadSetupToken()): void {
   const revision = passwordRevision();
   const source = runtimePassword
     ? createHmac("sha256", sessionSecret).update(runtimePassword).digest("hex")
     : "setup";
-  if (credentialRevision === revision && credentialSource === source) return;
+  if (credentialRevision === revision && credentialSource === source) {
+    setLogSecret("auth:setup-token", runtimePassword || credential ? null : setupToken);
+    return;
+  }
   const raw = passwordOverride();
   const override = raw ? JSON.parse(raw) as { source: string; hash: string; salt: string } : null;
   const nextCredential = override?.source === source ? override : null;
+  const knownOverridePassword = nextCredential && knownPasswordOverride?.source === source && knownPasswordOverride.hash === nextCredential.hash
+    ? knownPasswordOverride.password
+    : null;
+  const activePassword = nextCredential ? knownOverridePassword ?? "" : runtimePassword;
+  if (knownPasswordOverride && !knownOverridePassword) knownPasswordOverride = null;
+  setLogSecret("auth:password", activePassword);
+  setLogSecret("auth:setup-token", runtimePassword || nextCredential ? null : setupToken);
   const nextFingerprint = createHmac("sha256", sessionSecret).update(nextCredential?.hash ?? (runtimePassword || "unconfigured")).digest("hex");
   if (nextFingerprint !== passwordFingerprint) {
     revokeOtherPasswordSessions(nextFingerprint);
@@ -206,9 +215,10 @@ export function initializePassword(password: string, timeZone?: string): boolean
     throw new DomainError("新密码应为 16–300 字符且不能有首尾空格");
   }
   const salt = randomBytes(32).toString("hex");
+  const hash = scryptSync(password, salt, 32).toString("hex");
   if (timeZone !== undefined && !timeZoneSchema.safeParse(timeZone).success) throw new DomainError("时区必须是有效的 IANA 时区");
   const saved = transaction(() => {
-    const created = saveInitialPasswordOverride(JSON.stringify({ source: "setup", salt, hash: scryptSync(password, salt, 32).toString("hex") }));
+    const created = saveInitialPasswordOverride(JSON.stringify({ source: "setup", salt, hash }));
     if (created && timeZone) writeSettings({ ...readSettings(), displayTimeZone: timeZone });
     return created;
   });
@@ -216,7 +226,7 @@ export function initializePassword(password: string, timeZone?: string): boolean
     refreshCredential();
     return false;
   }
-  registerLogSecret(password);
+  knownPasswordOverride = { source: "setup", hash, password };
   refreshCredential();
   return true;
 }
@@ -320,8 +330,9 @@ export function changePassword(current: string, next: string, clientKey: string)
   if (!verifyPassword(current, Date.now(), clientKey)) throw new DomainError("当前密码错误或尝试次数过多", loginRetryAfter(clientKey) ? 429 : 403);
   const salt = randomBytes(32).toString("hex");
   const source = runtimePassword ? createHmac("sha256", sessionSecret).update(runtimePassword).digest("hex") : "setup";
-  savePasswordOverride(JSON.stringify({ source, salt, hash: scryptSync(next, salt, 32).toString("hex") }));
-  registerLogSecret(next);
+  const hash = scryptSync(next, salt, 32).toString("hex");
+  savePasswordOverride(JSON.stringify({ source, salt, hash }));
+  knownPasswordOverride = { source, hash, password: next };
   refreshCredential();
 }
 

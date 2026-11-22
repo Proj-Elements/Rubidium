@@ -6,7 +6,7 @@ import { calendarDays, localDateString, nextTaskDate, previewSchedule } from "./
 import { channelFields } from "./contracts";
 import { settingsSchema } from "./validation";
 import { DomainError, redactSecrets } from "./errors";
-import { registerLogSecret } from "./logging";
+import { replaceLogSecrets, setLogSecret } from "./logging";
 import { connection, databasePath, statement, transaction } from "./db/core";
 import { auditEvent } from "./db/security";
 export { dataDirectory, databasePath, initializeDatabase, transaction } from "./db/core";
@@ -58,7 +58,7 @@ function parseSettings(raw: string | null): BarkSettings {
     if (result.success) Object.assign(settings, { [key]: result.data });
   }
   if (!settingsSchema.shape.endpoint.safeParse(parsed.endpoint ?? DEFAULT_SETTINGS.endpoint).success) settings.deviceKey = "";
-  registerLogSecret(settings.deviceKey);
+  setLogSecret("channel:default", settings.deviceKey);
   return settings;
 }
 export function readSettingsState(): { settings: BarkSettings; revision: number } {
@@ -72,7 +72,7 @@ export function settingsRevision(): number {
   return readSettingsState().revision;
 }
 export function writeSettings(settings: BarkSettings, expected?: number): number {
-  return transaction(() => {
+  const nextRevision = transaction(() => {
     const revision = settingsRevision();
     checkRevision(revision, expected);
     const previous = readSettings();
@@ -94,6 +94,17 @@ export function writeSettings(settings: BarkSettings, expected?: number): number
     auditEvent("settings.update", "default");
     return revision + 1;
   });
+  setLogSecret("channel:default", settings.deviceKey);
+  return nextRevision;
+}
+
+export function refreshChannelLogSecrets(): void {
+  const settings = readSettingsState().settings;
+  const rows = statement("SELECT id, device_key FROM devices").all() as Array<{ id: string; device_key: string }>;
+  replaceLogSecrets("channel:", [
+    ["channel:default", settings.deviceKey],
+    ...rows.map(({ id, device_key }) => [`channel:${id}`, device_key] as const),
+  ]);
 }
 
 export function listTasks(): Task[] {
@@ -538,7 +549,6 @@ export function deliverySettings(deviceId: string, notification = "{}"): Channel
     channelType = device.type;
     topic = device.topic;
   }
-  registerLogSecret(target.deviceKey);
   return { ...target, ...JSON.parse(notification), channelType, topic };
 }
 
@@ -551,20 +561,21 @@ export function saveChannel(input: ChannelInput & { id?: string; revision?: numb
   const parsed = channelFields.safeParse(input);
   if (!parsed.success) throw new DomainError(parsed.error.issues[0]?.message ?? "渠道配置无效");
   const value = parsed.data;
-  return transaction(() => {
-    const id = input.id ?? randomUUID();
-    if (id === "default") {
-      if (value.type !== "bark") throw new DomainError("默认渠道只能使用 Bark");
-      const current = readSettingsState();
-      checkRevision(current.revision, input.revision);
-      if (value.endpoint !== current.settings.endpoint && !value.credential) throw new DomainError("更换 Bark 地址需要填写新的 Device Key");
-      if (input.clearCredential && value.endpoint !== current.settings.endpoint) throw new DomainError("更换 Bark 地址时不能同时清除 Device Key");
-      const credential = input.clearCredential ? "" : value.credential || current.settings.deviceKey;
-      const result = settingsSchema.safeParse({ ...current.settings, endpoint: value.endpoint, deviceKey: credential });
-      if (!result.success) throw new DomainError("Bark 地址或 Device Key 格式无效");
-      writeSettings({ ...current.settings, endpoint: result.data.endpoint, deviceKey: result.data.deviceKey }, current.revision);
-      return listChannels()[0];
-    }
+  const id = input.id ?? randomUUID();
+  if (id === "default") {
+    if (value.type !== "bark") throw new DomainError("默认渠道只能使用 Bark");
+    const current = readSettingsState();
+    checkRevision(current.revision, input.revision);
+    if (value.endpoint !== current.settings.endpoint && !value.credential) throw new DomainError("更换 Bark 地址需要填写新的 Device Key");
+    if (input.clearCredential && value.endpoint !== current.settings.endpoint) throw new DomainError("更换 Bark 地址时不能同时清除 Device Key");
+    const credential = input.clearCredential ? "" : value.credential || current.settings.deviceKey;
+    const result = settingsSchema.safeParse({ ...current.settings, endpoint: value.endpoint, deviceKey: credential });
+    if (!result.success) throw new DomainError("Bark 地址或 Device Key 格式无效");
+    writeSettings({ ...current.settings, endpoint: result.data.endpoint, deviceKey: result.data.deviceKey }, current.revision);
+    return listChannels()[0];
+  }
+
+  const saved = transaction(() => {
     const existing = statement("SELECT endpoint, device_key, type, topic, revision FROM devices WHERE id = ?").get(id) as {
       endpoint: string; device_key: string; type: ChannelType; topic: string; revision: number;
     } | undefined;
@@ -582,7 +593,6 @@ export function saveChannel(input: ChannelInput & { id?: string; revision?: numb
       ON CONFLICT(id) DO UPDATE SET name=excluded.name, type=excluded.type, endpoint=excluded.endpoint, topic=excluded.topic,
       device_key=excluded.device_key, revision=excluded.revision`)
       .run(id, value.name, value.type, value.endpoint, value.topic, credential, revision);
-    registerLogSecret(credential);
     if (existing?.device_key && existing.device_key !== credential) {
       for (const [table, column] of [["tasks", "last_error"], ["deliveries", "last_error"], ["delivery_attempts", "error"]]) {
         for (const variant of new Set([existing.device_key, encodeURIComponent(existing.device_key), JSON.stringify(existing.device_key).slice(1, -1)])) {
@@ -594,8 +604,13 @@ export function saveChannel(input: ChannelInput & { id?: string; revision?: numb
       statement("UPDATE deliveries SET next_attempt_at = ?, manual_only = 0 WHERE device_id = ? AND status = 'pending'").run(new Date().toISOString(), id);
     }
     auditEvent(existing ? "channel.update" : "channel.create", id);
-    return { id, name: value.name, type: value.type, endpoint: value.endpoint, topic: value.topic, credentialConfigured: Boolean(credential), revision, isDefault: false };
+    return {
+      channel: { id, name: value.name, type: value.type, endpoint: value.endpoint, topic: value.topic, credentialConfigured: Boolean(credential), revision, isDefault: false },
+      credential,
+    };
   });
+  setLogSecret(`channel:${id}`, saved.credential);
+  return saved.channel;
 }
 
 export function saveDevice(input: { id?: string; name: string; endpoint: string; deviceKey: string; revision?: number }): Device {
@@ -615,6 +630,7 @@ export function removeChannel(id: string, revision: number): void {
     statement("DELETE FROM devices WHERE id = ?").run(id);
     auditEvent("channel.delete", id);
   });
+  setLogSecret(`channel:${id}`, null);
 }
 
 export function removeDevice(id: string, revision: number): void {
