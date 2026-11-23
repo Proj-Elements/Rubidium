@@ -205,7 +205,7 @@
   "taskStatus.deleteTitle": "永久删除「{name}」？",
   "taskStatus.deleteDescription": "任务、待投递消息和全部尝试历史都会删除，此操作无法撤销。",
   "taskStatus.deleted": "任务及其投递记录已永久删除。",
-  "taskStatus.archived": "提醒已归档。投递记录和待发送消息均已保留。",
+  "taskStatus.archivedToast": "提醒已归档。投递记录和待发送消息均已保留。",
   "taskStatus.restored": "提醒已恢复，归档期间不会补发。",
   "taskStatus.pausedToast": "提醒已暂停，已排队的消息会继续投递。",
   "taskStatus.resumedToast": "提醒已恢复，暂停期间不会补发。",

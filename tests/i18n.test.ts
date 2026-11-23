@@ -1,6 +1,28 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import { inferLocaleFromRequest, isLocale, isMessageKey, LOCALES, localeTables, translate, type Locale } from "../lib/i18n";
+
+test("locale files do not silently overwrite duplicate message keys", () => {
+  for (const locale of LOCALES) {
+    const source = readFileSync(new URL(`../lib/locales/${locale}.json`, import.meta.url), "utf8");
+    const keys = new Set<string>();
+    for (const match of source.matchAll(/^\s*("(?:[^"\\]|\\.)+")\s*:/gm)) {
+      const key = JSON.parse(match[1]) as string;
+      assert.ok(!keys.has(key), `${locale}: duplicate message key ${key}`);
+      keys.add(key);
+    }
+    assert.deepEqual([...keys].sort(), Object.keys(localeTables[locale]).sort());
+  }
+});
+
+test("archived status labels remain distinct from the archive success message", () => {
+  const labels = { "zh-CN": "已归档", "zh-TW": "已歸檔", en: "Archived" };
+  for (const locale of LOCALES) {
+    assert.equal(translate(locale, "taskStatus.archived"), labels[locale]);
+    assert.notEqual(translate(locale, "taskStatus.archivedToast"), labels[locale]);
+  }
+});
 
 test("locale preference prioritizes saved choices, trusted country, then accepted languages", () => {
   assert.equal(inferLocaleFromRequest({ savedLocale: "zh-TW", ipCountry: "CN", trustProxy: true }), "zh-TW");

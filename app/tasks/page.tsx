@@ -62,7 +62,7 @@ export default function TasksPage() {
     try {
       await api(`/api/tasks/${archive.id}`, { method: "DELETE", headers: { "if-match": String(archive.revision) } });
       setArchive(null);
-      notify(t("taskStatus.archived"));
+      notify(t("taskStatus.archivedToast"));
       await refresh();
       void refreshDashboard();
     } catch (error) {

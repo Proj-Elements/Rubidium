@@ -205,7 +205,7 @@
   "taskStatus.deleteTitle": "Delete “{name}” permanently?",
   "taskStatus.deleteDescription": "The reminder, pending messages, and all delivery attempts will be deleted. This cannot be undone.",
   "taskStatus.deleted": "The reminder and its delivery records were permanently deleted.",
-  "taskStatus.archived": "Reminder archived. Delivery history and pending messages were kept.",
+  "taskStatus.archivedToast": "Reminder archived. Delivery history and pending messages were kept.",
   "taskStatus.restored": "Reminder restored. Occurrences during the archive period will not be sent.",
   "taskStatus.pausedToast": "Reminder paused. Already queued messages will still be delivered.",
   "taskStatus.resumedToast": "Reminder resumed. Occurrences during the pause will not be sent.",
