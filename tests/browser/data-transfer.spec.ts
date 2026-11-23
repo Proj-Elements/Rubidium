@@ -6,9 +6,11 @@ test("encrypted data export and confirmed import preserve data after a wrong pas
   await page.goto("/");
   await page.getByLabel("访问密码").fill("browser-regression-password");
   await page.getByRole("button", { name: "进入工作空间" }).click();
-  await page.request.post("/api/tasks", { data: {
+  await expect(page.getByRole("heading", { name: "提醒概览" })).toBeVisible();
+  const initialTask = await page.request.post("/api/tasks", { data: {
     name: "加密备份中的提醒", startsAt: "2035-04-01T09:00:00+00:00", preset: "once", cron: "0 9 * * *", repeatCount: 1, endDate: null, timeZone: "UTC",
   } });
+  expect(initialTask.status()).toBe(201);
 
   await page.goto("/settings");
   await page.getByRole("tab", { name: "记录维护" }).click();
@@ -48,9 +50,10 @@ test("encrypted data export and confirmed import preserve data after a wrong pas
   await exportDialog.getByRole("button", { name: "取消" }).click();
   await page.screenshot({ path: test.info().outputPath("encrypted-data-settings-landscape.png"), fullPage: true, animations: "disabled" });
 
-  await page.request.post("/api/tasks", { data: {
+  const temporaryTask = await page.request.post("/api/tasks", { data: {
     name: "密码错误后保留", startsAt: "2035-05-01T09:00:00+00:00", preset: "once", cron: "0 9 * * *", repeatCount: 1, endDate: null, timeZone: "UTC",
   } });
+  expect(temporaryTask.status()).toBe(201);
   await page.getByRole("button", { name: "导入数据" }).click();
   let importDialog = page.getByRole("dialog", { name: "导入加密数据" });
   await expect(importDialog).toBeVisible();
