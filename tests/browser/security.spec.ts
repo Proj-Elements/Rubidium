@@ -32,6 +32,13 @@ test("password changes require a matching confirmation", async ({ page }) => {
 });
 
 test("API credentials can remain valid indefinitely and display the selected expiry", async ({ page }) => {
+  await page.addInitScript(() => {
+    let copiedText = "";
+    Object.defineProperty(navigator, "clipboard", { configurable: true, value: {
+      writeText: async (value: string) => { copiedText = value; },
+      readText: async () => copiedText,
+    } });
+  });
   await page.setViewportSize({ width: 844, height: 390 });
   await page.goto("/");
   await expect(page).toHaveTitle(/Rubidium/);
@@ -103,11 +110,33 @@ test("API credentials can remain valid indefinitely and display the selected exp
   await page.getByRole("button", { name: "创建凭据", exact: true }).click();
   const credential = page.getByRole("list", { name: "API 凭据" }).getByRole("listitem").filter({ hasText: credentialName });
   await expect(credential).toContainText("永不过期");
-  const token = await page.getByLabel("新 API 凭据").inputValue();
+  const credentialInput = page.getByLabel("新 API 凭据");
+  const token = await credentialInput.inputValue();
   expect(token.length).toBeGreaterThan(20);
   const status = await page.evaluate(async (value) => (await fetch("/api/tasks", { headers: { Authorization: `Bearer ${value}` } })).status, token);
   expect(status).toBe(200);
-  await page.screenshot({ path: test.info().outputPath("permanent-credential-landscape.png"), fullPage: true, animations: "disabled" });
+  await expect(apiCard.getByText(/Authorization/)).toHaveCount(0);
+  const group = credentialInput.locator("xpath=ancestor::*[contains(@class, 'input-group')][1]");
+  const copy = page.getByRole("button", { name: "复制 API 凭据", exact: true });
+  const groupBounds = await group.boundingBox();
+  const copyBounds = await copy.boundingBox();
+  const contentBounds = await group.locator("xpath=ancestor::*[contains(@class, 'alert__content')][1]").boundingBox();
+  expect(Math.abs(groupBounds!.width - contentBounds!.width)).toBeLessThanOrEqual(2);
+  expect(Math.abs(groupBounds!.x + groupBounds!.width - copyBounds!.x - copyBounds!.width)).toBeLessThanOrEqual(2);
+  expect(copyBounds!.width).toBeGreaterThanOrEqual(44);
+  await copy.click();
+  await expect(page.getByText("API 凭据已复制。", { exact: true })).toBeVisible();
+  expect(await page.evaluate(async (value) => (await navigator.clipboard.readText()) === value, token)).toBe(true);
+  await page.screenshot({ path: test.info().outputPath("permanent-credential-landscape.png"), fullPage: true, animations: "disabled", mask: [credentialInput] });
+  await page.evaluate(() => Object.defineProperty(navigator, "clipboard", { configurable: true, value: undefined }));
+  await copy.click();
+  await expect(page.getByText("无法访问剪贴板，请检查浏览器权限。", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "关闭凭据提示", exact: true }).click();
+  await expect(credentialInput).toHaveCount(0);
+  await page.reload();
+  await page.getByRole("tab", { name: "访问安全", exact: true }).click();
+  await expect(credentialInput).toHaveCount(0);
+  await expect(page.getByRole("list", { name: "API 凭据" }).getByRole("listitem").filter({ hasText: credentialName })).toBeVisible();
 });
 
 test("sessions stay bounded and recover from last-page revocations in landscape", async ({ page }) => {
