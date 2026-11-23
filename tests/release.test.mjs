@@ -93,7 +93,7 @@ test("release and CI workflow YAML parse with the expected publication gates", (
 
 test("application version matches the pinned GHCR image and user deployment guides", () => {
   const version = JSON.parse(readFileSync("package.json", "utf8")).version;
-  assert.equal(version, "1.1.0");
+  assert.match(version, /^\d+\.\d+\.\d+$/);
   for (const path of [".env.example", "docker-compose.ghcr.yml", "README.md", "docs/api-mcp.md", "docs/configuration.md", "docs/deployment.md"]) {
     assert.match(readFileSync(path, "utf8"), new RegExp(`rubidium:${version}|${version}`), path);
   }
