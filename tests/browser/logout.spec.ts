@@ -9,6 +9,17 @@ test("logout is a prominent landscape action with explicit confirmation", async 
   const logout = page.getByRole("button", { name: "退出登录", exact: true });
   await expect(logout).toBeVisible();
   expect(await logout.evaluate((button) => button.getBoundingClientRect().height)).toBeGreaterThanOrEqual(44);
+  await page.setViewportSize({ width: 568, height: 320 });
+  await page.getByRole("button", { name: "打开导航", exact: true }).click();
+  const mobileNavigation = page.getByRole("dialog", { name: "工作空间导航" });
+  const mobileLogout = mobileNavigation.getByRole("button", { name: "退出登录", exact: true });
+  await expect(mobileLogout).toBeInViewport();
+  const navigationBounds = (await mobileNavigation.boundingBox())!;
+  const logoutBounds = (await mobileLogout.boundingBox())!;
+  expect(navigationBounds.y + navigationBounds.height - logoutBounds.y - logoutBounds.height).toBeGreaterThanOrEqual(20);
+  await page.screenshot({ path: test.info().outputPath("logout-mobile-bottom-space.png"), animations: "disabled" });
+  await mobileNavigation.getByRole("button", { name: "关闭导航", exact: true }).click();
+  await page.setViewportSize({ width: 844, height: 390 });
   await logout.click();
   await expect(page.getByRole("alertdialog")).toBeVisible();
   await page.screenshot({ path: test.info().outputPath("logout-confirm-landscape.png"), fullPage: true, animations: "disabled" });

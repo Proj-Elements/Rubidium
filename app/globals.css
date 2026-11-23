@@ -86,7 +86,8 @@
     .sidebar[data-state="collapsed"] .sidebar__menu-item:not([data-current="true"]):hover .sidebar__menu-item-content { background: var(--surface-secondary); }
   }
   .sidebar-compact-action { width: 2.75rem; min-width: 2.75rem; height: 2.75rem; min-height: 2.75rem; padding: 0; }
-  .sidebar[data-state="collapsed"] .sidebar__footer.sidebar-footer-collapsed { align-items: center; gap: 0.25rem; padding: 0.25rem 0.125rem; }
+  .sidebar__footer { padding-block-end: max(1.25rem, env(safe-area-inset-bottom, 0px)); }
+  .sidebar[data-state="collapsed"] .sidebar__footer.sidebar-footer-collapsed { align-items: center; gap: 0.25rem; padding: 0.25rem 0.125rem max(1.25rem, env(safe-area-inset-bottom, 0px)); }
   .desktop-toggle, .mobile-toggle { display: none; }
   .action-bar:has(.workspace-actions) { inset-inline: var(--workspace-sidebar-width) 0; bottom: max(1rem, env(safe-area-inset-bottom)); padding-inline: 1rem; }
   .workspace-actions { max-width: 100%; }

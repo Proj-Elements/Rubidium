@@ -32,6 +32,9 @@ test("landscape workspace sidebar collapses accessibly and releases list width",
     const expandedWidth = (await sidebar.boundingBox())!.width;
     const expandedMainWidth = (await page.locator(".sidebar__main").boundingBox())!.width;
     expect(expandedWidth).toBe(240);
+    const expandedSidebarBounds = (await sidebar.boundingBox())!;
+    const expandedLogoutBounds = (await sidebar.getByRole("button", { name: "退出登录", exact: true }).boundingBox())!;
+    expect(expandedSidebarBounds.y + expandedSidebarBounds.height - expandedLogoutBounds.y - expandedLogoutBounds.height).toBeGreaterThanOrEqual(20);
 
     await page.evaluate(() => document.activeElement instanceof HTMLElement && document.activeElement.blur());
     for (let index = 0; index < 20; index += 1) {
@@ -48,6 +51,8 @@ test("landscape workspace sidebar collapses accessibly and releases list width",
     expect((await page.locator(".sidebar__main").boundingBox())!.width - expandedMainWidth).toBe(168);
     expect(await expand.evaluate((button) => button.matches(":focus-visible"))).toBe(true);
     const sidebarBounds = await sidebar.boundingBox();
+    const logoutBounds = (await sidebar.getByRole("button", { name: "退出登录", exact: true }).boundingBox())!;
+    expect(sidebarBounds!.y + sidebarBounds!.height - logoutBounds.y - logoutBounds.height).toBeGreaterThanOrEqual(20);
     const brandBounds = await sidebar.locator(".brand-mark").boundingBox();
     expect(brandBounds).not.toBeNull();
     expect(Math.abs(brandBounds!.width - brandBounds!.height)).toBeLessThanOrEqual(1);
