@@ -1,6 +1,7 @@
 import { expect, test } from "@playwright/test";
 
 test("logout is a prominent landscape action with explicit confirmation", async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: "reduce" });
   await page.setViewportSize({ width: 844, height: 390 });
   await page.goto("/");
   await page.getByLabel("访问密码").fill("browser-regression-password");
@@ -17,8 +18,9 @@ test("logout is a prominent landscape action with explicit confirmation", async 
   const navigationBounds = (await mobileNavigation.boundingBox())!;
   const logoutBounds = (await mobileLogout.boundingBox())!;
   expect(navigationBounds.y + navigationBounds.height - logoutBounds.y - logoutBounds.height).toBeGreaterThanOrEqual(20);
-  await page.screenshot({ path: test.info().outputPath("logout-mobile-bottom-space.png"), animations: "disabled" });
-  await mobileNavigation.getByRole("button", { name: "关闭导航", exact: true }).click();
+  await page.screenshot({ path: test.info().outputPath("logout-mobile-bottom-space.png") });
+  await page.keyboard.press("Escape");
+  await expect(mobileNavigation).toBeHidden();
   await page.setViewportSize({ width: 844, height: 390 });
   await logout.click();
   await expect(page.getByRole("alertdialog")).toBeVisible();
