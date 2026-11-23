@@ -80,6 +80,19 @@ test("API credentials can remain valid indefinitely and display the selected exp
   const permissionControlBounds = await permissionControl.boundingBox();
   const expiryControlBounds = await expiryControl.boundingBox();
   expect(Math.abs(permissionControlBounds!.y - expiryControlBounds!.y)).toBeLessThanOrEqual(2);
+  for (const theme of ["light", "dark"]) {
+    await page.evaluate((value) => { document.documentElement.dataset.theme = value; }, theme);
+    for (const permission of ["只读", "读写"]) {
+      await permissionControl.click();
+      await page.getByRole("option", { name: permission, exact: true }).click();
+      const control = await permissionControl.boundingBox();
+      const value = await permissionControl.locator(".select__value .label").boundingBox();
+      expect(Math.abs(control!.y + control!.height / 2 - value!.y - value!.height / 2)).toBeLessThanOrEqual(1);
+    }
+    await page.screenshot({ path: test.info().outputPath(`credential-permission-${theme}.png`), fullPage: true, animations: "disabled" });
+  }
+  await permissionControl.click();
+  await page.getByRole("option", { name: "只读", exact: true }).click();
   const infoBounds = await info.boundingBox();
   expect(infoBounds?.width).toBeGreaterThanOrEqual(44);
   expect(infoBounds?.height).toBeGreaterThanOrEqual(44);
