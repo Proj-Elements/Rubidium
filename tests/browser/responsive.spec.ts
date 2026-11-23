@@ -43,9 +43,9 @@ test("landscape workspace sidebar collapses accessibly and releases list width",
     const expand = page.getByRole("button", { name: "展开侧栏", exact: true });
     await expect(sidebar).toHaveAttribute("data-state", "collapsed");
     await expect(expand).toBeVisible();
-    await expect.poll(async () => (await sidebar.boundingBox())?.width).toBe(48);
-    expect((await sidebar.boundingBox())!.width).toBe(48);
-    expect((await page.locator(".sidebar__main").boundingBox())!.width - expandedMainWidth).toBe(192);
+    await expect.poll(async () => (await sidebar.boundingBox())?.width).toBe(72);
+    expect((await sidebar.boundingBox())!.width).toBe(72);
+    expect((await page.locator(".sidebar__main").boundingBox())!.width - expandedMainWidth).toBe(168);
     expect(await expand.evaluate((button) => button.matches(":focus-visible"))).toBe(true);
     const sidebarBounds = await sidebar.boundingBox();
     const brandBounds = await sidebar.locator(".brand-mark").boundingBox();
@@ -57,8 +57,8 @@ test("landscape workspace sidebar collapses accessibly and releases list width",
       const bounds = await item.locator(".sidebar__menu-item-content").boundingBox();
       expect(bounds?.width).toBe(48);
       expect(bounds?.height).toBe(48);
-      expect(bounds!.x).toBeGreaterThanOrEqual(sidebarBounds!.x);
-      expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(sidebarBounds!.x + sidebarBounds!.width);
+      expect(bounds!.x - sidebarBounds!.x).toBeGreaterThanOrEqual(12);
+      expect(sidebarBounds!.x + sidebarBounds!.width - bounds!.x - bounds!.width).toBeGreaterThanOrEqual(12);
     }
     await expect(sidebar.getByText(/Asia\//)).toHaveCount(0);
 
@@ -66,7 +66,7 @@ test("landscape workspace sidebar collapses accessibly and releases list width",
     await selectPage.locator("xpath=ancestor::label[1]").click();
     const actionBar = page.getByRole("toolbar", { name: "批量操作" });
     await expect(actionBar).toBeVisible();
-    expect(Number.parseFloat(await page.locator(".action-bar:has(.workspace-actions)").evaluate((element) => getComputedStyle(element).insetInlineStart))).toBe(56);
+    expect(Number.parseFloat(await page.locator(".action-bar:has(.workspace-actions)").evaluate((element) => getComputedStyle(element).insetInlineStart))).toBe(72);
     await contained(page);
     await page.screenshot({ path: test.info().outputPath(`sidebar-collapsed-${width}x390.png`), animations: "disabled" });
     await page.getByRole("button", { name: "取消选择", exact: true }).click();
