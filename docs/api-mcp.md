@@ -1,6 +1,6 @@
 # Rubidium API 与 MCP
 
-本文对应 Rubidium `1.1.3`。HTTP API 收发 JSON；MCP 用的是官方 `@modelcontextprotocol/sdk` 的无状态 Streamable HTTP。默认服务地址是 `http://localhost:3000`，实际部署时换成你自己的 HTTPS 地址。
+本文对应 Rubidium `1.2.0`。HTTP API 收发 JSON；MCP 用的是官方 `@modelcontextprotocol/sdk` 的无状态 Streamable HTTP。默认服务地址是 `http://localhost:3000`，实际部署时换成你自己的 HTTPS 地址。
 
 ## 鉴权与通用约定
 
@@ -42,6 +42,7 @@
 | `GET /api/tasks` | 普通数据 API | 可选 `page`、`pageSize`、`status`、`q`。只要带了任一分页或筛选参数就启用分页；`pageSize` 最大 50，搜索词最多 200 字。状态取 `active`、`paused`、`completed`、`archived`。 | 不带筛选时返回 `{ tasks }`；分页时返回 `{ tasks, total, page, pageSize }`。不指定状态时默认排除已归档任务。错误：`400` 分页、状态或搜索参数无效。 |
 | `POST /api/tasks` | 写权限 | 任务字段；可选请求头 `Idempotency-Key`（16–128 个字母、数字、`_`、`-`）。 | `201 { task }`。幂等键重复且内容相同时返回同一个任务；同一个键配不同内容返回 `409`。字段、Cron、设备或排期无效返回 `400`。 |
 | `PATCH /api/tasks` | 写权限 | `{ status: "active" | "paused" | "archived", items: [{ id, revision }] }`；每批 1–50 项。 | `{ results: [{ id, success, error? }] }`。整体参数无效返回 `400`；单条的状态冲突在对应结果里报告。 |
+| `DELETE /api/tasks` | 写权限 | `{ items: [{ id, revision }] }`；每批 1–50 项，ID 不得重复。 | 对每项执行永久删除并返回 `{ results: [{ id, success, error? }] }`；仅已归档且 revision 匹配的任务可删除，单项冲突在结果中报告。 |
 | `PUT /api/tasks/{id}` | 写权限 | 完整任务字段，外加必填的 `revision`。 | `{ task }`。`400` 校验失败，`404` 不存在，`409` 版本冲突、任务已结束或恢复积压还没追平。 |
 | `PATCH /api/tasks/{id}` | 写权限 | `{ status: "active" | "paused", revision }`。 | `{ task }`。这里不支持归档；要归档请用 DELETE 或批量 PATCH。错误：`400` 状态无效，`404` 不存在，`409` 状态或版本冲突。 |
 | `DELETE /api/tasks/{id}` | 写权限 | 请求头 `If-Match: <revision>`；可选查询参数 `permanent=1`。 | 默认返回 `{ archived: true }`；带 `permanent=1` 返回 `{ deleted: true }`，但只允许永久删除已归档的任务。错误：`404` 不存在，`428` 缺少修订号，`409` 状态冲突或仍有发送中的记录。 |
