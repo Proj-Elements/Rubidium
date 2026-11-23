@@ -205,8 +205,8 @@
   .data-grid .table__row[data-selected="true"] > *:last-child:not(:only-child) > .table__cell { border-start-end-radius: var(--radius); border-end-end-radius: var(--radius); box-shadow: inset -1px 0 0 var(--selected-row-border), inset 0 1px 0 var(--selected-row-border), inset 0 -1px 0 var(--selected-row-border); }
   .data-grid .table__row[data-selected="true"] > .table__cell:not(:first-child):not(:last-child),
   .data-grid .table__row[data-selected="true"] > *:not(:first-child):not(:last-child) > .table__cell { box-shadow: inset 0 1px 0 var(--selected-row-border), inset 0 -1px 0 var(--selected-row-border); }
-  .select__popover { overflow: hidden; border-radius: var(--overlay-radius); }
-  .select__popover .list-box { max-height: min(22rem, calc(100dvh - 2rem)); overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; border-radius: inherit; padding: 0.25rem; scrollbar-width: thin; scrollbar-color: color-mix(in oklab, var(--foreground) 28%, transparent) transparent; }
+  .select__popover { overflow: hidden; border-radius: min(32px, calc(var(--radius-2xl) + var(--spacing) * 1.5)); }
+  .select__popover > .list-box { max-height: min(22rem, calc(100dvh - 2rem)); overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; border-radius: inherit; padding: 0.25rem; scrollbar-width: thin; scrollbar-color: color-mix(in oklab, var(--foreground) 28%, transparent) transparent; }
 }
 
 @layer utilities {
