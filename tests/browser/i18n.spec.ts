@@ -7,7 +7,10 @@ test("language choice updates page content, metadata and persists across navigat
   await page.getByRole("button", { name: "进入工作空间" }).click();
   await expect(page.getByRole("heading", { name: "提醒概览" })).toBeVisible();
 
-  await page.getByRole("button", { name: "选择语言" }).click();
+  const languageButton = page.getByRole("button", { name: "选择语言" });
+  await expect(languageButton.locator("svg")).toBeVisible();
+  await expect(languageButton).not.toContainText("文A");
+  await languageButton.click();
   await page.getByRole("menuitem", { name: "English", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Reminder overview" })).toBeVisible();
   await expect(page.locator("html")).toHaveAttribute("lang", "en-US");

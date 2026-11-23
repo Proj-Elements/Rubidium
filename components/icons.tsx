@@ -36,7 +36,13 @@ import display from "@iconify-icons/gravity-ui/display";
 import trash from "@iconify-icons/gravity-ui/trash-bin";
 import info from "@iconify-icons/gravity-ui/circle-info";
 
-const icons = { bell, squares, calendar, clock, gear, plus, arrow, chevron, check, circleCheck, shield, refresh, search, send, pause, play, edit, copy, archive, close, menu, logout, warning, lock, link, globe, chevronDown, inbox, more, moon, sun, display, trash, info };
+const languages = {
+  width: 24,
+  height: 24,
+  body: '<path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m5 8l6 6m-7 0l6-6l2-3M2 5h12M7 2h1m14 20l-5-10l-5 10m2-4h6"/>',
+};
+
+const icons = { bell, squares, calendar, clock, gear, plus, arrow, chevron, check, circleCheck, shield, refresh, search, send, pause, play, edit, copy, archive, close, menu, logout, warning, lock, link, globe, chevronDown, inbox, more, moon, sun, display, trash, info, languages };
 export type IconName = keyof typeof icons;
 
 export function Glyph({ name, className = "", size = 18 }: { name: IconName; className?: string; size?: number }) {

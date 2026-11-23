@@ -3,6 +3,7 @@
 import { Button, Dropdown } from "@heroui/react";
 import { useTranslations } from "./locale-provider";
 import { isLocale, type Locale, type MessageKey } from "@/lib/i18n";
+import { Glyph } from "./icons";
 
 const choices: Array<{ locale: Locale; label: MessageKey }> = [
   { locale: "zh-CN", label: "language.simplifiedChineseNative" },
@@ -13,8 +14,8 @@ const choices: Array<{ locale: Locale; label: MessageKey }> = [
 export function LanguageSwitcher() {
   const { locale, setLocale, t } = useTranslations();
   return <Dropdown>
-    <Button type="button" variant="ghost" className="size-11 min-w-11 px-1 text-sm font-semibold" aria-label={t("language.select")}>
-      <span aria-hidden="true">文A</span>
+    <Button type="button" variant="ghost" className="size-11 min-w-11 px-1" aria-label={t("language.select")}>
+      <Glyph name="languages" size={20} />
     </Button>
     <Dropdown.Popover>
       <Dropdown.Menu aria-label={t("language.select")} onAction={(key) => { if (isLocale(key)) setLocale(key); }}>
