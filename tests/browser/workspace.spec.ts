@@ -437,7 +437,7 @@ test("archived reminders can be selected and permanently deleted in bulk", async
   const bulkDelete = page.getByRole("toolbar", { name: "批量操作" }).getByRole("button", { name: "删除所选项", exact: true });
   await expect(bulkDelete).toBeVisible();
   await bulkDelete.click();
-  const confirmation = page.getByRole("alertdialog");
+  const confirmation = page.getByRole("alertdialog", { name: /永久删除选中的 2 条归档提醒/ });
   await expect(confirmation).toContainText("永久删除选中的 2 条归档提醒");
   await confirmation.getByRole("button", { name: "删除所选项", exact: true }).click();
   await expect(confirmation).toBeHidden();
