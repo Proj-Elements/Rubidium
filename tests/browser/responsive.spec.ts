@@ -198,6 +198,8 @@ for (const theme of ["light", "dark"] as const) {
         await expect(page.getByRole("checkbox", { name: "选择本页提醒" })).toBeChecked();
       }
       if (width >= 1440) {
+        const grid = page.getByRole("grid", { name: "提醒列表" });
+        await page.mouse.move(2, 2);
         const selectedRow = page.locator('.data-grid .table__row[data-selected="true"]').first();
         const selectedCell = selectedRow.locator(".table__cell").first();
         await expect(selectedRow).toBeVisible();
@@ -210,27 +212,39 @@ for (const theme of ["light", "dark"] as const) {
         expect(selectedStyle.background).not.toBe("rgba(0, 0, 0, 0)");
         expect(selectedStyle.shadow).not.toBe("none");
         expect(selectedStyle.radius).toBe(selectedStyle.outerRadius);
+        const selectedRows = page.locator('.data-grid .table__row[data-selected="true"]');
+        const unselectedCell = grid.locator('.table__row:not([data-selected="true"]) .table__cell').first();
+        expect(await selectedRows.first().evaluate((row) => getComputedStyle(row).backgroundColor)).toBe(
+          await unselectedCell.evaluate((cell) => getComputedStyle(cell).backgroundColor),
+        );
         expect(await selectedCell.evaluate((cell) => {
           const color = getComputedStyle(cell).borderBottomColor;
           return color === "transparent" || color === "rgba(0, 0, 0, 0)" || color.endsWith(" / 0)");
         })).toBe(true);
-        const selectedRows = page.locator('.data-grid .table__row[data-selected="true"]');
         const firstSelectedLastCell = selectedRow.locator(".table__cell").last();
         const lastSelectedRow = selectedRows.last();
         const lastCell = lastSelectedRow.locator(".table__cell").last();
         const middleSelectionCell = selectedRows.nth(1).locator(".table__cell").first();
+        const contiguousRow = page.locator('.data-grid .table__row[data-selected="true"]:has(+ .table__row[data-selected="true"])').first();
         expect(await lastCell.evaluate((cell) => getComputedStyle(cell).borderBottomRightRadius)).toBe(selectedStyle.outerRadius);
         expect(await firstSelectedLastCell.evaluate((cell) => getComputedStyle(cell).borderBottomRightRadius)).toBe("0px");
         expect(await lastSelectedRow.locator(".table__cell").first().evaluate((cell) => getComputedStyle(cell).borderTopLeftRadius)).toBe("0px");
         expect(await middleSelectionCell.evaluate((cell) => {
           const style = getComputedStyle(cell);
-          return (style.borderTopColor === "transparent" || style.borderTopColor === "rgba(0, 0, 0, 0)") && style.backgroundClip === "border-box";
+          return (style.borderTopColor === "transparent" || style.borderTopColor === "rgba(0, 0, 0, 0)") && style.backgroundClip === "padding-box";
         })).toBe(true);
+        const rowBeforeJoin = contiguousRow.locator(".table__cell").first();
+        expect(await rowBeforeJoin.evaluate((cell) => getComputedStyle(cell).borderBottomWidth)).toBe("0px");
+        expect(await rowBeforeJoin.evaluate((cell) => getComputedStyle(cell).paddingBottom)).toBe("13px");
+        expect(await contiguousRow.getAttribute("data-selected")).toBe("true");
       } else {
         const selectedRow = page.locator('.list-view__item[data-selected="true"]').first();
+        const contiguousRow = page.locator('.list-view__item[data-selected="true"]:has(+ .list-view__item[data-selected="true"])').first();
         await expect(selectedRow).toBeVisible();
         expect(await selectedRow.evaluate((row) => getComputedStyle(row).boxShadow)).not.toBe("none");
         expect(await selectedRow.evaluate((row) => getComputedStyle(row).borderTopLeftRadius === getComputedStyle(row.closest(".list-view")!).borderTopLeftRadius)).toBe(true);
+        expect(await contiguousRow.evaluate((row) => getComputedStyle(row).borderBottomWidth)).toBe("0px");
+        expect(await contiguousRow.evaluate((row) => getComputedStyle(row).paddingBottom)).toBe("17px");
       }
       const bar = page.getByRole("toolbar", { name: "批量操作" });
       await expect(bar).toBeVisible();
