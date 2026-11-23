@@ -36,8 +36,8 @@ export function CardHeading({ title, action }: { title: string; action?: ReactNo
   </Card.Header>;
 }
 
-export function Field({ label, required, disabled, type, name, error, ...props }: { label: string; error?: string } & ComponentProps<typeof Input>) {
-  return <TextField className="workspace-field" fullWidth type={type} name={name} isRequired={required} isDisabled={disabled} isInvalid={Boolean(error)}>
+export function Field({ label, required, disabled, type, name, error, validationBehavior, ...props }: { label: string; error?: string; validationBehavior?: ComponentProps<typeof TextField>["validationBehavior"] } & ComponentProps<typeof Input>) {
+  return <TextField className="workspace-field" fullWidth type={type} name={name} isRequired={required} isDisabled={disabled} isInvalid={Boolean(error)} validationBehavior={validationBehavior}>
     <Label>{label}</Label>
     <Input variant="secondary" fullWidth {...props} />
     {error && <FieldError>{error}</FieldError>}

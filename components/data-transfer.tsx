@@ -104,14 +104,14 @@ export function DataTransfer() {
     <Modal.Backdrop isOpen={dialog !== null} onOpenChange={(open) => { if (!open) closeDialog(); }} isDismissable={!busy} isKeyboardDismissDisabled={Boolean(busy)}>
       <Modal.Container size="sm" placement="center" scroll="inside">
         <Modal.Dialog className="data-transfer-dialog">
-          <Form noValidate={dialog === "export"} className="flex min-h-0 flex-col" onSubmit={dialog === "export" ? exportData : (event) => { event.preventDefault(); void importData(); }}>
+          <Form className="flex min-h-0 flex-col" onSubmit={dialog === "export" ? exportData : (event) => { event.preventDefault(); void importData(); }}>
             <Modal.Header className="flex-row items-start justify-between gap-3">
               <Modal.Heading>{dialog === "export" ? t("transfer.exportTitle") : confirmImport ? t("transfer.confirmImportTitle") : t("transfer.importTitle")}</Modal.Heading>
               {!busy && <Modal.CloseTrigger aria-label={dialog === "export" ? t("transfer.closeExport") : t("transfer.closeImport")} className="static shrink-0 max-sm:size-11" />}
             </Modal.Header>
             <Modal.Body className="data-transfer-body grid min-h-0 content-start gap-4">
               {feedback && <Notice kind={feedback.kind}>{feedback.message}</Notice>}
-              {dialog === "export" && <Field label={t("transfer.encryptionPassword")} type="password" value={exportPassphrase} onChange={(event) => setExportPassphrase(event.target.value)} error={exportPasswordError} autoComplete="new-password" required />}
+              {dialog === "export" && <Field label={t("transfer.encryptionPassword")} type="password" value={exportPassphrase} onChange={(event) => setExportPassphrase(event.target.value)} error={exportPasswordError} autoComplete="new-password" validationBehavior="aria" required />}
               {dialog === "import" && (confirmImport ? <Notice kind="warning">{t("transfer.replaceWarning")}</Notice> : <>
                 <DropZone key={filePickerKey} className="min-w-0">
                   {!file && <DropZone.Area className="min-h-14 flex-row justify-between gap-3 px-3 py-1 text-start" onDrop={dropFile}>
