@@ -128,7 +128,7 @@
   .settings-tabs > .tabs__list-container .tabs__indicator { box-shadow: none; }
   .credential-scope > .label { display: flex; min-height: 2.75rem; align-items: center; }
   .credential-scope .select__trigger { align-items: center; }
-  .history-settings-card { gap: 0.75rem; padding: 1rem; }
+  .history-settings-card { gap: 0.75rem; }
   .history-settings-card .card-header { padding-block-end: 0; }
   .history-settings-form { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 0.75rem; }
   .history-settings-form > .number-field { width: fit-content; }

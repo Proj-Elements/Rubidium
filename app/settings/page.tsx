@@ -169,7 +169,7 @@ function HistorySettings({ initial, onSaved }: { initial: SettingsPayload | null
     finally { setPruning(false); }
   }
 
-  return <Card className="history-settings-card">
+  return <Card className="history-settings-card min-w-0 p-5 sm:p-6">
     <CardHeading title={t("settings.history")} />
     {initial ? <Form className="history-settings-form" onSubmit={save}>
       {conflict && <div className="basis-full"><Notice kind="warning" action={<Button type="button" variant="ghost" isDisabled={saving} onPress={reload}>{t("common.reloadLatest")}</Button>}>{t("settings.retentionConflict")}</Notice></div>}

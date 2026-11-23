@@ -255,6 +255,19 @@ test("320px settings expose every category and audit identifiers remain accessib
   await contained(page);
   await page.getByRole("button", { name: "关闭", exact: true }).click();
   await page.screenshot({ path: test.info().outputPath("320-settings-history.png"), fullPage: true, animations: "disabled" });
+  for (const width of [844, 320]) {
+    await page.setViewportSize({ width, height: 900 });
+    const transferCard = page.locator(".card").filter({ has: page.getByRole("heading", { name: "数据导入与导出", exact: true }) });
+    const auditCard = page.locator(".card").filter({ has: page.getByRole("heading", { name: "操作审计", exact: true }) });
+    const paddings = await Promise.all([transferCard, page.locator(".history-settings-card"), auditCard].map((card) => card.evaluate((element) => {
+      const style = getComputedStyle(element);
+      return [style.paddingTop, style.paddingRight, style.paddingBottom, style.paddingLeft];
+    })));
+    expect(paddings[1]).toEqual(paddings[0]);
+    expect(paddings[2]).toEqual(paddings[0]);
+    await contained(page);
+    await page.screenshot({ path: test.info().outputPath(`settings-history-spacing-${width}.png`), fullPage: true, animations: "disabled" });
+  }
   await categories.getByRole("tab", { name: "通知渠道", exact: true }).click();
   await page.getByRole("button", { name: "更多通知选项" }).click();
   await page.getByLabel("默认通知分组").fill("Landscape 320 Draft");
