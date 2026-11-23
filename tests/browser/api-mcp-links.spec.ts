@@ -20,6 +20,15 @@ test("API and MCP documentation links expose a copyable MCP endpoint", async ({ 
   const mcpDocs = page.getByRole("link", { name: "MCP 文档", exact: true });
   await expect(apiDocs).toHaveAttribute("href", "https://github.com/Proj-Elements/Rubidium/blob/main/docs/api-mcp.md#http-api");
   await expect(mcpDocs).toHaveAttribute("href", "https://github.com/Proj-Elements/Rubidium/blob/main/docs/api-mcp.md#mcp-streamable-http");
+  await expect(apiDocs.locator("svg")).toBeVisible();
+  await expect(mcpDocs.locator("svg")).toBeVisible();
+  expect(await apiDocs.evaluate((link) => link.firstElementChild?.tagName)).toBe("svg");
+  expect(await mcpDocs.evaluate((link) => link.firstElementChild?.tagName)).toBe("svg");
+  const [apiDocsBox, mcpDocsBox] = await Promise.all([apiDocs.boundingBox(), mcpDocs.boundingBox()]);
+  expect(apiDocsBox).not.toBeNull();
+  expect(mcpDocsBox).not.toBeNull();
+  expect(mcpDocsBox!.x).toBeGreaterThan(apiDocsBox!.x + apiDocsBox!.width);
+  expect(Math.abs(apiDocsBox!.y + apiDocsBox!.height / 2 - mcpDocsBox!.y - mcpDocsBox!.height / 2)).toBeLessThanOrEqual(1);
 
   const toggle = page.getByRole("button", { name: "MCP 地址", exact: true });
   const address = page.getByLabel("MCP 服务地址", { exact: true });

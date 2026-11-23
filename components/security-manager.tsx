@@ -144,8 +144,10 @@ export function SecurityManager({ active }: { active: boolean }) {
         </Form>
       </Details>
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-        <a className="workspace-link" href="https://github.com/Proj-Elements/Rubidium/blob/main/docs/api-mcp.md#http-api" target="_blank" rel="noreferrer">{t("security.apiDocs")}<Glyph name="link" size={14} /></a>
-        <a className="workspace-link" href="https://github.com/Proj-Elements/Rubidium/blob/main/docs/api-mcp.md#mcp-streamable-http" target="_blank" rel="noreferrer">{t("security.mcpDocs")}<Glyph name="link" size={14} /></a>
+        <div className="security-doc-links">
+          <a className="workspace-link" href="https://github.com/Proj-Elements/Rubidium/blob/main/docs/api-mcp.md#http-api" target="_blank" rel="noreferrer"><Glyph name="link" size={14} />{t("security.apiDocs")}</a>
+          <a className="workspace-link" href="https://github.com/Proj-Elements/Rubidium/blob/main/docs/api-mcp.md#mcp-streamable-http" target="_blank" rel="noreferrer"><Glyph name="link" size={14} />{t("security.mcpDocs")}</a>
+        </div>
         <Button variant="outline" className="min-h-11" onPress={() => setMcpAddressOpen((open) => !open)} aria-expanded={mcpAddressOpen}>{t("security.openMcpAddress")}</Button>
       </div>
       {mcpAddressOpen && <McpAddress />}

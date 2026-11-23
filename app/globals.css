@@ -141,8 +141,9 @@
   .schedule-field { min-height: 2.75rem; }
   .schedule-field .date-picker__trigger { inline-size: 2.75rem; block-size: 2.75rem; justify-content: center; }
   .icon-well { @apply inline-grid size-10 shrink-0 place-items-center rounded-xl bg-accent-soft text-accent; }
-  .workspace-link { @apply gap-2 rounded-sm text-sm text-link no-underline hover:text-foreground hover:no-underline; }
+  .workspace-link { @apply inline-flex items-center gap-2 rounded-sm text-sm text-link no-underline hover:text-foreground hover:no-underline; }
   .workspace-link svg { flex: none; }
+  .security-doc-links { display: flex; flex: none; align-items: center; gap: 1rem; white-space: nowrap; }
   .activity-meter.meter { grid-template-areas: "date track output"; grid-template-columns: 3.5rem minmax(0, 1fr) 2rem; }
   .activity-meter .meter__output { text-align: end; font-variant-numeric: tabular-nums; }
   .upcoming-row { border-radius: 0.75rem; }
