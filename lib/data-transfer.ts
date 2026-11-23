@@ -7,6 +7,7 @@ import { refreshChannelLogSecrets } from "./db";
 import { auditEvent } from "./db/security";
 import { channelFields, deliverySchema, taskSchema, timestampSchema } from "./contracts";
 import { settingsSchema, taskInputSchema } from "./validation";
+import { transferPasswordValidationIssue } from "./password-policy";
 
 export const MAX_TRANSFER_BYTES = 40 * 1024 * 1024;
 export const MAX_IMPORT_BODY_BYTES = 60 * 1024 * 1024;
@@ -31,7 +32,7 @@ export interface EncryptedExport {
 }
 
 function validatePassphrase(passphrase: string): void {
-  if (passphrase.length < 12 || passphrase.length > 200 || passphrase.trim() !== passphrase) {
+  if (transferPasswordValidationIssue(passphrase)) {
     throw new DomainError("加密密码须为 12–200 个字符且不能有首尾空格", 400, { key: "errors.transferPassword" });
   }
 }

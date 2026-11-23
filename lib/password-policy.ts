@@ -2,6 +2,16 @@ import type { MessageKey } from "./i18n";
 
 export const MIN_PASSWORD_LENGTH = 8;
 export const MAX_PASSWORD_LENGTH = 300;
+export const MIN_TRANSFER_PASSWORD_LENGTH = 12;
+export const MAX_TRANSFER_PASSWORD_LENGTH = 200;
+
+export function transferPasswordValidationIssue(passphrase: string): MessageKey | null {
+  if (passphrase.length === 0) return "transfer.encryptionPasswordRequired";
+  if (passphrase.length < MIN_TRANSFER_PASSWORD_LENGTH) return "transfer.encryptionPasswordTooShort";
+  if (passphrase.length > MAX_TRANSFER_PASSWORD_LENGTH) return "transfer.encryptionPasswordTooLong";
+  if (passphrase.trim() !== passphrase) return "transfer.encryptionPasswordWhitespace";
+  return null;
+}
 
 export function passwordValidationIssue(password: string): { key: MessageKey; values?: Record<string, number> } | null {
   if (password.length > MAX_PASSWORD_LENGTH) return { key: "password.tooLong", values: { count: MAX_PASSWORD_LENGTH } };

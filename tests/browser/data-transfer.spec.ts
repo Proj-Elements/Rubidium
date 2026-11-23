@@ -25,7 +25,14 @@ test("encrypted data export and confirmed import preserve data after a wrong pas
   const exportDialog = page.getByRole("dialog", { name: "导出加密数据" });
   await expect(exportDialog).toBeVisible();
   await page.screenshot({ path: test.info().outputPath("data-transfer-export-dialog-landscape.png"), animations: "disabled" });
+  await exportDialog.getByRole("button", { name: "导出加密文件" }).click();
+  await expect(exportDialog.getByRole("alert")).toContainText("请输入加密密码。");
+  await exportDialog.getByLabel("加密密码").fill("short");
+  await expect(exportDialog.getByRole("alert")).toContainText("至少需要 12 个字符");
+  await exportDialog.getByLabel("加密密码").fill(" secure-export-password-2035");
+  await expect(exportDialog.getByRole("alert")).toContainText("不能以空格开头或结尾");
   await exportDialog.getByLabel("加密密码").fill("secure-export-password-2035");
+  await expect(exportDialog.getByRole("alert")).toHaveCount(0);
   const downloadPromise = page.waitForEvent("download");
   await exportDialog.getByRole("button", { name: "导出加密文件" }).click();
   const download = await downloadPromise;
