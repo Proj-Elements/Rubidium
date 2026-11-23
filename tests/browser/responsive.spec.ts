@@ -184,6 +184,21 @@ for (const theme of ["light", "dark"] as const) {
         await page.getByText("选择本页提醒", { exact: true }).click();
         await expect(page.getByRole("checkbox", { name: "选择本页提醒" })).toBeChecked();
       }
+      if (width >= 1440) {
+        const selectedRow = page.locator('.data-grid .table__row[data-selected="true"]').first();
+        const selectedCell = selectedRow.locator(".table__cell").first();
+        await expect(selectedRow).toBeVisible();
+        const selectedStyle = await selectedCell.evaluate((cell) => ({
+          background: getComputedStyle(cell).backgroundColor,
+          shadow: getComputedStyle(cell).boxShadow,
+        }));
+        expect(selectedStyle.background).not.toBe("rgba(0, 0, 0, 0)");
+        expect(selectedStyle.shadow).not.toBe("none");
+      } else {
+        const selectedRow = page.locator('.list-view__item[data-selected="true"]').first();
+        await expect(selectedRow).toBeVisible();
+        expect(await selectedRow.evaluate((row) => getComputedStyle(row).boxShadow)).not.toBe("none");
+      }
       const bar = page.getByRole("toolbar", { name: "批量操作" });
       await expect(bar).toBeVisible();
       const box = await bar.boundingBox();

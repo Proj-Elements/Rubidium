@@ -32,6 +32,8 @@
   --field-background: var(--surface);
   --field-foreground: var(--foreground);
   --field-placeholder: var(--muted);
+  --selected-row-fill: light-dark(oklch(0.91 0.055 253.83), oklch(0.31 0.07 253.83));
+  --selected-row-border: light-dark(oklch(0.62 0.15 253.83), oklch(0.61 0.12 253.83));
   --segment: light-dark(var(--white), oklch(0.3964 0.01 285.93));
   --segment-foreground: var(--foreground);
   --link: light-dark(oklch(0.52 0.18 253.83), var(--accent));
@@ -192,11 +194,17 @@
     .floating-scrollbar, .floating-scrollbar-thumb { transition: none; }
   }
   .list-view__item:not(.delivery-selectable) .list-view__selection-cell { visibility: hidden; }
-  .list-view__item[data-selected="true"] { background: color-mix(in oklab, var(--accent) 16%, var(--surface)); }
-  :root[data-theme="dark"] .list-view__item[data-selected="true"] { background: color-mix(in oklab, var(--accent) 29%, var(--surface)); }
-  @media (prefers-color-scheme: dark) {
-    :root[data-theme="system"] .list-view__item[data-selected="true"] { background: color-mix(in oklab, var(--accent) 29%, var(--surface)); }
-  }
+  .list-view__item[data-selected="true"] { background: var(--selected-row-fill); box-shadow: inset 0 0 0 1px var(--selected-row-border); }
+  .data-grid .table__row[data-selected="true"] .table__cell { background: var(--selected-row-fill); }
+  .data-grid .table__row[data-selected="true"] .table__cell[data-pinned] { background: var(--selected-row-fill); }
+  .data-grid .table__row[data-selected="true"] > .table__cell:only-child,
+  .data-grid .table__row[data-selected="true"] > *:only-child > .table__cell { border-radius: var(--radius); box-shadow: inset 0 0 0 1px var(--selected-row-border); }
+  .data-grid .table__row[data-selected="true"] > .table__cell:first-child:not(:only-child),
+  .data-grid .table__row[data-selected="true"] > *:first-child:not(:only-child) > .table__cell { border-start-start-radius: var(--radius); border-end-start-radius: var(--radius); box-shadow: inset 1px 0 0 var(--selected-row-border), inset 0 1px 0 var(--selected-row-border), inset 0 -1px 0 var(--selected-row-border); }
+  .data-grid .table__row[data-selected="true"] > .table__cell:last-child:not(:only-child),
+  .data-grid .table__row[data-selected="true"] > *:last-child:not(:only-child) > .table__cell { border-start-end-radius: var(--radius); border-end-end-radius: var(--radius); box-shadow: inset -1px 0 0 var(--selected-row-border), inset 0 1px 0 var(--selected-row-border), inset 0 -1px 0 var(--selected-row-border); }
+  .data-grid .table__row[data-selected="true"] > .table__cell:not(:first-child):not(:last-child),
+  .data-grid .table__row[data-selected="true"] > *:not(:first-child):not(:last-child) > .table__cell { box-shadow: inset 0 1px 0 var(--selected-row-border), inset 0 -1px 0 var(--selected-row-border); }
   .select__popover { overflow: hidden; border-radius: var(--overlay-radius); }
   .select__popover .list-box { max-height: min(22rem, calc(100dvh - 2rem)); overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; border-radius: inherit; padding: 0.25rem; scrollbar-width: thin; scrollbar-color: color-mix(in oklab, var(--foreground) 28%, transparent) transparent; }
 }
