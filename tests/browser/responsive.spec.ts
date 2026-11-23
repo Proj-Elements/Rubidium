@@ -191,13 +191,19 @@ for (const theme of ["light", "dark"] as const) {
         const selectedStyle = await selectedCell.evaluate((cell) => ({
           background: getComputedStyle(cell).backgroundColor,
           shadow: getComputedStyle(cell).boxShadow,
+          radius: getComputedStyle(cell).borderTopLeftRadius,
+          outerRadius: getComputedStyle(cell.closest(".data-grid")!).borderTopLeftRadius,
         }));
         expect(selectedStyle.background).not.toBe("rgba(0, 0, 0, 0)");
         expect(selectedStyle.shadow).not.toBe("none");
+        expect(selectedStyle.radius).toBe(selectedStyle.outerRadius);
+        const lastCell = page.locator('.data-grid .table__row[data-selected="true"]').last().locator(".table__cell").last();
+        expect(await lastCell.evaluate((cell) => getComputedStyle(cell).borderBottomRightRadius)).toBe(selectedStyle.outerRadius);
       } else {
         const selectedRow = page.locator('.list-view__item[data-selected="true"]').first();
         await expect(selectedRow).toBeVisible();
         expect(await selectedRow.evaluate((row) => getComputedStyle(row).boxShadow)).not.toBe("none");
+        expect(await selectedRow.evaluate((row) => getComputedStyle(row).borderTopLeftRadius === getComputedStyle(row.closest(".list-view")!).borderTopLeftRadius)).toBe(true);
       }
       const bar = page.getByRole("toolbar", { name: "批量操作" });
       await expect(bar).toBeVisible();

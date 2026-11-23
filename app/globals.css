@@ -194,15 +194,18 @@
     .floating-scrollbar, .floating-scrollbar-thumb { transition: none; }
   }
   .list-view__item:not(.delivery-selectable) .list-view__selection-cell { visibility: hidden; }
+  .data-grid.table-root--primary, .list-view--primary { --record-radius: min(32px, calc(var(--radius) * 2.5)); border-radius: var(--record-radius); }
+  .list-view--primary:not([data-virtualized]) .list-view__item:first-child { border-start-start-radius: var(--record-radius); border-start-end-radius: var(--record-radius); }
+  .list-view--primary:not([data-virtualized]) .list-view__item:last-child { border-end-start-radius: var(--record-radius); border-end-end-radius: var(--record-radius); }
   .list-view__item[data-selected="true"] { background: var(--selected-row-fill); box-shadow: inset 0 0 0 1px var(--selected-row-border); }
   .data-grid .table__row[data-selected="true"] .table__cell { background: var(--selected-row-fill); }
   .data-grid .table__row[data-selected="true"] .table__cell[data-pinned] { background: var(--selected-row-fill); }
   .data-grid .table__row[data-selected="true"] > .table__cell:only-child,
-  .data-grid .table__row[data-selected="true"] > *:only-child > .table__cell { border-radius: var(--radius); box-shadow: inset 0 0 0 1px var(--selected-row-border); }
+  .data-grid .table__row[data-selected="true"] > *:only-child > .table__cell { border-radius: var(--record-radius); box-shadow: inset 0 0 0 1px var(--selected-row-border); }
   .data-grid .table__row[data-selected="true"] > .table__cell:first-child:not(:only-child),
-  .data-grid .table__row[data-selected="true"] > *:first-child:not(:only-child) > .table__cell { border-start-start-radius: var(--radius); border-end-start-radius: var(--radius); box-shadow: inset 1px 0 0 var(--selected-row-border), inset 0 1px 0 var(--selected-row-border), inset 0 -1px 0 var(--selected-row-border); }
+  .data-grid .table__row[data-selected="true"] > *:first-child:not(:only-child) > .table__cell { border-start-start-radius: var(--record-radius); border-end-start-radius: var(--record-radius); box-shadow: inset 1px 0 0 var(--selected-row-border), inset 0 1px 0 var(--selected-row-border), inset 0 -1px 0 var(--selected-row-border); }
   .data-grid .table__row[data-selected="true"] > .table__cell:last-child:not(:only-child),
-  .data-grid .table__row[data-selected="true"] > *:last-child:not(:only-child) > .table__cell { border-start-end-radius: var(--radius); border-end-end-radius: var(--radius); box-shadow: inset -1px 0 0 var(--selected-row-border), inset 0 1px 0 var(--selected-row-border), inset 0 -1px 0 var(--selected-row-border); }
+  .data-grid .table__row[data-selected="true"] > *:last-child:not(:only-child) > .table__cell { border-start-end-radius: var(--record-radius); border-end-end-radius: var(--record-radius); box-shadow: inset -1px 0 0 var(--selected-row-border), inset 0 1px 0 var(--selected-row-border), inset 0 -1px 0 var(--selected-row-border); }
   .data-grid .table__row[data-selected="true"] > .table__cell:not(:first-child):not(:last-child),
   .data-grid .table__row[data-selected="true"] > *:not(:first-child):not(:last-child) > .table__cell { box-shadow: inset 0 1px 0 var(--selected-row-border), inset 0 -1px 0 var(--selected-row-border); }
   .select__popover { max-height: min(22rem, calc(100dvh - 2rem)); overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; border-radius: min(32px, calc(var(--radius-2xl) + var(--spacing) * 1.5)); scrollbar-width: thin; scrollbar-color: color-mix(in oklab, var(--foreground) 28%, transparent) transparent; }
