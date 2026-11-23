@@ -1,8 +1,10 @@
 # Rubidium API 与 MCP
 
-本文对应 Rubidium `1.1.1`。HTTP API 收发 JSON；MCP 用的是官方 `@modelcontextprotocol/sdk` 的无状态 Streamable HTTP。默认服务地址是 `http://localhost:3000`，实际部署时换成你自己的 HTTPS 地址。
+本文对应 Rubidium `1.1.2`。HTTP API 收发 JSON；MCP 用的是官方 `@modelcontextprotocol/sdk` 的无状态 Streamable HTTP。默认服务地址是 `http://localhost:3000`，实际部署时换成你自己的 HTTPS 地址。
 
 ## 鉴权与通用约定
+
+在「设置 → 访问安全」创建 API 凭据，使用凭据输入框右侧的复制按钮保存。原文只显示一次，关闭提示或刷新页面后无法再次查看；请勿公开凭据。
 
 - 普通数据 API 既接受 `Authorization: Bearer <API_TOKEN>`，也接受登录后的 `barker_session` Cookie。API token 在「设置 → 访问安全」里创建；`read` 权限只能发 `GET`/`HEAD`，`write` 权限可读可写。永久 token 的有效天数填 `0`，之后只能手动撤销。
 - `/api/security` 和 `/api/audit` 只认有效的浏览器会话 Cookie，不接受 Bearer token。会话通过 `/api/session` 创建。

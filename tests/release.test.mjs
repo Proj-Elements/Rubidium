@@ -91,13 +91,30 @@ test("release and CI workflow YAML parse with the expected publication gates", (
   }
 });
 
-test("application version matches the pinned GHCR image and user deployment guides", () => {
+test("deployment guides pin the application version and separate image and source installs", () => {
   const version = JSON.parse(readFileSync("package.json", "utf8")).version;
   assert.match(version, /^\d+\.\d+\.\d+$/);
-  for (const path of [".env.example", "docker-compose.ghcr.yml", "README.md", "docs/api-mcp.md", "docs/configuration.md", "docs/deployment.md"]) {
+  for (const path of ["README.md", "docs/api-mcp.md", "docs/deployment.md"]) {
     assert.match(readFileSync(path, "utf8"), new RegExp(`rubidium:${version}|${version}`), path);
   }
-  assert.match(readFileSync("docker-compose.ghcr.yml", "utf8"), new RegExp(`rubidium:${version}`));
+  for (const path of ["README.md", "docs/deployment.md"]) {
+    const content = readFileSync(path, "utf8");
+    assert.match(content, new RegExp(`docker pull ghcr.io/proj-elements/rubidium:${version}`));
+    assert.match(content, /docker run -d --name rubidium/);
+    assert.match(content, /docker compose up -d --build/);
+    assert.doesNotMatch(content, /docker-compose\.ghcr|RUBIDIUM_IMAGE|docker push/);
+    for (const snippet of content.matchAll(/```sh\n([\s\S]*?)\n```/g)) {
+      const syntax = spawnSync("bash", ["-n"], { input: snippet[1], encoding: "utf8" });
+      assert.equal(syntax.status, 0, `${path}: ${syntax.stderr}`);
+    }
+  }
+  const compose = parse(readFileSync("docker-compose.yml", "utf8"));
+  assert.equal(compose.services.rubidium.build.context, ".");
+  assert.equal(compose.services.rubidium.image, "rubidium:local");
+  assert.equal(compose.services.rubidium.environment.RUBIDIUM_DATA_DIR, "${RUBIDIUM_DATA_DIR:-/app/data}");
+  const environment = readFileSync(".env.example", "utf8");
+  assert.match(environment, /^RUBIDIUM_DATA_DIR=$/m);
+  assert.doesNotMatch(environment, /RUBIDIUM_IMAGE|docker-compose\.ghcr/);
 });
 
 test("third-party notices match pnpm production dependencies and preserve Pro licensing notes", () => {

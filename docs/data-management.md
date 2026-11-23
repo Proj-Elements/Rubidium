@@ -48,14 +48,14 @@ unset RUBIDIUM_BACKUP_KEY
 
 数据库运行时可能用 WAL/SHM 辅助文件，所以别直接复制正在运行的 SQLite 主文件当备份。也不要把数据目录放在不支持文件锁和可靠写入的网络文件系统上，更不要让多个实例共用一个 SQLite 数据目录。恢复不会覆盖目标目录；恢复完把 `RUBIDIUM_DATA_DIR` 指向新目录，再启动服务。
 
-## Docker Compose 命名卷
+## Docker 命名卷
 
-GHCR 部署用下面的命令；源码 Compose 去掉 `-f docker-compose.ghcr.yml` 即可。先在本机建一个临时口令文件并限制权限，再复制进容器：
+下面的命令同时适用于直接运行镜像和源码 Compose 部署，容器默认都叫 `rubidium`；修改过名称时请替换。先在本机建临时口令文件并限制权限，再复制进容器：
 
 ```sh
 KEY_FILE="$(mktemp)"
 chmod 600 "$KEY_FILE"
-trap 'rm -f "$KEY_FILE"; docker compose -f docker-compose.ghcr.yml exec -u 0 rubidium rm -f /tmp/rubidium-backup-key >/dev/null 2>&1 || true' EXIT
+trap 'rm -f "$KEY_FILE"; docker exec -u 0 rubidium rm -f /tmp/rubidium-backup-key >/dev/null 2>&1 || true' EXIT
 printf '备份加密密钥：'
 IFS= read -r -s RUBIDIUM_BACKUP_KEY
 printf '\n'
@@ -63,14 +63,16 @@ printf '%s' "$RUBIDIUM_BACKUP_KEY" > "$KEY_FILE"
 unset RUBIDIUM_BACKUP_KEY
 mkdir -p /secure/backups
 docker cp "$KEY_FILE" rubidium:/tmp/rubidium-backup-key
-docker compose -f docker-compose.ghcr.yml exec -u 0 rubidium chmod 600 /tmp/rubidium-backup-key
-docker compose -f docker-compose.ghcr.yml exec -u 0 -e RUBIDIUM_BACKUP_KEY_FILE=/tmp/rubidium-backup-key rubidium node /app/scripts/data-tools.mjs backup-encrypted /tmp/rubidium-backup-20261122.enc
+docker exec -u 0 rubidium chmod 600 /tmp/rubidium-backup-key
+docker exec -u 0 -e RUBIDIUM_BACKUP_KEY_FILE=/tmp/rubidium-backup-key rubidium node /app/scripts/data-tools.mjs backup-encrypted /tmp/rubidium-backup-20261122.enc
 docker cp rubidium:/tmp/rubidium-backup-20261122.enc /secure/backups/
-docker compose -f docker-compose.ghcr.yml exec -u 0 rubidium rm -r /tmp/rubidium-backup-20261122.enc
-docker compose -f docker-compose.ghcr.yml exec -u 0 rubidium rm -f /tmp/rubidium-backup-key
+docker exec -u 0 rubidium rm -r /tmp/rubidium-backup-20261122.enc
+docker exec -u 0 rubidium rm -f /tmp/rubidium-backup-key
 ```
 
-恢复前先停服务；目标必须是卷里还不存在的新目录。把备份目录以只读方式挂载，密钥文件也只读挂进一次性容器：
+恢复前读取现有容器使用的卷名和镜像，继续使用同一个卷；直接镜像部署的默认卷为 `rubidium-data`，源码 Compose 的卷名包含项目名前缀。下面命令面向命名卷；使用宿主机目录挂载时，请改成实际路径。
+
+停服务后，将备份目录及密钥文件只读挂进一次性容器；恢复目标必须是卷里尚不存在的新目录：
 
 ```sh
 KEY_FILE="$(mktemp)"
@@ -81,16 +83,22 @@ IFS= read -r -s RUBIDIUM_BACKUP_KEY
 printf '\n'
 printf '%s' "$RUBIDIUM_BACKUP_KEY" > "$KEY_FILE"
 unset RUBIDIUM_BACKUP_KEY
-docker compose -f docker-compose.ghcr.yml stop rubidium
-docker compose -f docker-compose.ghcr.yml run --rm --no-deps --user 0 \
+DATA_VOLUME="$(docker inspect rubidium --format '{{range .Mounts}}{{if eq .Destination "/app/data"}}{{.Name}}{{end}}{{end}}')"
+IMAGE="$(docker inspect rubidium --format '{{.Image}}')"
+: "${DATA_VOLUME:?未找到 /app/data 命名卷，请确认实际挂载}"
+docker stop rubidium
+docker run --rm --user 0 \
   -e RUBIDIUM_BACKUP_KEY_FILE=/run/secrets/rubidium-backup-key \
+  -v "$DATA_VOLUME:/app/data" \
   -v "$KEY_FILE:/run/secrets/rubidium-backup-key:ro" \
   -v /secure/backups:/backups:ro \
-  --entrypoint node rubidium \
+  --entrypoint node "$IMAGE" \
   /app/scripts/data-tools.mjs restore-encrypted \
   /app/data/restore-20261122 /backups/rubidium-backup-20261122.enc
-docker compose -f docker-compose.ghcr.yml run --rm --no-deps --user 0 \
-  --entrypoint chown rubidium -R 1001:1001 /app/data/restore-20261122
+docker run --rm --user 0 -v "$DATA_VOLUME:/app/data" \
+  --entrypoint chown "$IMAGE" -R 1001:1001 /app/data/restore-20261122
 ```
 
-把 `.env` 里的 `RUBIDIUM_DATA_DIR` 改成 `/app/data/restore-20261122`，再启动服务。确认数据没问题之前，原目录和原卷都留着；也别用会删卷的 Compose 清理选项。命令里的 `/secure/backups`、快照名和恢复目录要换成你的实际路径，退出时记得删掉临时口令文件。
+把启动环境里的 `RUBIDIUM_DATA_DIR` 改成 `/app/data/restore-20261122`：直接镜像部署编辑 `rubidium.env` 并按[部署指南](deployment.md)仅重建容器、复用原卷；源码 Compose 编辑 `.env` 后执行 `docker compose up -d`。只执行 `docker start` 不会更新容器环境。
+
+确认数据没问题之前，原目录和原卷都留着，不要使用会删卷的清理选项。命令里的 `/secure/backups`、快照名和恢复目录需换成实际路径，退出时删除临时口令文件。

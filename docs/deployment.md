@@ -1,10 +1,36 @@
 # 部署
 
-生产环境建议直接用 GHCR 上的预构建镜像；需要自己改代码的话，也可以从源码用 Docker Compose 构建。
+以下是两种独立方式：直接运行固定版本的 GHCR 镜像，或克隆源码后使用 Docker Compose 在本机构建。预构建镜像无需源码和 HeroUI Pro 构建凭据。
 
 ## 用 GHCR 镜像
 
-先克隆项目、准备环境文件：
+安装 Docker，在任意部署目录创建仅自己可读的环境文件：
+
+```sh
+umask 077
+printf 'RUBIDIUM_SETUP_TOKEN=%s\n' "$(openssl rand -hex 32)" > rubidium.env
+```
+
+`RUBIDIUM_SETUP_TOKEN` 用于首次初始化，需为 32–300 个字符。也可以在环境文件里预设 8–300 个字符的 `RUBIDIUM_PASSWORD`，直接用该密码登录。不要把实际密码或 Token 写进命令行参数。
+
+当前 GHCR 包需要认证。准备有该包访问权限及 `read:packages` 权限的 GitHub Token，在 `docker login` 提示中输入，然后直接拉取并运行镜像，无需克隆项目：
+
+```sh
+docker login ghcr.io --username YOUR_GITHUB_USERNAME
+docker pull ghcr.io/proj-elements/rubidium:1.1.2
+docker run -d --name rubidium --init --restart unless-stopped --stop-timeout 30 \
+  -p 127.0.0.1:3000:3000 --env-file rubidium.env \
+  -v rubidium-data:/app/data ghcr.io/proj-elements/rubidium:1.1.2
+docker ps --filter name=rubidium
+```
+
+浏览器访问 `http://localhost:3000`，输入环境文件里的引导令牌，创建访问密码并选择时区。上面的镜像固定为 `1.1.2`；也可使用 `ghcr.io/proj-elements/rubidium@sha256:<发布摘要>`，不要依赖会变的 `latest` 标签。
+
+容器内的数据目录默认是 `/app/data`，运行配置写在 `rubidium.env`。改变宿主机端口时修改 `-p` 参数，例如 `127.0.0.1:13000:3000`。默认仅监听本机；需要对外提供访问时，在前面配置 HTTPS 反向代理，并按[环境配置](configuration.md)设置可信代理。不要把无防护的 HTTP 服务直接暴露到公网。
+
+## 从源码构建
+
+安装 Docker 和 Compose v2，克隆仓库并准备环境文件：
 
 ```sh
 git clone https://github.com/Proj-Elements/Rubidium.git
@@ -13,58 +39,51 @@ cp .env.example .env
 chmod 600 .env
 ```
 
-编辑 `.env`，至少设一个随机的 `RUBIDIUM_SETUP_TOKEN`（32 个字符以上）。当前 GHCR 上的包需要认证，请用有 `read:packages` 权限的 GitHub Token 登录；`docker login` 会提示输入，不要把它直接写在命令行参数里。然后拉取并启动固定版本的镜像：
+编辑 `.env`，设置 `RUBIDIUM_SETUP_TOKEN` 或 `RUBIDIUM_PASSWORD`。`RUBIDIUM_DATA_DIR` 留空时，Compose 使用持久卷挂载的 `/app/data`；`RUBIDIUM_BIND_ADDR` 和 `RUBIDIUM_PORT` 仅控制宿主机监听。
 
-```sh
-docker login ghcr.io --username YOUR_GITHUB_USERNAME
-docker compose -f docker-compose.ghcr.yml pull
-docker compose -f docker-compose.ghcr.yml up -d
-docker compose -f docker-compose.ghcr.yml ps
-```
-
-浏览器访问 `http://localhost:3000`，输入引导令牌，创建访问密码。镜像默认固定在 `1.1.1`；要换别的发布版本，在 `.env` 里设：
-
-```dotenv
-RUBIDIUM_IMAGE=ghcr.io/proj-elements/rubidium:1.1.1
-```
-
-生产环境应该固定到明确版本或镜像摘要，不要依赖会变的 `latest` 标签。用预构建镜像不需要 HeroUI Pro 的构建凭据。
-
-默认只绑定 `127.0.0.1:3000`。如果要通过 HTTPS 反向代理对外提供访问，可以把 `RUBIDIUM_BIND_ADDR` 设成 `0.0.0.0`，再按[环境配置](configuration.md)把可信代理配好。别把没有防护的 HTTP 服务直接暴露到公网。
-
-## 从源码构建
-
-`docker-compose.yml` 会在本机从源码构建。构建前，先把有效的 HeroUI Pro 访问码设进当前终端的 `HEROUI_KEY`；Compose 通过 BuildKit secret 注入，这个值不会进入运行容器，也不会留在镜像层里。
+`docker-compose.yml` 从源码构建本地镜像，不拉取 GHCR 上的 Rubidium 镜像。把有效的 HeroUI Pro 访问码设进当前终端的 `HEROUI_KEY`；Compose 通过 BuildKit secret 注入，不传给运行容器，也不留在镜像层里。
 
 HeroUI Pro 组件是独立的商业许可；从源码构建的人需要自己具备使用权限。这个凭据只在构建依赖时用得到，不需要放进运行环境。
 
 ```sh
-read -r -s -p "HeroUI Pro access key: " HEROUI_KEY
+printf 'HeroUI Pro 访问码：'
+IFS= read -r -s HEROUI_KEY
 printf '\n'
 export HEROUI_KEY
 docker compose up -d --build
 unset HEROUI_KEY
+docker compose ps
 ```
 
 ## 更新与数据卷
 
-更新 GHCR 镜像：
+更新镜像部署：先按[数据管理](data-management.md)备份，再拉取目标版本、仅替换容器，并挂载原来的卷。以下示例适用于本页首次部署使用的 `rubidium-data` 卷；已有实例务必换成其实际卷名。
 
 ```sh
-docker compose -f docker-compose.ghcr.yml pull
-docker compose -f docker-compose.ghcr.yml up -d
+docker pull ghcr.io/proj-elements/rubidium:1.1.2
+docker stop rubidium
+docker rm rubidium
+docker run -d --name rubidium --init --restart unless-stopped --stop-timeout 30 \
+  -p 127.0.0.1:3000:3000 --env-file rubidium.env \
+  -v rubidium-data:/app/data ghcr.io/proj-elements/rubidium:1.1.2
 ```
 
-Compose 用名为 `barker-data` 的命名卷保存数据库、访问凭据和设置。升级已有部署时，继续用原来的 Compose 项目名和卷；如果当初用 `-p` 指定过项目名，后面每条命令都得带上同样的值。首次启动前，先确认 Compose 实际挂载的是你预期的那个数据卷。
+更新源码部署：拉取代码，再按源码构建步骤提供 `HEROUI_KEY` 并执行 `docker compose up -d --build`。源码 Compose 保留历史的 `barker-data` 卷标识，实际卷名包含 Compose 项目名前缀。升级时保持原项目名；若原来用了 `-p`，后续命令也使用同一个值。
 
-从旧容器迁移时，可以先删掉容器本身，再用同一个命名卷起新容器；但不要删数据卷。升级前建议先按[数据管理](data-management.md)做一份独立备份。要回滚到旧版本，先停掉新服务；如果新版本已经迁移过数据库，得先把备份恢复到新的数据目录，再启动旧版本。
+无论采用哪种方式，都先检查现有挂载，不能把更换部署方式当作新建空卷：
+
+```sh
+docker inspect rubidium --format '{{range .Mounts}}{{println .Name "->" .Destination}}{{end}}'
+```
+
+只删除旧容器，不删除数据卷，也不执行 `docker compose down -v`。如果新版本已迁移数据库，要回滚时先停止新服务，把升级前备份恢复到新目录，再用旧镜像启动；不要让两个实例同时使用同一 SQLite 数据目录。
 
 ## 重置访问密码
 
 在运行中的容器里执行交互式重置命令。新密码输入时不回显；提醒、队列和设置都会保留，但现有会话和 API 凭据会被撤销。
 
 ```sh
-docker compose -f docker-compose.ghcr.yml exec -it rubidium node /app/scripts/password-reset.mjs
+docker exec -it rubidium node /app/scripts/password-reset.mjs
 ```
 
-如果部署用的是源码 Compose，把命令里的 `-f docker-compose.ghcr.yml` 去掉。
+以上命令同时适用于镜像和源码 Compose 部署；若修改过容器名称，将 `rubidium` 换成实际名称。

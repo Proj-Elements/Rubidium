@@ -47,9 +47,12 @@ next-env.d.ts
 # local-only development notes
 /ROADMAP*.md
 /TODO*.md
+/MEMORY*.md
 /skills/
 /docs/*roadmap*.md
 /docs/*todo*.md
+/docs/*memory*.md
 /docs/todo-roadmap.md
 /docs/repair-review.md
 /docs/heroui-pro-upgrade.md
+/docker-compose.ghcr*.yml
