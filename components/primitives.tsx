@@ -87,13 +87,14 @@ export function Details({ title, children }: { title: string; children: ReactNod
 const taskLabelKeys: Record<Task["status"], MessageKey> = {
   active: "taskStatus.active", paused: "taskStatus.paused", completed: "taskStatus.completed", archived: "taskStatus.archived",
 };
+const taskBadgeColors = { active: "success", paused: "warning", completed: "accent", archived: "default" } as const;
 export const deliveryLabelKeys: Record<Delivery["status"], MessageKey> = {
   pending: "deliveryStatus.pending", sending: "deliveryStatus.sending", sent: "deliveryStatus.sent", cancelled: "deliveryStatus.cancelled", expired: "deliveryStatus.expired",
 };
 
 export function TaskBadge({ task }: { task: Task }) {
   const { t } = useTranslations();
-  return <Chip variant="soft" className="w-fit shrink-0 whitespace-nowrap" color={task.status === "active" ? "success" : "default"}><Chip.Label>{t(taskLabelKeys[task.status])}</Chip.Label></Chip>;
+  return <Chip variant="soft" className="w-fit shrink-0 whitespace-nowrap" color={taskBadgeColors[task.status]}><Chip.Label>{t(taskLabelKeys[task.status])}</Chip.Label></Chip>;
 }
 
 export function DeliveryBadge({ item }: { item: Delivery }) {

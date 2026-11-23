@@ -39,6 +39,7 @@ test("encrypted data export and confirmed import preserve data after a wrong pas
   const downloadPromise = page.waitForEvent("download");
   await exportDialog.getByRole("button", { name: "导出加密文件" }).click();
   const download = await downloadPromise;
+  expect(download.suggestedFilename()).toMatch(/^rubidium-\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}-\d{3}Z\.rubidium$/);
   const encryptedFile = readFileSync((await download.path())!);
   const envelope = JSON.parse(encryptedFile.toString("utf8")) as { format: string };
   expect(envelope.format).toBe("rubidium-encrypted-export");

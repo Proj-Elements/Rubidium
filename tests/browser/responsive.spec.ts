@@ -159,11 +159,13 @@ for (const theme of ["light", "dark"] as const) {
     await page.addInitScript((appearance) => localStorage.setItem("barker:appearance", appearance), theme);
     await enter(page);
     const name = `响应式检查-${theme}-${test.info().project.name}`;
-    const created = await page.request.post("/api/tasks", { data: {
-      name, description: "检查长内容在手机和平板上仍可阅读，状态标签和编辑操作完整显示。",
-      startsAt: "2035-01-01T09:00:00+08:00", preset: "daily", cron: "0 9 * * *", repeatCount: 5,
-    } });
-    expect(created.status()).toBe(201);
+    for (const suffix of ["", "-2", "-3"]) {
+      const created = await page.request.post("/api/tasks", { data: {
+        name: `${name}${suffix}`, description: "检查长内容在手机和平板上仍可阅读，状态标签和编辑操作完整显示。",
+        startsAt: "2035-01-01T09:00:00+08:00", preset: "daily", cron: "0 9 * * *", repeatCount: 5,
+      } });
+      expect(created.status()).toBe(201);
+    }
     const stamp = "2035-01-01T01:00:00Z";
     const deliveries = [
       { id: "manual", taskName: "等待处理的提醒", status: "pending", manualOnly: true, deliveredAt: null },
@@ -182,9 +184,15 @@ for (const theme of ["light", "dark"] as const) {
       await expect(page.getByRole("button", { name: `编辑 ${name}`, exact: true })).toBeVisible();
       await contained(page);
       if (width >= 1440) {
-        const selectAll = page.getByRole("grid", { name: "提醒列表" }).getByRole("checkbox").first();
+        const grid = page.getByRole("grid", { name: "提醒列表" });
+        const selectAll = grid.getByRole("checkbox").first();
         await selectAll.locator("xpath=ancestor::label[1]").click();
         await expect(selectAll).toBeChecked();
+        const allSelectedRows = page.locator('.data-grid .table__row[data-selected="true"]');
+        const selectedCount = await allSelectedRows.count();
+        expect(selectedCount).toBeGreaterThan(1);
+        await allSelectedRows.last().getByRole("checkbox").locator("xpath=ancestor::label[1]").click();
+        await expect(page.locator('.data-grid .table__row[data-selected="true"]')).toHaveCount(selectedCount - 1);
       } else {
         await page.getByText("选择本页提醒", { exact: true }).click();
         await expect(page.getByRole("checkbox", { name: "选择本页提醒" })).toBeChecked();
@@ -202,8 +210,17 @@ for (const theme of ["light", "dark"] as const) {
         expect(selectedStyle.background).not.toBe("rgba(0, 0, 0, 0)");
         expect(selectedStyle.shadow).not.toBe("none");
         expect(selectedStyle.radius).toBe(selectedStyle.outerRadius);
-        const lastCell = page.locator('.data-grid .table__row[data-selected="true"]').last().locator(".table__cell").last();
+        expect(await selectedCell.evaluate((cell) => {
+          const color = getComputedStyle(cell).borderBottomColor;
+          return color === "transparent" || color === "rgba(0, 0, 0, 0)" || color.endsWith(" / 0)");
+        })).toBe(true);
+        const selectedRows = page.locator('.data-grid .table__row[data-selected="true"]');
+        const firstSelectedLastCell = selectedRow.locator(".table__cell").last();
+        const lastSelectedRow = selectedRows.last();
+        const lastCell = lastSelectedRow.locator(".table__cell").last();
         expect(await lastCell.evaluate((cell) => getComputedStyle(cell).borderBottomRightRadius)).toBe(selectedStyle.outerRadius);
+        expect(await firstSelectedLastCell.evaluate((cell) => getComputedStyle(cell).borderBottomRightRadius)).toBe("0px");
+        expect(await lastSelectedRow.locator(".table__cell").first().evaluate((cell) => getComputedStyle(cell).borderTopLeftRadius)).toBe("0px");
       } else {
         const selectedRow = page.locator('.list-view__item[data-selected="true"]').first();
         await expect(selectedRow).toBeVisible();

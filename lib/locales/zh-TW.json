@@ -419,7 +419,7 @@
   "transfer.exported": "加密數據文件已導出。",
   "transfer.closeExport": "關閉數據導出",
   "transfer.closeImport": "關閉數據導入",
-  "transfer.exportedFileName": "rubidium-{date}.rubidium",
+  "transfer.exportedFileName": "rubidium-{timestamp}.rubidium",
   "transfer.returnToImport": "返回匯入",
   "transfer.cancel": "取消",
   "scrollbar.label": "頁面捲動位置",

@@ -157,7 +157,7 @@ export function SecurityManager({ active }: { active: boolean }) {
           <InputGroup fullWidth variant="secondary">
             <InputGroup.Input className="min-w-0 font-mono" value={token} readOnly onFocus={(event) => event.currentTarget.select()} />
             <InputGroup.Suffix className="p-0">
-              <IconButton icon="copy" label={t("security.copyCredential")} className="size-11 shrink-0" onPress={async () => {
+              <CopyButton label={t("security.copyCredential")} onPress={async () => {
                 try {
                   await navigator.clipboard.writeText(token);
                   notify(t("security.credentialCopied"));
@@ -197,11 +197,17 @@ function McpAddress() {
   const address = useSyncExternalStore(subscribeMcpAddress, getMcpAddress, () => "");
   return <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-2">
     <Input aria-label={t("security.mcpAddressLabel")} className="min-w-0 font-mono" variant="secondary" value={address} readOnly />
-    <IconButton icon="copy" label={t("security.copyMcpAddress")} isDisabled={!address} onPress={() => {
+    <CopyButton label={t("security.copyMcpAddress")} isDisabled={!address} onPress={() => {
       void navigator.clipboard.writeText(address).then(() => notify(t("security.mcpCopied")))
         .catch(() => notify(t("security.clipboardDenied"), "error"));
     }} />
   </div>;
+}
+
+function CopyButton({ label, onPress, isDisabled = false }: { label: string; onPress: () => void | Promise<void>; isDisabled?: boolean }) {
+  return <Button type="button" isIconOnly variant="ghost" aria-label={label} className="size-11 shrink-0" isDisabled={isDisabled} onPress={() => void onPress()}>
+    <Glyph name="copy" />
+  </Button>;
 }
 
 const subscribeMcpAddress = () => () => undefined;

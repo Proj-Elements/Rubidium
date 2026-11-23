@@ -419,7 +419,7 @@
   "transfer.exported": "Encrypted data file exported.",
   "transfer.closeExport": "Close data export",
   "transfer.closeImport": "Close data import",
-  "transfer.exportedFileName": "rubidium-{date}.rubidium",
+  "transfer.exportedFileName": "rubidium-{timestamp}.rubidium",
   "transfer.returnToImport": "Return to import",
   "transfer.cancel": "Cancel",
   "timezone.label": "Time zone",

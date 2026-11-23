@@ -53,7 +53,8 @@ export function DataTransfer() {
       const url = URL.createObjectURL(blob);
       const anchor = document.createElement("a");
       anchor.href = url;
-      anchor.download = t("transfer.exportedFileName", { date: new Date().toISOString().slice(0, 10) });
+      const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+      anchor.download = t("transfer.exportedFileName", { timestamp });
       anchor.click();
       setTimeout(() => URL.revokeObjectURL(url), 1000);
       setExportPassphrase("");
