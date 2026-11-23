@@ -10,10 +10,10 @@ Rubidium 是可自部署的定时提醒服务，支持重复规则、Bark / Ntfy
 umask 077
 printf 'RUBIDIUM_SETUP_TOKEN=%s\n' "$(openssl rand -hex 32)" > rubidium.env
 docker login ghcr.io --username YOUR_GITHUB_USERNAME
-docker pull ghcr.io/proj-elements/rubidium:1.1.2
+docker pull ghcr.io/proj-elements/rubidium:1.1.3
 docker run -d --name rubidium --init --restart unless-stopped --stop-timeout 30 \
   -p 127.0.0.1:3000:3000 --env-file rubidium.env \
-  -v rubidium-data:/app/data ghcr.io/proj-elements/rubidium:1.1.2
+  -v rubidium-data:/app/data ghcr.io/proj-elements/rubidium:1.1.3
 ```
 
 ## 方式二：克隆源码并用 Docker Compose 构建
