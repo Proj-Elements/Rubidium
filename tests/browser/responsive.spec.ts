@@ -218,9 +218,14 @@ for (const theme of ["light", "dark"] as const) {
         const firstSelectedLastCell = selectedRow.locator(".table__cell").last();
         const lastSelectedRow = selectedRows.last();
         const lastCell = lastSelectedRow.locator(".table__cell").last();
+        const middleSelectionCell = selectedRows.nth(1).locator(".table__cell").first();
         expect(await lastCell.evaluate((cell) => getComputedStyle(cell).borderBottomRightRadius)).toBe(selectedStyle.outerRadius);
         expect(await firstSelectedLastCell.evaluate((cell) => getComputedStyle(cell).borderBottomRightRadius)).toBe("0px");
         expect(await lastSelectedRow.locator(".table__cell").first().evaluate((cell) => getComputedStyle(cell).borderTopLeftRadius)).toBe("0px");
+        expect(await middleSelectionCell.evaluate((cell) => {
+          const style = getComputedStyle(cell);
+          return (style.borderTopColor === "transparent" || style.borderTopColor === "rgba(0, 0, 0, 0)") && style.backgroundClip === "border-box";
+        })).toBe(true);
       } else {
         const selectedRow = page.locator('.list-view__item[data-selected="true"]').first();
         await expect(selectedRow).toBeVisible();

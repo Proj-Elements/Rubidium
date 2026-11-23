@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
 import { requestIsAuthorized } from "@/lib/auth";
-import { createTask, deleteTask, listTasks, listTasksPaginated, setTaskStatus, transaction } from "@/lib/db";
+import { createTask, deleteTask, listTasks, listTasksPaginated, permanentlyDeleteTask, setTaskStatus, transaction } from "@/lib/db";
 import { apiRoute, expectedRevision, jsonError, jsonObjectBody, requestBody, requireSameOriginMutation, validationMessage } from "@/lib/http";
 import { DomainError } from "@/lib/errors";
+import { logError } from "@/lib/logging";
 import type { TaskStatus } from "@/lib/types";
 import { taskInputSchema } from "@/lib/validation";
 
@@ -73,5 +74,30 @@ export const PATCH = apiRoute(async (request: Request) => {
       return { id, success: false, error: error.message };
     }
   }));
+  return NextResponse.json({ results });
+});
+
+export const DELETE = apiRoute(async (request: Request) => {
+  if (!requestIsAuthorized(request)) return jsonError("未授权", 401);
+  const blocked = requireSameOriginMutation(request);
+  if (blocked) return blocked;
+  const body = jsonObjectBody(await requestBody(request));
+  if (!Array.isArray(body.items) || !body.items.length || body.items.length > 50) return jsonError("无效的批量删除请求", 400);
+  const items = body.items.map((value: unknown) => {
+    const item = jsonObjectBody(value);
+    if (typeof item.id !== "string" || !item.id.trim() || item.id.length > 100) throw new DomainError("任务 ID 无效");
+    return { id: item.id.trim(), revision: expectedRevision(item.revision) };
+  });
+  if (new Set(items.map(({ id }) => id)).size !== items.length) return jsonError("批量删除不能包含重复任务", 400);
+  const results = items.map(({ id, revision }) => {
+    try {
+      permanentlyDeleteTask(id, revision);
+      return { id, success: true };
+    } catch (error) {
+      if (error instanceof DomainError) return { id, success: false, error: error.message };
+      logError("task.bulk-delete.failed", error, { taskId: id });
+      return { id, success: false, error: "删除失败，请刷新后重试" };
+    }
+  });
   return NextResponse.json({ results });
 });

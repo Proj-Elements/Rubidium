@@ -196,6 +196,32 @@ test("bulk status writes prevalidate the batch and roll back on storage errors",
   assert.equal(database.getTask(second.id)?.status, "active");
 });
 
+test("bulk permanent deletion only removes archived tasks with matching revisions", async () => {
+  const archived = database.createTask({ ...input, name: "Archived bulk delete" });
+  database.deleteTask(archived.id, new Date(), archived.revision);
+  const stale = database.createTask({ ...input, name: "Stale bulk delete" });
+  database.deleteTask(stale.id, new Date(), stale.revision);
+  const active = database.createTask({ ...input, name: "Active bulk delete" });
+  const archivedTask = database.getTask(archived.id)!;
+  const staleTask = database.getTask(stale.id)!;
+  const activeTask = database.getTask(active.id)!;
+  const deletion = (items: unknown[], authorized = true) => tasks.DELETE(request("/api/tasks", "DELETE", { items }, authorized));
+
+  assert.equal((await deletion([{ id: archived.id, revision: archivedTask.revision }], false)).status, 401);
+  assert.equal((await deletion([{ id: archived.id, revision: archivedTask.revision }, { id: archived.id, revision: archivedTask.revision }])).status, 400);
+  const response = await deletion([
+    { id: archived.id, revision: archivedTask.revision },
+    { id: stale.id, revision: staleTask.revision + 1 },
+    { id: active.id, revision: activeTask.revision },
+  ]);
+  assert.equal(response.status, 200);
+  const result = await response.json();
+  assert.deepEqual(result.results.map((item: { success: boolean }) => item.success), [true, false, false]);
+  assert.equal(database.getTask(archived.id), null);
+  assert.ok(database.getTask(stale.id));
+  assert.ok(database.getTask(active.id));
+});
+
 test("security audit requires a session and device updates require a non-empty ID", async () => {
   const token = auth.createApiToken("API reader", "read", 1);
   assert.equal((await tasks.GET(request("/api/tasks", "GET", undefined, false, { authorization: `Bearer ${token}` }))).status, 200);

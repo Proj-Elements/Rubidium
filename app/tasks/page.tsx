@@ -33,6 +33,7 @@ export default function TasksPage() {
   const [busy, setBusy] = useState("");
   const [destroy, setDestroy] = useState<Task | null>(null);
   const [confirmBulkArchive, setConfirmBulkArchive] = useState(false);
+  const [confirmBulkDelete, setConfirmBulkDelete] = useState(false);
   const { data, error, refresh } = useResource<{ tasks: Task[]; total: number; page: number }>(`/api/tasks?${params}`);
   const filtered = Boolean(search) || filter !== "all";
   const selectedTasks = data?.tasks.filter((task) => selected.includes(task.id)) ?? [];
@@ -108,6 +109,25 @@ export default function TasksPage() {
     finally { setBusy(""); }
   }
 
+  async function removeArchivedSelection() {
+    const items = selectedTasks.filter((task) => task.status === "archived").map(({ id, revision }) => ({ id, revision }));
+    if (!items.length) { setConfirmBulkDelete(false); return; }
+    setBusy("bulk-delete");
+    try {
+      const result = await api<{ results: Array<{ success: boolean; error?: string }> }>("/api/tasks", { method: "DELETE", body: JSON.stringify({ items }) });
+      const succeeded = result.results.filter((item) => item.success).length;
+      const failures = result.results.length - succeeded;
+      const message = failures
+        ? t("taskStatus.bulkDeletedPartial", { success: succeeded, failed: failures })
+        : t("taskStatus.bulkDeleted", { count: succeeded });
+      const firstFailure = result.results.find((item) => !item.success)?.error;
+      notify(firstFailure ? `${message} ${errorMessage(new Error(firstFailure), locale)}` : message, failures ? "error" : "success");
+      setSelected([]);
+      await Promise.all([refresh(), refreshDashboard()]);
+    } catch (error) { notify(errorMessage(error, locale), "error"); }
+    finally { setConfirmBulkDelete(false); setBusy(""); }
+  }
+
   const selectPage = <Selection text={t("taskStatus.selectPage")} selected={Boolean(data?.tasks.length && selectedTasks.length === data.tasks.length)} partial={selectedTasks.length > 0 && selectedTasks.length !== data?.tasks.length} disabled={Boolean(busy)} onChange={(value) => setSelected(value ? data?.tasks.map((task) => task.id) ?? [] : [])} />;
   function taskActions(task: Task) {
     return <TaskActions task={task} busy={Boolean(busy)} onToggle={() => void toggle(task)} onArchive={() => setArchive(task)} onRestore={() => void restore(task)} onDelete={() => setDestroy(task)} />;
@@ -153,9 +173,10 @@ export default function TasksPage() {
         </>}
       </RecordList>
       <BulkActions count={selectedTasks.length} disabled={Boolean(busy)} onClear={() => setSelected([])}>
-        <Button size="sm" variant="ghost" isDisabled={!canPause || Boolean(busy)} onPress={() => void bulk("paused")}>{t("taskStatus.pause")}</Button>
+        {filter !== "archived" && <Button size="sm" variant="ghost" isDisabled={!canPause || Boolean(busy)} onPress={() => void bulk("paused")}>{t("taskStatus.pause")}</Button>}
         <Button size="sm" variant="ghost" isDisabled={!canResume || Boolean(busy)} onPress={() => void bulk("active")}>{t("taskStatus.resume")}</Button>
-        <Button size="sm" variant="danger-soft" isDisabled={!canArchive || Boolean(busy)} onPress={() => setConfirmBulkArchive(true)}>{t("taskStatus.archive")}</Button>
+        {filter !== "archived" && <Button size="sm" variant="danger-soft" isDisabled={!canArchive || Boolean(busy)} onPress={() => setConfirmBulkArchive(true)}>{t("taskStatus.archive")}</Button>}
+        {filter === "archived" && <Button size="sm" variant="danger-soft" isDisabled={!selectedTasks.length || Boolean(busy)} onPress={() => setConfirmBulkDelete(true)}>{t("taskStatus.deleteSelected")}</Button>}
       </BulkActions>
       {archive && (
         <Confirm title={t("taskStatus.archiveTitle", { name: archive.name })} confirmLabel={t("taskStatus.archiveConfirm")} onClose={() => setArchive(null)} onConfirm={() => void archiveTask()} busy={busy === archive.id}>
@@ -164,6 +185,9 @@ export default function TasksPage() {
       )}
       {confirmBulkArchive && <Confirm title={t("taskStatus.bulkArchiveTitle")} confirmLabel={t("taskStatus.bulkArchiveConfirm")} onClose={() => setConfirmBulkArchive(false)} onConfirm={() => void bulk("archived")} busy={busy === "bulk"}>
         <p>{t("taskStatus.bulkArchiveDescription")}</p>
+      </Confirm>}
+      {confirmBulkDelete && <Confirm title={t("taskStatus.bulkDeleteTitle", { count: selectedTasks.length })} confirmLabel={t("taskStatus.deleteSelected")} onClose={() => setConfirmBulkDelete(false)} onConfirm={() => void removeArchivedSelection()} busy={busy === "bulk-delete"}>
+        <p>{t("taskStatus.bulkDeleteDescription", { count: selectedTasks.length })}</p>
       </Confirm>}
       {destroy && <Confirm title={t("taskStatus.deleteTitle", { name: destroy.name })} confirmLabel={t("taskStatus.delete")} onClose={() => setDestroy(null)} onConfirm={() => void removePermanently()} busy={busy === destroy.id}><p>{t("taskStatus.deleteDescription")}</p></Confirm>}
     </div>

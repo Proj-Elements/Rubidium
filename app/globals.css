@@ -150,8 +150,9 @@
   .security-doc-links { display: flex; flex: none; align-items: center; gap: 1rem; white-space: nowrap; }
   .activity-meter.meter { grid-template-areas: "date track output"; grid-template-columns: 3.5rem minmax(0, 1fr) 2rem; }
   .activity-meter .meter__output { text-align: end; font-variant-numeric: tabular-nums; }
-  .upcoming-row { border-radius: 0.75rem; }
+  .upcoming-row { border-radius: 0; }
   .upcoming-row:hover { background: var(--surface-secondary); }
+  .upcoming-title, .recent-delivery-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .record-toolbar { display: grid; min-width: 0; grid-template-columns: minmax(0, 1fr) minmax(8rem, 12rem); align-items: center; gap: 0.75rem; }
   .record-filter { justify-self: end; width: min(100%, 12rem); }
   .record-filter .select__trigger { border: 1px solid var(--border); background: var(--surface); padding-inline: 0.75rem; }
@@ -195,7 +196,7 @@
   @media (prefers-reduced-motion: reduce) {
     .floating-scrollbar, .floating-scrollbar-thumb { transition: none; }
   }
-  .list-view__item:not(.delivery-selectable) .list-view__selection-cell { visibility: hidden; }
+  .delivery-list .list-view__item:not(.delivery-selectable) .list-view__selection-cell { visibility: hidden; }
   .data-grid.table-root--primary, .list-view--primary { --record-radius: min(32px, calc(var(--radius) * 2.5)); border-radius: var(--record-radius); }
   .list-view--primary:not([data-virtualized]) .list-view__item:first-child { border-start-start-radius: var(--record-radius); border-start-end-radius: var(--record-radius); }
   .list-view--primary:not([data-virtualized]) .list-view__item:last-child { border-end-start-radius: var(--record-radius); border-end-end-radius: var(--record-radius); }
@@ -203,7 +204,7 @@
     --selected-row-top-shadow: inset 0 1px 0 var(--selected-row-border);
     --selected-row-bottom-shadow: inset 0 -1px 0 var(--selected-row-border);
     background: var(--selected-row-fill);
-    border-bottom-color: transparent;
+    border-block-color: transparent;
     border-radius: var(--record-radius);
     box-shadow: inset 1px 0 0 var(--selected-row-border), inset -1px 0 0 var(--selected-row-border), var(--selected-row-top-shadow), var(--selected-row-bottom-shadow);
   }
@@ -217,7 +218,8 @@
     border-end-start-radius: 0;
     border-end-end-radius: 0;
   }
-  .data-grid .table__row[data-selected="true"] .table__cell { background: var(--selected-row-fill); border-block-color: transparent; }
+  .data-grid .table__row[data-selected="true"] { border-block-color: transparent; }
+  .data-grid .table__row[data-selected="true"] .table__cell { background: var(--selected-row-fill); background-clip: border-box; border-block-color: transparent; }
   .data-grid .table__row[data-selected="true"] .table__cell[data-pinned] { background: var(--selected-row-fill); }
   .data-grid .table__row[data-selected="true"] {
     --selected-row-top-shadow: inset 0 1px 0 var(--selected-row-border);
@@ -225,6 +227,8 @@
   }
   .data-grid .table__row[data-selected="true"] + .table__row[data-selected="true"] { --selected-row-top-shadow: 0 0 0 transparent; }
   .data-grid .table__row[data-selected="true"]:has(+ .table__row[data-selected="true"]) { --selected-row-bottom-shadow: 0 0 0 transparent; }
+  .data-grid .table__row[data-selected="true"] + .table__row[data-selected="true"] .table__cell { border-block-start-color: transparent; }
+  .data-grid .table__row[data-selected="true"]:has(+ .table__row[data-selected="true"]) .table__cell { border-block-end-color: transparent; }
   .data-grid .table__row[data-selected="true"] > .table__cell:only-child,
   .data-grid .table__row[data-selected="true"] > *:only-child > .table__cell {
     border-radius: var(--record-radius);

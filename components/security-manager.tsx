@@ -1,6 +1,6 @@
 "use client";
 
-import { Button, Card, Chip, FieldError, Fieldset, Form, Input, InputGroup, Label, Modal, TextField, Tooltip } from "@heroui/react";
+import { Button, Card, Chip, FieldError, Fieldset, Form, Input, Label, Modal, TextField, Tooltip } from "@heroui/react";
 import { ItemCard, ItemCardGroup } from "@heroui-pro/react";
 import { useState, useSyncExternalStore, type FormEvent } from "react";
 import { SECURITY_SESSION_PAGE_SIZE } from "@/lib/contracts";
@@ -153,19 +153,15 @@ export function SecurityManager({ active }: { active: boolean }) {
       {mcpAddressOpen && <McpAddress />}
       {token && <Notice kind="info" action={<Button variant="ghost" onPress={() => setToken("")}>{t("security.dismissCredential")}</Button>}>
         <p>{t("security.tokenShownOnce")}</p>
-        <TextField className="workspace-field min-w-0" fullWidth aria-label={t("security.newCredentialLabel")}>
-          <InputGroup fullWidth variant="secondary">
-            <InputGroup.Input className="min-w-0 font-mono" value={token} readOnly onFocus={(event) => event.currentTarget.select()} />
-            <InputGroup.Suffix className="p-0">
-              <CopyButton label={t("security.copyCredential")} onPress={async () => {
-                try {
-                  await navigator.clipboard.writeText(token);
-                  notify(t("security.credentialCopied"));
-                } catch { notify(t("security.clipboardDenied"), "error"); }
-              }} />
-            </InputGroup.Suffix>
-          </InputGroup>
-        </TextField>
+        <div className="security-token-copy-row grid w-full min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-2">
+          <Input aria-label={t("security.newCredentialLabel")} className="min-w-0 font-mono" variant="secondary" value={token} readOnly onFocus={(event) => event.currentTarget.select()} />
+          <CopyButton label={t("security.copyCredential")} onPress={async () => {
+            try {
+              await navigator.clipboard.writeText(token);
+              notify(t("security.credentialCopied"));
+            } catch { notify(t("security.clipboardDenied"), "error"); }
+          }} />
+        </div>
       </Notice>}
     </Card>
 

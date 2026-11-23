@@ -344,6 +344,110 @@ test("calendar overflow is visible and overview remains usable on desktop", asyn
   await page.screenshot({ path: test.info().outputPath("desktop-overview.png"), fullPage: true, animations: "disabled" });
 });
 
+test("home reminder names truncate without overflow and open complete read-only details", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await login(page);
+  const longName = "ReminderWithoutAnySpacesForTruncation".repeat(3).slice(0, 80);
+  const recentLongName = "RecentDeliveryTitleWithoutBreaks".repeat(3);
+  const date = localDateValue(new Date(Date.now() + 86_400_000));
+  const skippedDate = localDateValue(new Date(Date.now() + 3 * 86_400_000));
+  const additionalDate = localDateValue(new Date(Date.now() + 4 * 86_400_000));
+  const created = await page.request.post("/api/tasks", { data: {
+    name: longName, description: "Reminder detail content for the read-only view.", startsAt: `${date}T09:00:00+08:00`, preset: "weekdays", cron: "0 9 * * 1-5", repeatCount: 2,
+    endDate: null, timeZone: "Asia/Shanghai", maxLatenessMinutes: 30, deviceId: "default",
+    notification: { sound: "alarm", group: "browser regression", icon: "https://example.test/icon.png" }, skipDates: [skippedDate], includeDates: [additionalDate],
+  } });
+  expect(created.status()).toBe(201);
+  const task = (await created.json()).task as { id: string };
+  await page.route("**/api/overview", async (route) => {
+    const response = await route.fetch();
+    const overview = await response.json();
+    const stamp = new Date().toISOString();
+    overview.recent = [{
+      id: "overview-long-title-delivery", taskId: task.id, taskName: recentLongName, description: "Recent delivery preview", deviceId: "default", manualOnly: false,
+      occurrenceAt: stamp, status: "sent", attempts: 1, lastError: null, nextAttemptAt: stamp, deliveredAt: stamp, createdAt: stamp, updatedAt: stamp, expiresAt: null,
+    }];
+    await route.fulfill({ response, json: overview });
+  });
+  await page.goto("/");
+
+  const upcomingRow = page.locator(".upcoming-row").filter({ hasText: longName }).first();
+  await expect(upcomingRow).toBeVisible();
+  await expect(upcomingRow).toHaveCSS("border-radius", "0px");
+  await expect(upcomingRow.locator(".upcoming-title")).toHaveAttribute("title", longName);
+  await expect(upcomingRow.locator(".upcoming-title")).toHaveCSS("text-overflow", "ellipsis");
+  await expect(page.locator(".recent-delivery-title")).toHaveAttribute("title", recentLongName);
+  await expect(page.locator(".recent-delivery-title")).toHaveCSS("text-overflow", "ellipsis");
+  await page.getByRole("button", { name: `查看提醒详情：${longName}`, exact: true }).click();
+  const mainDetails = page.getByRole("dialog", { name: "提醒详情" });
+  await expect(mainDetails).toBeVisible();
+  await mainDetails.getByRole("button", { name: "关闭提醒详情", exact: true }).click();
+  await page.screenshot({ path: test.info().outputPath("mobile-overview-long-names.png"), fullPage: true, animations: "disabled" });
+  const overflow = await page.evaluate(() => ({
+    scrollWidth: document.documentElement.scrollWidth,
+    viewportWidth: innerWidth,
+    elements: [...document.querySelectorAll<HTMLElement>("body *")].map((element) => {
+      const bounds = element.getBoundingClientRect();
+      return { tag: element.tagName, className: element.className, left: Math.round(bounds.left), right: Math.round(bounds.right), width: Math.round(bounds.width), scrollWidth: element.scrollWidth, clientWidth: element.clientWidth };
+    }).filter((element) => element.right > innerWidth + 1 || element.left < -1).slice(0, 20),
+  }));
+  if (overflow.scrollWidth > overflow.viewportWidth) console.info("overview horizontal overflow", JSON.stringify(overflow));
+  expect(overflow.scrollWidth, JSON.stringify(overflow)).toBeLessThanOrEqual(overflow.viewportWidth);
+  const rowBounds = await upcomingRow.boundingBox();
+  expect(rowBounds).not.toBeNull();
+  expect(rowBounds!.x + rowBounds!.width).toBeLessThanOrEqual(391);
+  await upcomingRow.click();
+  const dialog = page.getByRole("dialog", { name: "提醒详情" });
+  await expect(dialog).toBeVisible();
+  await expect(dialog.getByText(longName, { exact: true })).toBeVisible();
+  await expect(dialog.getByText("Reminder detail content for the read-only view.", { exact: true })).toBeVisible();
+  for (const label of ["排期", "通知设置", "投递统计", "记录信息", "Cron 表达式", "时区", "通知渠道", "渠道地址", "提示音", "通知分组", "图标地址", "跳过日期", "额外日期", "创建时间", "更新时间"]) {
+    await expect(dialog.getByText(label, { exact: true })).toBeVisible();
+  }
+  await expect(dialog.getByText("Asia/Shanghai", { exact: true })).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page.screenshot({ path: test.info().outputPath("mobile-reminder-details.png"), fullPage: true, animations: "disabled" });
+  await dialog.getByRole("button", { name: "编辑提醒", exact: true }).click();
+  await expect(page.getByRole("textbox", { name: "提醒名称" })).toHaveValue(longName);
+});
+
+test("archived reminders can be selected and permanently deleted in bulk", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await login(page);
+  const taskNames = ["Bulk archived one", "Bulk archived two", "Bulk active stays"];
+  const created: Array<{ id: string; revision: number }> = [];
+  for (const name of taskNames) {
+    const response = await page.request.post("/api/tasks", { data: { name, startsAt: "2035-01-01T09:00:00+08:00", preset: "daily", cron: "0 9 * * *", repeatCount: 3 } });
+    expect(response.status()).toBe(201);
+    created.push(await response.json().then((result) => result.task));
+  }
+  for (const task of created.slice(0, 2)) {
+    expect((await page.request.delete(`/api/tasks/${task.id}`, { headers: { "if-match": String(task.revision) } })).status()).toBe(200);
+  }
+
+  await page.goto("/tasks?status=active");
+  await expect(page.getByRole("row", { name: taskNames[2] })).toBeVisible();
+  await page.getByRole("checkbox", { name: "选择本页提醒" }).locator("xpath=ancestor::label[1]").click();
+  await expect(page.getByRole("toolbar", { name: "批量操作" }).getByRole("button", { name: "删除所选项", exact: true })).toHaveCount(0);
+
+  await page.goto("/tasks?status=archived");
+  await expect(page.getByRole("row", { name: /Bulk archived one/ })).toBeVisible();
+  await expect(page.getByRole("row", { name: /Bulk archived two/ })).toBeVisible();
+  await page.getByRole("checkbox", { name: "选择本页提醒" }).locator("xpath=ancestor::label[1]").click();
+  const bulkDelete = page.getByRole("toolbar", { name: "批量操作" }).getByRole("button", { name: "删除所选项", exact: true });
+  await expect(bulkDelete).toBeVisible();
+  await bulkDelete.click();
+  const confirmation = page.getByRole("alertdialog");
+  await expect(confirmation).toContainText("永久删除选中的 2 条归档提醒");
+  await confirmation.getByRole("button", { name: "删除所选项", exact: true }).click();
+  await expect(confirmation).toBeHidden();
+  await expect(page.locator(".list-view__item").filter({ hasText: taskNames[0] })).toHaveCount(0);
+  await expect(page.locator(".list-view__item").filter({ hasText: taskNames[1] })).toHaveCount(0);
+  const remaining = await page.request.get(`/api/tasks?status=archived&q=Bulk%20archived&page=1&pageSize=50`).then((response) => response.json());
+  expect(remaining.total).toBe(0);
+  expect(await page.request.get(`/api/tasks?status=active&q=${encodeURIComponent(taskNames[2])}`).then((response) => response.json()).then((result) => result.total)).toBe(1);
+});
+
 test("list responses taking six seconds complete without polling starvation", async ({ page }) => {
   await login(page);
   const created = await page.request.post("/api/tasks", { data: {

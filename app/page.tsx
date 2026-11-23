@@ -5,6 +5,7 @@ import { ItemCard, KPIGroup, ListView } from "@heroui-pro/react";
 import { KPI } from "@heroui-pro/react/kpi";
 import { useState } from "react";
 import { AgendaDetails } from "@/components/agenda-details";
+import { ReminderDetails } from "@/components/reminder-details";
 import { Glyph } from "@/components/icons";
 import { CardHeading, DeliveryBadge, Empty, Loading, PageHeading, WorkspaceLink } from "@/components/primitives";
 import { useTime } from "@/components/use-time";
@@ -12,6 +13,7 @@ import { useWorkspace } from "@/components/workspace-context";
 import { localDateValue } from "@/lib/ui";
 import { presetMessageKeys, localeTags } from "@/lib/i18n";
 import { useLocale, useTranslations } from "@/components/locale-provider";
+import type { Task } from "@/lib/types";
 
 export default function OverviewPage() {
   const { t } = useTranslations();
@@ -20,6 +22,7 @@ export default function OverviewPage() {
   const { dashboard, error, openTask } = useWorkspace();
   const [selectedDay, setSelectedDay] = useState<string | null>(null);
   const [details, setDetails] = useState(false);
+  const [selectedReminder, setSelectedReminder] = useState<Task | null>(null);
   const { timeZone, formatTime, clockTime } = useTime();
   const days = dashboard?.upcomingDays ?? [];
   const day = days.find((item) => item.date === selectedDay);
@@ -60,7 +63,7 @@ export default function OverviewPage() {
           <h3 className="line-clamp-2 font-semibold [overflow-wrap:anywhere]">{next.name}</h3>
           <p className="line-clamp-2 text-sm leading-relaxed text-muted [overflow-wrap:anywhere]">{next.description || t(presetMessageKeys[next.preset])}</p>
         </div>
-        <Button variant="outline" className="col-start-2 w-fit max-sm:min-h-11 sm:col-start-auto" onPress={() => openTask(next)}>{t("overview.editReminder")}</Button>
+        <Button variant="outline" aria-label={t("overview.viewReminderNamed", { name: next.name })} className="col-start-2 w-fit max-sm:min-h-11 sm:col-start-auto" onPress={() => setSelectedReminder(next)}>{t("overview.reminderDetails")}</Button>
       </Card.Content> : dashboard ? <Card.Content className="text-sm text-muted">{t("overview.noNextReminder")}</Card.Content> : error ? null : <Loading>{t("common.syncing")}</Loading>}
     </Card>
 
@@ -81,13 +84,13 @@ export default function OverviewPage() {
       </Alert.Content>
     </Alert>}
 
-    <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1.4fr)_minmax(20rem,0.9fr)]">
+    <div className="grid min-w-0 items-start gap-6 xl:grid-cols-[minmax(0,1.4fr)_minmax(20rem,0.9fr)]">
       <Card role="region" aria-labelledby="upcoming-heading" className="grid min-w-0 gap-4 p-5 sm:p-6">
         <header className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
           <h2 id="upcoming-heading" className="font-semibold">{t("overview.nextSevenDays")}</h2>
           <WorkspaceLink href="/tasks" className="workspace-link">{t("overview.allReminders")}<Glyph name="arrow" size={14} /></WorkspaceLink>
         </header>
-        {dashboard ? <div className="@container grid gap-4">
+        {dashboard ? <div className="@container grid min-w-0 gap-4">
           <ToggleButtonGroup className="grid w-full grid-cols-4 gap-1 @min-[24rem]:grid-cols-8" aria-label={t("overview.filterByDate")} selectionMode="single" disallowEmptySelection isDetached selectedKeys={[date ?? "all"]} onSelectionChange={(keys) => {
             const selected = keys.values().next().value;
             setSelectedDay(typeof selected === "string" && selected !== "all" ? selected : null);
@@ -100,15 +103,15 @@ export default function OverviewPage() {
             </ToggleButton>)}
           </ToggleButtonGroup>
 
-          {upcoming.length ? <ListView aria-label={t("reminder.upcoming")} variant="secondary">
-            {upcoming.slice(0, 4).map(({ task, occurrenceAt }) => <ListView.Item id={`${task.id}:${occurrenceAt}`} key={`${task.id}:${occurrenceAt}`} textValue={task.name} onAction={() => openTask(task)} className="upcoming-row min-h-16">
-              <ListView.ItemContent className="flex-1 gap-4">
-                <span className="flex min-w-13 flex-col items-start gap-0.5 tabular-nums">
+          {upcoming.length ? <ListView aria-label={t("reminder.upcoming")} className="w-full min-w-0" variant="secondary">
+            {upcoming.slice(0, 4).map(({ task, occurrenceAt }) => <ListView.Item id={`${task.id}:${occurrenceAt}`} key={`${task.id}:${occurrenceAt}`} aria-label={t("overview.viewReminderNamed", { name: task.name })} textValue={task.name} onAction={() => setSelectedReminder(task)} className="upcoming-row min-h-16 min-w-0">
+              <ListView.ItemContent className="min-w-0 flex-1 gap-3">
+                <span className="flex w-14 shrink-0 flex-col items-start gap-0.5 tabular-nums">
                   <time dateTime={occurrenceAt} className="font-semibold">{clockTime(occurrenceAt)}</time>
                   <small className="text-xs text-muted">{localDateValue(new Date(occurrenceAt), timeZone).slice(5).replace("-", "/")}</small>
                 </span>
-                <span className="flex min-w-0 flex-1 flex-col gap-0.5"><ListView.Title>{task.name}</ListView.Title><ListView.Description>{t(presetMessageKeys[task.preset])}</ListView.Description></span>
-                <Glyph name="chevron" size={14} className="text-muted" />
+                <span className="flex min-w-0 flex-1 flex-col gap-0.5 overflow-hidden"><ListView.Title className="upcoming-title block min-w-0 truncate" title={task.name}>{task.name}</ListView.Title><ListView.Description className="block min-w-0 truncate">{t(presetMessageKeys[task.preset])}</ListView.Description></span>
+                <Glyph name="chevron" size={14} className="shrink-0 text-muted" />
               </ListView.ItemContent>
             </ListView.Item>)}
           </ListView> : <Empty title={t("overview.noSchedule")} icon="calendar" />}
@@ -128,10 +131,10 @@ export default function OverviewPage() {
             <WorkspaceLink href="/deliveries" className="workspace-link">{t("overview.viewHistory")}<Glyph name="arrow" size={14} /></WorkspaceLink>
           </header>
           {!dashboard ? error ? null : <Loading>{t("common.loadingDeliveries")}</Loading> : dashboard.recent.length === 0 ? <Empty title={t("overview.noRecentDeliveries")} /> : (
-            <div className="grid" role="list" aria-label={t("overview.recentList")}>
-              {dashboard.recent.map((item) => <ItemCard key={item.id} role="listitem" variant="transparent" className="flex-wrap px-0">
-                <ItemCard.Content className="min-w-32">
-                  <ItemCard.Title>{item.taskName}</ItemCard.Title>
+            <div className="grid min-w-0" role="list" aria-label={t("overview.recentList")}>
+              {dashboard.recent.map((item) => <ItemCard key={item.id} role="listitem" variant="transparent" className="grid w-full min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-3 px-0">
+                <ItemCard.Content className="min-w-0 overflow-hidden">
+                  <ItemCard.Title className="recent-delivery-title block min-w-0 truncate" title={item.taskName}>{item.taskName}</ItemCard.Title>
                   <ItemCard.Description><time dateTime={item.updatedAt} className="tabular-nums">{formatTime(item.updatedAt)}</time></ItemCard.Description>
                 </ItemCard.Content>
                 <ItemCard.Action><DeliveryBadge item={item} /></ItemCard.Action>
@@ -156,5 +159,10 @@ export default function OverviewPage() {
       </div>
     </div>
     {details && <AgendaDetails date={date} onClose={() => setDetails(false)} />}
+    {selectedReminder && <ReminderDetails task={selectedReminder} onClose={() => setSelectedReminder(null)} onEdit={() => {
+      const task = selectedReminder;
+      setSelectedReminder(null);
+      openTask(task);
+    }} />}
   </div>;
 }

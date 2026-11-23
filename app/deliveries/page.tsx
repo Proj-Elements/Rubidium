@@ -96,7 +96,7 @@ export default function DeliveriesPage() {
         </div>}
         <DataGrid aria-label={t("delivery.list")} className="hidden @min-[58rem]/records:block" data={data.deliveries} columns={columns} getRowId={(item) => item.id} />
 
-        <ListView aria-label={t("delivery.list")} className="@min-[58rem]/records:hidden" items={data.deliveries}
+        <ListView aria-label={t("delivery.list")} className="delivery-list @min-[58rem]/records:hidden" items={data.deliveries}
           selectionMode="multiple" selectedKeys={selectedIds} disabledBehavior="selection"
           disabledKeys={data.deliveries.filter((item) => Boolean(busy) || item.status !== "pending").map((item) => item.id)}
           onSelectionChange={(keys) => setSelected(keys === "all" ? pending.map((item) => item.id) : [...keys].map(String))}>

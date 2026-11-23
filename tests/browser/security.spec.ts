@@ -116,13 +116,16 @@ test("API credentials can remain valid indefinitely and display the selected exp
   const status = await page.evaluate(async (value) => (await fetch("/api/tasks", { headers: { Authorization: `Bearer ${value}` } })).status, token);
   expect(status).toBe(200);
   await expect(apiCard.getByText(/Authorization/)).toHaveCount(0);
-  const group = credentialInput.locator("xpath=ancestor::*[contains(@class, 'input-group')][1]");
+  const group = page.locator(".security-token-copy-row");
   const copy = page.getByRole("button", { name: "复制 API 凭据", exact: true });
   const groupBounds = await group.boundingBox();
   const copyBounds = await copy.boundingBox();
+  const inputBounds = await credentialInput.boundingBox();
   const contentBounds = await group.locator("xpath=ancestor::*[contains(@class, 'alert__content')][1]").boundingBox();
   expect(Math.abs(groupBounds!.width - contentBounds!.width)).toBeLessThanOrEqual(2);
   expect(Math.abs(groupBounds!.x + groupBounds!.width - copyBounds!.x - copyBounds!.width)).toBeLessThanOrEqual(2);
+  expect(inputBounds!.x + inputBounds!.width).toBeLessThan(copyBounds!.x);
+  expect(Math.abs(inputBounds!.y + inputBounds!.height / 2 - copyBounds!.y - copyBounds!.height / 2)).toBeLessThanOrEqual(2);
   expect(copyBounds!.width).toBeGreaterThanOrEqual(44);
   await copy.click();
   await expect(page.getByText("API 凭据已复制。", { exact: true })).toBeVisible();
