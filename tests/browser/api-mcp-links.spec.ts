@@ -29,6 +29,7 @@ test("API and MCP documentation links expose a copyable MCP endpoint", async ({ 
   expect(mcpDocsBox).not.toBeNull();
   expect(mcpDocsBox!.x).toBeGreaterThan(apiDocsBox!.x + apiDocsBox!.width);
   expect(Math.abs(apiDocsBox!.y + apiDocsBox!.height / 2 - mcpDocsBox!.y - mcpDocsBox!.height / 2)).toBeLessThanOrEqual(1);
+  await page.screenshot({ path: test.info().outputPath("api-mcp-links-aligned.png"), fullPage: true, animations: "disabled" });
 
   const toggle = page.getByRole("button", { name: "MCP 地址", exact: true });
   const address = page.getByLabel("MCP 服务地址", { exact: true });

@@ -29,6 +29,7 @@ test("encrypted data export and confirmed import preserve data after a wrong pas
   await expect(exportDialog.getByText("请输入加密密码。", { exact: true })).toBeVisible();
   await exportDialog.getByLabel("加密密码").fill("short");
   await expect(exportDialog.getByText("至少需要 12 个字符", { exact: false })).toBeVisible();
+  await page.screenshot({ path: test.info().outputPath("data-transfer-export-password-error.png"), animations: "disabled" });
   await exportDialog.getByLabel("加密密码").fill(" secure-export-password-2035");
   await expect(exportDialog.getByText("不能以空格开头或结尾。", { exact: true })).toBeVisible();
   await exportDialog.getByLabel("加密密码").fill("secure-export-password-2035");
