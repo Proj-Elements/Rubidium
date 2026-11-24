@@ -12,10 +12,10 @@ Rubidium 是一个可以自己部署的定时提醒服务。你可以设一条�
 umask 077
 printf 'RUBIDIUM_SETUP_TOKEN=%s\n' "$(openssl rand -hex 32)" > rubidium.env
 docker login ghcr.io --username YOUR_GITHUB_USERNAME
-docker pull ghcr.io/proj-elements/rubidium:1.2.0
+docker pull ghcr.io/proj-elements/rubidium:1.2.1
 docker run -d --name rubidium --init --restart unless-stopped --stop-timeout 30 \
   -p 127.0.0.1:3000:3000 --env-file rubidium.env \
-  -v rubidium-data:/app/data ghcr.io/proj-elements/rubidium:1.2.0
+  -v rubidium-data:/app/data ghcr.io/proj-elements/rubidium:1.2.1
 ```
 
 ## 用 Docker Compose 从源码构建

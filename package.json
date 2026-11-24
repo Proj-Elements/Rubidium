@@ -1,6 +1,6 @@
 {
   "name": "rubidium",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "Rubidium 是前后端一体的 Next.js 定时提醒工作空间，按 cron 周期将提醒可靠推送到 Bark 或 Ntfy 通知渠道。",
   "author": "MournInk",
   "license": "AGPL-3.0-only",

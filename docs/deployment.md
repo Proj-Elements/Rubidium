@@ -17,14 +17,14 @@ printf 'RUBIDIUM_SETUP_TOKEN=%s\n' "$(openssl rand -hex 32)" > rubidium.env
 
 ```sh
 docker login ghcr.io --username YOUR_GITHUB_USERNAME
-docker pull ghcr.io/proj-elements/rubidium:1.2.0
+docker pull ghcr.io/proj-elements/rubidium:1.2.1
 docker run -d --name rubidium --init --restart unless-stopped --stop-timeout 30 \
   -p 127.0.0.1:3000:3000 --env-file rubidium.env \
-  -v rubidium-data:/app/data ghcr.io/proj-elements/rubidium:1.2.0
+  -v rubidium-data:/app/data ghcr.io/proj-elements/rubidium:1.2.1
 docker ps --filter name=rubidium
 ```
 
-浏览器访问 `http://localhost:3000`，输入环境文件里的引导令牌，创建访问密码并选择时区。上面的镜像固定为 `1.2.0`；也可使用 `ghcr.io/proj-elements/rubidium@sha256:<发布摘要>`，不要依赖会变的 `latest` 标签。
+浏览器访问 `http://localhost:3000`，输入环境文件里的引导令牌，创建访问密码并选择时区。上面的镜像固定为 `1.2.1`；也可使用 `ghcr.io/proj-elements/rubidium@sha256:<发布摘要>`，不要依赖会变的 `latest` 标签。
 
 容器内的数据目录默认是 `/app/data`，运行配置写在 `rubidium.env`。改变宿主机端口时修改 `-p` 参数，例如 `127.0.0.1:13000:3000`。默认仅监听本机；需要对外提供访问时，在前面配置 HTTPS 反向代理，并按[环境配置](configuration.md)设置可信代理。不要把无防护的 HTTP 服务直接暴露到公网。
 
@@ -60,12 +60,12 @@ docker compose ps
 更新镜像部署：先按[数据管理](data-management.md)备份，再拉取目标版本、仅替换容器，并挂载原来的卷。以下示例适用于本页首次部署使用的 `rubidium-data` 卷；已有实例务必换成其实际卷名。
 
 ```sh
-docker pull ghcr.io/proj-elements/rubidium:1.2.0
+docker pull ghcr.io/proj-elements/rubidium:1.2.1
 docker stop rubidium
 docker rm rubidium
 docker run -d --name rubidium --init --restart unless-stopped --stop-timeout 30 \
   -p 127.0.0.1:3000:3000 --env-file rubidium.env \
-  -v rubidium-data:/app/data ghcr.io/proj-elements/rubidium:1.2.0
+  -v rubidium-data:/app/data ghcr.io/proj-elements/rubidium:1.2.1
 ```
 
 更新源码部署：拉取代码，再按源码构建步骤提供 `HEROUI_KEY` 并执行 `docker compose up -d --build`。源码 Compose 保留历史的 `barker-data` 卷标识，实际卷名包含 Compose 项目名前缀。升级时保持原项目名；若原来用了 `-p`，后续命令也使用同一个值。
