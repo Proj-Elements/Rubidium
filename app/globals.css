@@ -198,6 +198,7 @@
   }
   .delivery-list .list-view__item:not(.delivery-selectable) .list-view__selection-cell { visibility: hidden; }
   .data-grid.table-root--primary, .list-view--primary { --record-radius: min(32px, calc(var(--radius) * 2.5)); border-radius: var(--record-radius); }
+  .list-view--primary:has(.list-view__item[data-selected="true"]) { background-color: var(--surface); box-shadow: inset 0 0 0 4px var(--surface-secondary); }
   .list-view--primary:not([data-virtualized]) .list-view__item:first-child { border-start-start-radius: var(--record-radius); border-start-end-radius: var(--record-radius); }
   .list-view--primary:not([data-virtualized]) .list-view__item:last-child { border-end-start-radius: var(--record-radius); border-end-end-radius: var(--record-radius); }
   .list-view__item[data-selected="true"] {

@@ -12,6 +12,42 @@ async function contained(page: Page) {
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
 }
 
+for (const theme of ["light", "dark"] as const) {
+  test(`${theme} mobile selected group keeps its lower corner surface`, async ({ page }) => {
+    await page.addInitScript((appearance) => localStorage.setItem("barker:appearance", appearance), theme);
+    await page.setViewportSize({ width: 390, height: 1400 });
+    await enter(page);
+    const prefix = `连续选中小角-${theme}-${test.info().project.name}`;
+    for (const suffix of ["1", "2", "3"]) {
+      const created = await page.request.post("/api/tasks", { data: {
+        name: `${prefix}-${suffix}`, description: "检查连续选中组与未选中行交界的小角底色。",
+        startsAt: "2040-01-01T09:00:00+08:00", preset: "daily", cron: "0 9 * * *", repeatCount: 3,
+      } });
+      expect(created.status()).toBe(201);
+    }
+    await page.goto("/tasks");
+    const search = page.getByRole("searchbox", { name: "搜索提醒", exact: true });
+    await search.fill(prefix);
+    await search.press("Enter");
+    const rows = page.locator('.data-grid .table__row:visible, .list-view__item:visible').filter({ hasText: prefix });
+    await expect(rows).toHaveCount(3);
+    await expect(page.getByText("1–3 / 3 条", { exact: true })).toBeVisible();
+    await page.getByText("选择本页提醒", { exact: true }).click();
+    await rows.nth(2).getByRole("checkbox").locator("xpath=ancestor::label[1]").click();
+    await expect(rows.nth(0)).toHaveAttribute("data-selected", "true");
+    await expect(rows.nth(1)).toHaveAttribute("data-selected", "true");
+    await expect(rows.nth(2)).not.toHaveAttribute("data-selected", "true");
+    await page.mouse.move(1, 1);
+    await expect.poll(async () => rows.nth(1).evaluate((row) => {
+      const list = row.closest(".list-view")!;
+      const next = row.nextElementSibling!;
+      return getComputedStyle(list).backgroundColor === getComputedStyle(next).backgroundColor;
+    })).toBe(true);
+    expect(await rows.nth(1).evaluate((row) => getComputedStyle(row.closest(".list-view")!).boxShadow)).not.toBe("none");
+    await page.screenshot({ path: test.info().outputPath(`mobile-selected-corner-${theme}.png`), animations: "disabled" });
+  });
+}
+
 test("landscape workspace sidebar collapses accessibly and releases list width", async ({ page }) => {
   await enter(page);
   const taskName = `横屏侧栏检查-${test.info().project.name}`;
