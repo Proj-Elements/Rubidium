@@ -101,3 +101,24 @@ test("live cooldown selection shares Bark identities, distinguishes Ntfy topics 
   const deliveries = db.listDeliveries({ page: 1, pageSize: 50 }).deliveries;
   assert.deepEqual(items.map((item) => deliveries.find((delivery) => delivery.id === item.id)?.status), ["pending", "sent", "pending", "sent"]);
 });
+
+test("queued notification options cannot override live channel settings", async () => {
+  const channel = db.saveChannel({
+    name: "Protected channel", type: "ntfy", endpoint: "https://trusted.example", credential: "live-channel-credential", topic: "trusted_topic",
+  });
+  const original = pendingDelivery(channel.id);
+  const options = {
+    sound: "", group: "Task group", icon: "https://icons.example/reminder.png",
+    endpoint: "https://untrusted.example", deviceKey: "substituted-credential", title: "Overridden title",
+    channelType: "bark", topic: "substituted_topic", historyRetentionDays: 1,
+  };
+  db.__rawDatabaseForTests().prepare("UPDATE deliveries SET notification = ? WHERE id = ?")
+    .run(JSON.stringify(options), original.id);
+  assert.equal(await scheduler.processOneDelivery(due, async (settings) => {
+    assert.deepEqual(settings, {
+      ...DEFAULT_SETTINGS, endpoint: channel.endpoint, deviceKey: "live-channel-credential", channelType: "ntfy", topic: "trusted_topic",
+      sound: "", group: "Task group", icon: "https://icons.example/reminder.png",
+    });
+  }), true);
+  assert.equal(db.listDeliveries({ page: 1, pageSize: 1 }).deliveries[0].status, "sent");
+});

@@ -26,6 +26,24 @@ delivery mutations while keeping the API timestamp contract and lease checks.
 Validation: the four new regressions and the scheduler/workflow modules pass
 all 50 checks after the fix. Focused ESLint and `git diff --check` also pass.
 
+### Runtime notification option boundaries (P1)
+
+Expected: queued reminder options can change only `sound`, `group` and `icon`.
+The configured channel supplies its endpoint, credential and topic.
+
+Actual: `deliverySettings` spreads raw stored JSON over live settings, allowing
+older or corrupted queued options to substitute an endpoint or credential.
+The new scheduler regression demonstrates this substitution before the fix.
+
+Fix: parse the stored options through the existing notification schema, which
+validates presentation fields and strips unsupported keys. The channel query
+also uses the existing `channelType` name directly. Empty presentation values
+still clear their defaults, and current channel credentials remain live.
+
+Validation: all 59 backend-review/scheduler/repair/Ntfy checks pass after the
+fix, including a queued-message regression that checks both channel identity
+and all three allowed presentation fields.
+
 ## Baseline validation
 
 The owning database/scheduler suites (`db-init`, `scheduler`, `persistence`,

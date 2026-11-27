@@ -3,7 +3,7 @@ import type { DatabaseSync } from "node:sqlite";
 import { Cron } from "croner";
 import { DEFAULT_SETTINGS, SCHEDULE_TIME_ZONE, type BarkSettings, type Channel, type ChannelDeliverySettings, type ChannelInput, type ChannelType, type Delivery, type DeliveryAttempt, type DeliveryFilter, type Device, type ScheduledTask, type Task, type TaskInput } from "./types";
 import { calendarDays, localDateString, nextTaskDate, previewSchedule } from "./cron";
-import { channelFields } from "./contracts";
+import { channelFields, taskFields } from "./contracts";
 import { settingsSchema } from "./validation";
 import { DomainError, redactSecrets } from "./errors";
 import { replaceLogSecrets, setLogSecret } from "./logging";
@@ -572,10 +572,12 @@ function requireDevice(id: string): void {
 
 export function deliverySettings(deviceId: string, notification = "{}"): ChannelDeliverySettings {
   const defaults = readSettings();
-  const device = statement("SELECT endpoint, device_key deviceKey, type, topic FROM devices WHERE id = ?")
-    .get(deviceId) as { endpoint: string; deviceKey: string; type: ChannelType; topic: string } | undefined;
+  const device = statement("SELECT endpoint, device_key deviceKey, type channelType, topic FROM devices WHERE id = ?")
+    .get(deviceId) as Pick<ChannelDeliverySettings, "endpoint" | "deviceKey" | "channelType" | "topic"> | undefined;
   if (!device && deviceId !== "default") throw new DomainError("目标渠道已删除", 409);
-  return { ...defaults, ...device, ...JSON.parse(notification), channelType: device?.type ?? "bark", topic: device?.topic ?? "" };
+  // Persisted notification options may customize presentation, never channel identity.
+  const options = taskFields.shape.notification.parse(JSON.parse(notification));
+  return { ...defaults, ...device, ...options, channelType: device?.channelType ?? "bark", topic: device?.topic ?? "" };
 }
 
 function deviceSecrets(): string[] {
