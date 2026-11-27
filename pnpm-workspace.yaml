@@ -9,3 +9,8 @@ allowBuilds:
   "@zowe/secrets-for-zowe-sdk": true
   esbuild: true
   unrs-resolver: true
+
+# HeroUI's setup CLI still permits figlet versions affected by GHSA-62ch-8vmq-8xm7.
+# TODO: Remove the override when that CLI excludes vulnerable figlet versions.
+overrides:
+  "heroui-pro>figlet": "1.11.3"

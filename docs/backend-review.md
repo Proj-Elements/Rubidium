@@ -123,3 +123,20 @@ tests. Existing version-tag global validation is preserved.
 Validation: all 23 CI-selection and release-contract checks pass, including
 workflow YAML/shell syntax and the third-party license inventory. Focused
 ESLint and whitespace checks also pass.
+
+## Dependency audit
+
+`pnpm audit --prod --json` identified the upstream high-severity advisory
+GHSA-62ch-8vmq-8xm7 in `heroui-pro > figlet@1.11.0`. Narrow-width wrapping with
+`whitespaceBreak: true` loops without progress. The setup CLI is a build-time
+dependency; no application route exposes those Figlet options.
+
+An isolated subprocess reproduced the affected call exceeding a two-second
+timeout. A targeted override pins only this transitive dependency to the
+patched `1.11.3`; the identical call then completes. pnpm regenerated the
+lockfile, and the license inventory changes only the Figlet version.
+
+Validation: frozen installation succeeds, the production audit reports zero
+known vulnerabilities, and all 23 CI-selection/release checks pass. The
+third-party notices still match all 446 production dependency entries. Remove
+the override when the setup CLI's dependency range excludes affected versions.

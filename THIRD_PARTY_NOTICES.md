@@ -206,7 +206,7 @@ Regenerate this inventory with `pnpm licenses:notice` after dependency changes. 
 | fast-deep-equal | 3.1.3 | MIT |
 | fast-equals | 5.4.5 | MIT |
 | fast-uri | 3.1.9 | BSD-3-Clause |
-| figlet | 1.11.0 | MIT |
+| figlet | 1.11.3 | MIT |
 | finalhandler | 2.1.1 | MIT |
 | find-up | 7.0.0 | MIT |
 | forwarded | 0.2.0 | MIT |
