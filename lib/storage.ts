@@ -1,12 +1,12 @@
 import { chmodSync, mkdirSync } from "node:fs";
-import { resolve, sep } from "node:path";
-import { getEnvironmentVariable } from "./environment.mjs";
+import { resolve } from "node:path";
+import { getEnvironmentVariable, resolveRuntimeDataDirectory } from "./environment.mjs";
 
 export const runtimeDataDir = resolve(/* turbopackIgnore: true */ getEnvironmentVariable("DATA_DIR") || "./data");
 
 /** Filesystem changes happen at runtime initialization, never on import. */
 export function initializeStorage(): void {
-  if (runtimeDataDir.split(sep).includes(".next")) throw new Error("RUBIDIUM_DATA_DIR must be outside .next");
+  resolveRuntimeDataDirectory(process.cwd(), runtimeDataDir);
   mkdirSync(runtimeDataDir, { recursive: true, mode: 0o700 });
   chmodSync(runtimeDataDir, 0o700);
 }
