@@ -452,7 +452,8 @@ test("touch layouts keep bulk actions reachable and hide selection on completed 
     await page.route("**/api/tasks", async (route) => {
       if (route.request().method() === "PATCH") {
         await pendingBulk;
-        await route.fulfill({ json: { results: [{ success: true }] } });
+        const { items } = route.request().postDataJSON() as { items: Array<{ id: string }> };
+        await route.fulfill({ json: { results: items.map(({ id }) => ({ id, success: true })) } });
       } else await route.continue();
     });
     await busyBar.getByRole("button", { name: "暂停提醒", exact: true }).click();
