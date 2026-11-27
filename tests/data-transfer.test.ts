@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { randomBytes } from "node:crypto";
 import { backup, DatabaseSync } from "node:sqlite";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -60,6 +61,13 @@ test("encrypted exports use authenticated encryption and reject wrong passwords 
   assert.throws(() => transfer.encryptExport(source, "short"), /12–200/);
   assert.throws(() => transfer.decryptExport({ ...encrypted, payload: `${encrypted.payload.slice(0, -4)}AAAA` }, passphrase), /密码错误或导出文件损坏/);
   assert.throws(() => transfer.decryptExport({ ...encrypted, schemaVersion: 99 }, passphrase), /不兼容/);
+});
+
+test("valid multi-megabyte exports decrypt within the documented transfer limit", () => {
+  const snapshot = randomBytes(4 * 1024 * 1024);
+  const passphrase = "large-export-password-2035";
+  const encrypted = transfer.encryptExport(snapshot, passphrase);
+  assert.deepEqual(transfer.decryptExport(encrypted, passphrase), snapshot);
 });
 
 test("imports an unconfigured default Bark channel", () => {

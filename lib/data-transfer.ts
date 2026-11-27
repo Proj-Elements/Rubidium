@@ -60,7 +60,8 @@ export function encryptExport(snapshot: Buffer, passphrase: string): EncryptedEx
 }
 
 function decodeBase64(value: unknown, maximum: number): Buffer {
-  if (typeof value !== "string" || value.length > maximum || !/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(value)) {
+  // Repeating groups exhaust V8's regexp stack on otherwise valid large exports.
+  if (typeof value !== "string" || value.length > maximum || value.length % 4 !== 0 || !/^[A-Za-z0-9+/]*={0,2}$/.test(value)) {
     throw new DomainError("导出文件格式无效");
   }
   return Buffer.from(value, "base64");
