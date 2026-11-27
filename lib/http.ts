@@ -22,7 +22,8 @@ export async function requestBytes(request: Request, maximumBytes = MAX_REQUEST_
       if (done) break;
       bytes += value.byteLength;
       if (bytes > maximumBytes) {
-        await reader.cancel();
+        // Cleanup failures do not change a confirmed request-size violation.
+        await reader.cancel().catch(() => {});
         throw new HttpError("请求体过大", 413, { key: "errors.requestTooLarge" });
       }
       chunks.push(value);
@@ -72,10 +73,9 @@ export function expectedRevision(value: unknown): number {
 }
 
 export async function requestBody(request: Request, maximumBytes = MAX_REQUEST_BYTES): Promise<unknown> {
-  const text = new TextDecoder().decode(await requestBytes(request, maximumBytes));
-  if (Buffer.byteLength(text, "utf8") > maximumBytes) throw new HttpError("请求体过大", 413, { key: "errors.requestTooLarge" });
+  const bytes = await requestBytes(request, maximumBytes);
   try {
-    return JSON.parse(text) as unknown;
+    return JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(bytes)) as unknown;
   } catch {
     throw new HttpError("请求必须包含有效 JSON", 400);
   }

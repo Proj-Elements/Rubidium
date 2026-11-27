@@ -13,9 +13,29 @@ test("bounded JSON parser accepts a small document and rejects invalid JSON", as
   await assert.rejects(requestBody(jsonRequest("not json")), (error) => error instanceof HttpError && error.status === 400);
 });
 
+test("JSON parsing rejects invalid UTF-8 instead of silently changing document content", async () => {
+  const encoder = new TextEncoder();
+  const body = new Uint8Array([...encoder.encode('{"name":"'), 0xff, ...encoder.encode('"}')]);
+  const request = new Request("http://localhost:3000/api/tasks", {
+    method: "POST", headers: { "content-type": "application/json" }, body,
+  });
+  await assert.rejects(requestBody(request), (error) => error instanceof HttpError && error.status === 400);
+});
+
 test("body limit is enforced on both declared length and actual streamed bytes", async () => {
   await assert.rejects(requestBody(jsonRequest("{}", { "content-length": String(MAX_REQUEST_BYTES + 1) })), (error) => error instanceof HttpError && error.status === 413);
   await assert.rejects(requestBody(jsonRequest(JSON.stringify({ text: "x".repeat(MAX_REQUEST_BYTES) }))), (error) => error instanceof HttpError && error.status === 413);
+});
+
+test("a failed stream cancellation preserves the confirmed body overflow status", async () => {
+  let cancelled = false;
+  const body = new ReadableStream<Uint8Array>({
+    start(controller) { controller.enqueue(new Uint8Array(MAX_REQUEST_BYTES + 1)); },
+    cancel() { cancelled = true; throw new Error("request disconnected during cancellation"); },
+  });
+  const init: RequestInit & { duplex: "half" } = { method: "POST", body, duplex: "half" };
+  await assert.rejects(requestBody(new Request("http://localhost:3000/api/tasks", init)), (error) => error instanceof HttpError && error.status === 413);
+  assert.equal(cancelled, true);
 });
 
 test("mutations reject oversized bodies, cross-origin requests and non-JSON forms", () => {
