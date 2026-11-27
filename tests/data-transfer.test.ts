@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { randomBytes } from "node:crypto";
 import { backup, DatabaseSync } from "node:sqlite";
-import { copyFileSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { copyFileSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, before, test } from "node:test";
@@ -40,6 +40,10 @@ before(async () => {
   core = await import("../lib/db/core");
   transfer = await import("../lib/data-transfer");
   database.initializeDatabase();
+  core.connection().exec(`DROP INDEX IF EXISTS deliveries_activity_order_idx;
+    DROP INDEX IF EXISTS deliveries_status_activity_idx;
+    DROP INDEX IF EXISTS runtime_endpoint_cooldown_idx;
+    CREATE INDEX IF NOT EXISTS deliveries_activity_idx ON deliveries(activity_at DESC);`);
   const originalDefault = database.listChannels()[0];
   database.saveChannel({
     id: "default", name: "Snapshot Bark", type: "bark", endpoint: originalDefault.endpoint,
@@ -59,6 +63,10 @@ before(async () => {
     topic: "default-snapshot", credential: "", revision: savedDefault.revision,
   });
   await backup(core.connection(), snapshotPath);
+  core.connection().exec(`DROP INDEX deliveries_activity_idx;
+    CREATE INDEX deliveries_activity_order_idx ON deliveries(activity_at DESC, occurrence_at DESC, id);
+    CREATE INDEX deliveries_status_activity_idx ON deliveries(status, activity_at DESC, occurrence_at DESC, id);
+    CREATE INDEX runtime_endpoint_cooldown_idx ON runtime_state(CAST(value AS INTEGER)) WHERE key GLOB 'endpoint:*';`);
 });
 
 after(() => {
@@ -83,6 +91,43 @@ test("valid multi-megabyte exports decrypt within the documented transfer limit"
   const passphrase = "large-export-password-2035";
   const encrypted = transfer.encryptExport(snapshot, passphrase);
   assert.deepEqual(transfer.decryptExport(encrypted, passphrase), snapshot);
+});
+
+test("baseline v5 encrypted exports import after index-only runtime migrations", () => {
+  const currentIndexes = ["deliveries_activity_order_idx", "deliveries_status_activity_idx", "runtime_endpoint_cooldown_idx"];
+  const original = new DatabaseSync(snapshotPath, { readOnly: true });
+  try {
+    assert.equal(original.prepare("PRAGMA user_version").get()?.user_version, 5);
+    assert.ok(original.prepare("SELECT 1 FROM sqlite_schema WHERE name = 'deliveries_activity_idx'").get());
+    for (const index of currentIndexes) assert.equal(original.prepare("SELECT 1 FROM sqlite_schema WHERE name = ?").get(index), undefined);
+  } finally { original.close(); }
+
+  const passphrase = "baseline-index-export-password-2035";
+  const envelope = transfer.encryptExport(readFileSync(snapshotPath), passphrase);
+  const path = join(directory, "baseline-encrypted.sqlite");
+  writeFileSync(path, transfer.decryptExport(envelope, passphrase));
+  transfer.importDatabaseSnapshot(path);
+
+  assert.deepEqual(database.listTasks().map((task) => task.name), ["导出提醒"]);
+  assert.equal(core.statement("SELECT 1 FROM sqlite_schema WHERE name = 'deliveries_activity_idx'").get(), undefined);
+  for (const index of currentIndexes) assert.ok(core.statement("SELECT 1 FROM sqlite_schema WHERE name = ?").get(index));
+});
+
+test("imports still reject extra or altered table, view, and trigger definitions", async (context) => {
+  const definitions = {
+    table: "CREATE TABLE extra_table (id TEXT)",
+    view: "CREATE VIEW extra_view AS SELECT id FROM tasks",
+    trigger: "CREATE TRIGGER extra_trigger AFTER INSERT ON tasks BEGIN DELETE FROM devices; END",
+    altered_table: "ALTER TABLE tasks ADD COLUMN unexpected TEXT",
+  };
+  for (const [name, sql] of Object.entries(definitions)) {
+    await context.test(name, () => {
+      const path = editedSnapshot(`extra-schema-${name}`, (snapshot) => snapshot.exec(sql));
+      const names = database.listTasks().map((task) => task.name);
+      assert.throws(() => transfer.importDatabaseSnapshot(path), /结构与当前 Rubidium 不兼容/);
+      assert.deepEqual(database.listTasks().map((task) => task.name), names);
+    });
+  }
 });
 
 test("imports reject notification options that could override a channel endpoint or credential", async (context) => {
@@ -207,12 +252,13 @@ test("validated imports replace task data atomically and refresh active channel 
   invalidStatus.close();
   assert.throws(() => transfer.importDatabaseSnapshot(invalidStatusPath), /提醒数据无效/);
 
-  const invalidSchemaPath = join(directory, "invalid-schema.sqlite");
-  await backup(core.connection(), invalidSchemaPath);
-  const invalidSchema = new DatabaseSync(invalidSchemaPath);
-  invalidSchema.exec("CREATE INDEX untrusted_index ON tasks(name)");
-  invalidSchema.close();
-  assert.throws(() => transfer.importDatabaseSnapshot(invalidSchemaPath), /结构与当前 Rubidium 不兼容/);
+  const indexDifferencePath = join(directory, "index-difference.sqlite");
+  await backup(core.connection(), indexDifferencePath);
+  const indexDifference = new DatabaseSync(indexDifferencePath);
+  indexDifference.exec("CREATE INDEX source_only_index ON tasks(name)");
+  indexDifference.close();
+  transfer.importDatabaseSnapshot(indexDifferencePath);
+  assert.equal(core.statement("SELECT 1 FROM sqlite_schema WHERE name = 'source_only_index'").get(), undefined);
   assert.deepEqual(database.listTasks().map((task) => task.name), ["导出提醒"]);
 });
 

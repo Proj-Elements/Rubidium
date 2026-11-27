@@ -103,8 +103,10 @@ function validateSnapshot(path: string): void {
     if (version !== CURRENT_SCHEMA_VERSION) throw new DomainError("导出数据版本与当前 Rubidium 不兼容");
     const integrity = source.prepare("PRAGMA integrity_check").get()?.integrity_check;
     if (integrity !== "ok" || source.prepare("PRAGMA foreign_key_check").all().length) throw new DomainError("导出数据校验失败");
-    const schema = (database: DatabaseSync, prefix: string) => database.prepare(`SELECT type, name, tbl_name, sql FROM ${prefix}sqlite_schema WHERE name NOT LIKE 'sqlite_%' ORDER BY type, name`).all();
-    if (JSON.stringify(schema(source, "main.")) !== JSON.stringify(schema(target, "main."))) throw new DomainError("导出数据库结构与当前 Rubidium 不兼容");
+    // Only rows are imported; source index definitions never replace the runtime indexes.
+    const schema = (database: DatabaseSync) => database.prepare(`SELECT type, name, tbl_name, sql FROM main.sqlite_schema
+      WHERE type IN ('table', 'view', 'trigger') AND name NOT LIKE 'sqlite_%' ORDER BY type, name`).all();
+    if (JSON.stringify(schema(source)) !== JSON.stringify(schema(target))) throw new DomainError("导出数据库结构与当前 Rubidium 不兼容");
     if (TABLES.length !== source.prepare("SELECT COUNT(*) count FROM sqlite_schema WHERE type = 'table' AND name NOT LIKE 'sqlite_%'").get()?.count) {
       throw new DomainError("导出数据库结构无效");
     }
