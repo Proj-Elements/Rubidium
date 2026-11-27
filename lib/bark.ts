@@ -55,7 +55,11 @@ export function barkPayload(settings: BarkSettings, title: string, body: string)
 
 /** Build `<endpoint>/push` and never inherit a query string or fragment. */
 export function barkPushUrl(endpoint: string): URL {
-  return new URL("push", `${endpoint.replace(/\/+$/, "")}/`);
+  const url = new URL(endpoint);
+  url.pathname = `${url.pathname.replace(/\/+$/, "")}/push`;
+  url.search = "";
+  url.hash = "";
+  return url;
 }
 
 async function responseText(response: Response): Promise<string> {
