@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { randomBytes } from "node:crypto";
 import { backup, DatabaseSync } from "node:sqlite";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { copyFileSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, before, test } from "node:test";
@@ -19,6 +19,21 @@ let database: typeof import("../lib/db");
 let core: typeof import("../lib/db/core");
 let transfer: typeof import("../lib/data-transfer");
 let snapshotTaskId = "";
+
+function editedSnapshot(name: string, edit: (snapshot: DatabaseSync) => void): string {
+  const path = join(directory, `${name}.sqlite`);
+  copyFileSync(snapshotPath, path);
+  const snapshot = new DatabaseSync(path);
+  try { edit(snapshot); }
+  finally { snapshot.close(); }
+  return path;
+}
+
+function addSnapshotDelivery(snapshot: DatabaseSync): void {
+  snapshot.prepare(`INSERT INTO deliveries (id, task_id, occurrence_at, next_attempt_at, created_at, activity_at, title, body)
+    VALUES ('snapshot-delivery', ?, ?, ?, ?, ?, 'Snapshot title', 'Snapshot body')`)
+    .run(snapshotTaskId, ...Array<string>(4).fill("2035-01-01T09:00:00.000Z"));
+}
 
 before(async () => {
   database = await import("../lib/db");
@@ -68,6 +83,74 @@ test("valid multi-megabyte exports decrypt within the documented transfer limit"
   const passphrase = "large-export-password-2035";
   const encrypted = transfer.encryptExport(snapshot, passphrase);
   assert.deepEqual(transfer.decryptExport(encrypted, passphrase), snapshot);
+});
+
+test("imports reject notification options that could override a channel endpoint or credential", async (context) => {
+  for (const table of ["tasks", "deliveries"] as const) {
+    await context.test(table, () => {
+      const path = editedSnapshot(`redirected-${table}`, (snapshot) => {
+        if (table === "deliveries") addSnapshotDelivery(snapshot);
+        snapshot.prepare(`UPDATE ${table} SET notification = ?`).run(JSON.stringify({ endpoint: "https://collector.example", deviceKey: "replacement-key" }));
+      });
+      const names = database.listTasks().map((task) => task.name);
+      try {
+        assert.throws(() => transfer.importDatabaseSnapshot(path), table === "tasks" ? /提醒数据无效/ : /投递记录无效/);
+        assert.deepEqual(database.listTasks().map((task) => task.name), names);
+      } finally { transfer.importDatabaseSnapshot(snapshotPath); }
+    });
+  }
+});
+
+test("imports reject malformed delivery notification JSON before replacing live data", () => {
+  const path = editedSnapshot("invalid-delivery-options", (snapshot) => {
+    addSnapshotDelivery(snapshot);
+    snapshot.prepare("UPDATE deliveries SET notification = '{'").run();
+  });
+  try { assert.throws(() => transfer.importDatabaseSnapshot(path), /投递记录无效/); }
+  finally { transfer.importDatabaseSnapshot(snapshotPath); }
+});
+
+test("imports reject active deliveries addressed to missing channels", () => {
+  const path = editedSnapshot("missing-delivery-channel", (snapshot) => {
+    addSnapshotDelivery(snapshot);
+    snapshot.prepare("UPDATE deliveries SET device_id = 'missing-channel'").run();
+  });
+  try { assert.throws(() => transfer.importDatabaseSnapshot(path), /不存在的设备/); }
+  finally { transfer.importDatabaseSnapshot(snapshotPath); }
+});
+
+test("imports retain completed delivery history after its original channel was removed", () => {
+  const path = editedSnapshot("historical-delivery-channel", (snapshot) => {
+    addSnapshotDelivery(snapshot);
+    snapshot.prepare("UPDATE deliveries SET device_id = 'removed-channel', status = 'sent', delivered_at = occurrence_at").run();
+  });
+  try {
+    transfer.importDatabaseSnapshot(path);
+    assert.equal(core.statement("SELECT device_id FROM deliveries WHERE id = 'snapshot-delivery'").get()?.device_id, "removed-channel");
+  } finally { transfer.importDatabaseSnapshot(snapshotPath); }
+});
+
+test("imports reject sending deliveries without a recoverable lease", async (context) => {
+  for (const lease of [null, "invalid-timestamp"]) {
+    await context.test(String(lease), () => {
+      const path = editedSnapshot(`invalid-lease-${lease}`, (snapshot) => {
+        addSnapshotDelivery(snapshot);
+        snapshot.prepare("UPDATE deliveries SET status = 'sending', lease_until = ?").run(lease);
+      });
+      try { assert.throws(() => transfer.importDatabaseSnapshot(path), /投递记录无效/); }
+      finally { transfer.importDatabaseSnapshot(snapshotPath); }
+    });
+  }
+});
+
+test("imports reject malformed internal scheduling timestamps", async (context) => {
+  for (const column of ["resume_at", "last_queued_at"]) {
+    await context.test(column, () => {
+      const path = editedSnapshot(`invalid-${column}`, (snapshot) => snapshot.exec(`UPDATE tasks SET ${column} = 'invalid-timestamp'`));
+      try { assert.throws(() => transfer.importDatabaseSnapshot(path), /提醒数据无效/); }
+      finally { transfer.importDatabaseSnapshot(snapshotPath); }
+    });
+  }
 });
 
 test("imports an unconfigured default Bark channel", () => {
@@ -176,6 +259,11 @@ test("export and import API require a browser session and restore only after aut
   database.createTask({ name: "错误密码后应保留", startsAt: "2035-03-01T09:00:00+00:00", preset: "once", cron: "0 9 * * *", repeatCount: 1, endDate: null, timeZone: "UTC" }, new Date("2030-01-01T00:00:00Z"));
   const wrongPassword = await importRoute.POST(request("/api/data/import", { passphrase: "incorrect-export-password-2035", envelope }));
   assert.equal(wrongPassword.status, 400);
+  assert.ok(database.listTasks().some((task) => task.name === "错误密码后应保留"));
+
+  const invalidEnvelope = transfer.encryptExport(Buffer.from("not a SQLite snapshot"), "private-export-password-2035");
+  const invalidSnapshot = await importRoute.POST(request("/api/data/import", { passphrase: "private-export-password-2035", envelope: invalidEnvelope }));
+  assert.equal(invalidSnapshot.status, 400);
   assert.ok(database.listTasks().some((task) => task.name === "错误密码后应保留"));
 
   const imported = await importRoute.POST(request("/api/data/import", { passphrase: "private-export-password-2035", envelope }));

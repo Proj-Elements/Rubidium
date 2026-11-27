@@ -18,6 +18,9 @@ const KDF_OPTIONS = { N: 1 << 15, r: 8, p: 1, maxmem: 64 * 1024 * 1024 };
 const TABLES = ["settings", "tasks", "deliveries", "sessions", "api_tokens", "runtime_state", "devices", "audit_events", "idempotency_keys", "delivery_attempts"];
 const REPLACE_TABLES = ["idempotency_keys", "delivery_attempts", "deliveries", "tasks", "devices", "audit_events"];
 const COPY_TABLES = ["devices", "tasks", "deliveries", "delivery_attempts", "idempotency_keys", "audit_events"];
+// Snapshot rows are copied verbatim, so options must not hide fields stripped by input validation.
+const notificationOptionsSchema = taskSchema.shape.notification.unwrap().unwrap().strict();
+const optionalTimestampSchema = timestampSchema.nullable();
 
 export interface EncryptedExport {
   format: typeof FORMAT;
@@ -93,13 +96,13 @@ export function decryptExport(value: unknown, passphrase: string): Buffer {
 }
 
 function validateSnapshot(path: string): void {
+  const target = connection();
   const source = new DatabaseSync(path, { readOnly: true });
   try {
     const version = source.prepare("PRAGMA user_version").get()?.user_version;
     if (version !== CURRENT_SCHEMA_VERSION) throw new DomainError("导出数据版本与当前 Rubidium 不兼容");
     const integrity = source.prepare("PRAGMA integrity_check").get()?.integrity_check;
     if (integrity !== "ok" || source.prepare("PRAGMA foreign_key_check").all().length) throw new DomainError("导出数据校验失败");
-    const target = connection();
     const schema = (database: DatabaseSync, prefix: string) => database.prepare(`SELECT type, name, tbl_name, sql FROM ${prefix}sqlite_schema WHERE name NOT LIKE 'sqlite_%' ORDER BY type, name`).all();
     if (JSON.stringify(schema(source, "main.")) !== JSON.stringify(schema(target, "main."))) throw new DomainError("导出数据库结构与当前 Rubidium 不兼容");
     if (TABLES.length !== source.prepare("SELECT COUNT(*) count FROM sqlite_schema WHERE type = 'table' AND name NOT LIKE 'sqlite_%'").get()?.count) {
@@ -126,7 +129,9 @@ function validateSnapshot(path: string): void {
         repeatCount: row.repeat_count, endDate: row.end_date, timeZone: row.time_zone,
         maxLatenessMinutes: row.max_lateness_minutes, deviceId: row.device_id, notification, skipDates, includeDates,
       });
-      if (!input.success || !taskSchema.safeParse({
+      if (!notificationOptionsSchema.safeParse(notification).success ||
+        ![row.resume_at, row.last_queued_at].every((value) => optionalTimestampSchema.safeParse(value).success) ||
+        !input.success || !taskSchema.safeParse({
         ...input.data, id: row.id, sentCount: row.sent_count, queuedCount: row.queued_count, pendingCount: 0,
         nextRunAt: row.next_run_at, lastRunAt: row.last_run_at, lastError: row.last_error, status: row.status,
         createdAt: row.created_at, updatedAt: row.updated_at, revision: row.revision, pausedAt: row.paused_at,
@@ -138,7 +143,13 @@ function validateSnapshot(path: string): void {
     let invalidDelivery = false;
     for (const raw of deliveries.iterate()) {
       const row = raw as Record<string, unknown>;
-      if (row.manual_only !== 0 && row.manual_only !== 1) {
+      let notification: unknown;
+      try { notification = JSON.parse(String(row.notification)); }
+      catch { invalidDelivery = true; continue; }
+      if (!notificationOptionsSchema.safeParse(notification).success ||
+        !optionalTimestampSchema.safeParse(row.lease_until).success ||
+        (row.status === "sending" && row.lease_until === null) ||
+        (row.manual_only !== 0 && row.manual_only !== 1)) {
         invalidDelivery = true;
         continue;
       }
@@ -153,6 +164,9 @@ function validateSnapshot(path: string): void {
 
     if (source.prepare("SELECT 1 FROM tasks WHERE device_id != 'default' AND device_id NOT IN (SELECT id FROM devices) LIMIT 1").get()) {
       throw new DomainError("导出提醒引用了不存在的设备");
+    }
+    if (source.prepare("SELECT 1 FROM deliveries WHERE status IN ('pending', 'sending') AND device_id != 'default' AND device_id NOT IN (SELECT id FROM devices) LIMIT 1").get()) {
+      throw new DomainError("导出投递记录引用了不存在的设备");
     }
 
     const settings = source.prepare("SELECT value FROM settings WHERE key = 'default'").get() as { value?: string } | undefined;
@@ -202,6 +216,11 @@ function validateSnapshot(path: string): void {
         throw new DomainError("导出幂等记录无效");
       }
     }
+  } catch (error) {
+    if (error instanceof Error && "code" in error && error.code === "ERR_SQLITE_ERROR") {
+      throw new DomainError("导出数据校验失败");
+    }
+    throw error;
   } finally { source.close(); }
 }
 
