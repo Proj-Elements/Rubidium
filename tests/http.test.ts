@@ -8,7 +8,9 @@ function jsonRequest(body: string, headers: Record<string, string> = {}) {
 }
 
 test("bounded JSON parser accepts a small document and rejects invalid JSON", async () => {
-  assert.deepEqual(await requestBody(jsonRequest('{"name":"Reminder"}')), { name: "Reminder" });
+  const request = jsonRequest('{"name":"Reminder"}');
+  assert.deepEqual(await requestBody(request), { name: "Reminder" });
+  assert.equal(request.body?.locked, false);
   assert.deepEqual(await requestBody(jsonRequest("\uFEFF{\"name\":\"Reminder\"}")), { name: "Reminder" });
   await assert.rejects(requestBody(jsonRequest("not json")), (error) => error instanceof HttpError && error.status === 400);
 });
@@ -36,6 +38,29 @@ test("a failed stream cancellation preserves the confirmed body overflow status"
   const init: RequestInit & { duplex: "half" } = { method: "POST", body, duplex: "half" };
   await assert.rejects(requestBody(new Request("http://localhost:3000/api/tasks", init)), (error) => error instanceof HttpError && error.status === 413);
   assert.equal(cancelled, true);
+});
+
+test("a stalled stream cancellation cannot delay a confirmed 413 response", async () => {
+  let cancelled = false;
+  const body = new ReadableStream<Uint8Array>({
+    start(controller) { controller.enqueue(new Uint8Array(MAX_REQUEST_BYTES + 1)); },
+    cancel() { cancelled = true; return new Promise<void>(() => {}); },
+  });
+  const init: RequestInit & { duplex: "half" } = { method: "POST", body, duplex: "half" };
+  const request = new Request("http://localhost:3000/api/tasks", init);
+  const handler = apiRoute(async (request: Request) => {
+    await requestBody(request);
+    return Response.json({ ok: true });
+  });
+  const response = await Promise.race([
+    handler(request),
+    new Promise<null>((resolve) => setImmediate(() => resolve(null))),
+  ]);
+  assert.ok(response, "the overflow response must not wait for underlying cancellation");
+  assert.equal(response.status, 413);
+  assert.equal((await response.json()).errorKey, "errors.requestTooLarge");
+  assert.equal(cancelled, true);
+  assert.equal(request.body?.locked, false);
 });
 
 test("mutations reject oversized bodies, cross-origin requests and non-JSON forms", () => {

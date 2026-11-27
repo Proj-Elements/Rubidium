@@ -12,8 +12,9 @@ export class HttpError extends DomainError {}
 export async function requestBytes(request: Request, maximumBytes = MAX_REQUEST_BYTES): Promise<Buffer> {
   const declared = Number(request.headers.get("content-length") ?? "0");
   if (Number.isFinite(declared) && declared > maximumBytes) throw new HttpError("请求体过大", 413, { key: "errors.requestTooLarge" });
+  let reader: ReadableStreamDefaultReader<Uint8Array> | undefined;
   try {
-    const reader = request.body?.getReader();
+    reader = request.body?.getReader();
     if (!reader) throw new HttpError("请求必须包含有效 JSON", 400);
     const chunks: Uint8Array[] = [];
     let bytes = 0;
@@ -22,8 +23,8 @@ export async function requestBytes(request: Request, maximumBytes = MAX_REQUEST_
       if (done) break;
       bytes += value.byteLength;
       if (bytes > maximumBytes) {
-        // Cleanup failures do not change a confirmed request-size violation.
-        await reader.cancel().catch(() => {});
+        // Cancellation may stall or reject; a confirmed overflow must return immediately.
+        void reader.cancel().catch(() => {});
         throw new HttpError("请求体过大", 413, { key: "errors.requestTooLarge" });
       }
       chunks.push(value);
@@ -32,6 +33,8 @@ export async function requestBytes(request: Request, maximumBytes = MAX_REQUEST_
   } catch (error) {
     if (error instanceof HttpError) throw error;
     throw new HttpError("无法读取请求体", 400);
+  } finally {
+    reader?.releaseLock();
   }
 }
 
