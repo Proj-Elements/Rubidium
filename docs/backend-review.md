@@ -33,3 +33,36 @@ The owning database/scheduler suites (`db-init`, `scheduler`, `persistence`,
 transaction rollback, migration, restart, lease recovery, queue backpressure
 and retention. New regressions and performance measurements are recorded
 with their fixes below.
+
+## Performance and implementation clarity
+
+The repeatable benchmark is `TZ=Asia/Shanghai node --import tsx
+scripts/benchmark-backend.mjs`. It creates a temporary database with 100 tasks,
+100 additional channels, 100,000 historical deliveries and 10,000 pending
+deliveries. It never contacts configured notification services. Results are
+local warm-cache medians of 20 samples on Node 26.7.0, not deployment capacity
+or real network measurements.
+
+### Delivery pagination and queue capacity
+
+Before the change, the first 50-row delivery page takes 28.741 ms; pending and
+retrying pages take 1.889 and 2.203 ms. The activity-only index leaves SQLite to
+sort equal timestamps by occurrence and ID. Composite ordering indexes for
+all deliveries and a specific status remove that sort while retaining the
+same ordering. The redundant activity-only index is removed. Indexed page
+retrieval takes `O(log N + offset + pageSize)`; filtered counts, the combined
+retry filter and text searches still depend on matching data size.
+
+After the change, the first page takes 0.602 ms and the pending page 0.361 ms
+(about 48 and 5 times faster in this run). SQLite query plans confirm ordering
+index scans without a temporary sort for both. The retry filter remains about
+2.2 ms; an extra partial index did not improve the selected plan and was
+removed. The 34 owning database/migration/repair checks pass, including a
+pagination boundary test with tied timestamps and status filters. Focused
+ESLint and whitespace checks pass.
+
+The queue capacity query also reads task IDs from every queued row to count a
+single task. Two scalar counts use covering status and task/status indexes,
+reducing the measured query from 0.837 to 0.149 ms before any index additions.
+The global count remains linear in pending/sending rows; backpressure stays
+transactional and exact.

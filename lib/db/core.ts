@@ -111,7 +111,9 @@ function migrate(existingVersion: number): void {
     CREATE INDEX IF NOT EXISTS deliveries_task_status_idx ON deliveries(task_id, status);
     CREATE INDEX IF NOT EXISTS deliveries_task_error_idx ON deliveries(task_id, activity_at DESC)
       WHERE status IN ('pending', 'sending') AND last_error IS NOT NULL;
-    CREATE INDEX IF NOT EXISTS deliveries_activity_idx ON deliveries(activity_at DESC);
+    CREATE INDEX IF NOT EXISTS deliveries_activity_order_idx ON deliveries(activity_at DESC, occurrence_at DESC, id);
+    CREATE INDEX IF NOT EXISTS deliveries_status_activity_idx ON deliveries(status, activity_at DESC, occurrence_at DESC, id);
+    DROP INDEX IF EXISTS deliveries_activity_idx;
     CREATE INDEX IF NOT EXISTS deliveries_sent_idx ON deliveries(status, delivered_at);
     CREATE INDEX IF NOT EXISTS deliveries_expiry_idx ON deliveries(status, expires_at);
   `);

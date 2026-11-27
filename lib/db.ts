@@ -254,8 +254,10 @@ function queueBatchUnlocked(id: string, now: Date, limit: number, deadline = Inf
   const original = taskRow(id);
   if (!original) return 0;
   const timestamp = now.toISOString();
-  const { total, taskTotal } = statement(`SELECT COUNT(*) total, COUNT(CASE WHEN task_id = ? THEN 1 END) taskTotal
-    FROM deliveries WHERE status IN ('pending', 'sending')`).get(id) as { total: number; taskTotal: number };
+  const { total, taskTotal } = statement(`SELECT
+    (SELECT COUNT(*) FROM deliveries WHERE status IN ('pending', 'sending')) total,
+    (SELECT COUNT(*) FROM deliveries WHERE task_id = ? AND status IN ('pending', 'sending')) taskTotal`)
+    .get(id) as { total: number; taskTotal: number };
   const capacity = Math.min(20_000 - total, 1000 - taskTotal);
   if (capacity <= 0) return 0;
   limit = Math.min(limit, capacity);

@@ -19,7 +19,7 @@ function pendingDelivery() {
     name: "Original", startsAt: due.toISOString(), preset: "once", cron: "0 9 * * *", repeatCount: 1,
   }, new Date("2030-01-01T00:00:00.000Z"));
   db.queueTaskBatch(task.id, due);
-  return db.listDeliveries({ page: 1, pageSize: 1 }).deliveries[0];
+  return db.listDeliveries({ page: 1, pageSize: 50 }).deliveries.find((delivery) => delivery.taskId === task.id)!;
 }
 
 test("delivery edits in one clock tick reject stale content", () => {
@@ -50,4 +50,27 @@ test("delivery revision timestamps advance when the wall clock moves backwards",
   assert.ok(edited.updatedAt > original.updatedAt);
   db.editDelivery(original.id, "Second edit", "", edited.updatedAt, earlier);
   assert.throws(() => db.editDelivery(original.id, "Stale edit", "", original.updatedAt, earlier), { status: 409 });
+});
+
+test("delivery pages retain deterministic ordering when activity and occurrence timestamps tie", () => {
+  const taskIds = [pendingDelivery().taskId, pendingDelivery().taskId];
+  const raw = db.__rawDatabaseForTests();
+  raw.exec("DELETE FROM deliveries");
+  const insert = raw.prepare(`INSERT INTO deliveries
+    (id, task_id, occurrence_at, status, attempts, next_attempt_at, created_at, activity_at, title, body)
+    VALUES (?, ?, ?, ?, 1, ?, ?, ?, 'Tied timestamp', '')`);
+  const rows = Array.from({ length: 60 }, (_, index) => ({
+    id: `tied-${String(index).padStart(2, "0")}`,
+    occurrenceAt: new Date(due.getTime() + Math.floor(index / 2) * 60_000).toISOString(),
+    status: index % 2 ? "sent" : "pending",
+  }));
+  db.transaction(() => rows.forEach((row, index) => insert.run(
+    row.id, taskIds[index % 2], row.occurrenceAt, row.status, due.toISOString(), due.toISOString(), due.toISOString(),
+  )));
+  rows.sort((left, right) => right.occurrenceAt.localeCompare(left.occurrenceAt) || left.id.localeCompare(right.id));
+  for (const status of [undefined, "pending", "retrying"] as const) {
+    const expected = rows.filter((row) => !status || row.status === "pending").map((row) => row.id);
+    const actual = [1, 2].flatMap((page) => db.listDeliveries({ page, pageSize: 7, status }).deliveries.map((row) => row.id));
+    assert.deepEqual(actual, expected.slice(0, 14));
+  }
 });
