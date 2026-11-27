@@ -82,6 +82,7 @@ export function previewSchedule(input: TaskInput, now = new Date(), after?: stri
   return dates;
 }
 
+/** Find the first occurrence strictly after `after`, applying calendar exceptions in the task's time zone. */
 export function nextTaskDate(input: Pick<TaskInput, "cron" | "timeZone" | "skipDates" | "includeDates">, after: Date): Date {
   const schedule = cronSchedule(input.cron, input.timeZone);
   const skipped = new Set(input.skipDates ?? []);
@@ -90,11 +91,20 @@ export function nextTaskDate(input: Pick<TaskInput, "cron" | "timeZone" | "skipD
     const midnight = new Cron("0 0 * * *", { timezone: input.timeZone ?? SCHEDULE_TIME_ZONE, mode: "5-part" }).nextRun(next)!;
     next = schedule.nextRun(new Date(midnight.getTime() - 1));
   }
+  const afterTime = after.getTime();
+  const dayLength = 86_400_000;
+  let extra: Cron | undefined;
   for (const date of input.includeDates ?? []) {
     if (skipped.has(date)) continue;
-    const [minute, hour] = input.cron.split(" ");
-    const extra = new Cron(`${minute} ${hour} * * *`, { timezone: input.timeZone ?? SCHEDULE_TIME_ZONE, mode: "5-part" });
-    const candidate = extra.nextRun(new Date(new Date(`${date}T00:00:00Z`).getTime() - 36 * 3_600_000));
+    const midnight = Date.parse(`${date}T00:00:00Z`);
+    // IANA offsets fit within 24 hours. Dates outside this conservative UTC
+    // window cannot supply an occurrence after the cursor and before `next`.
+    if (midnight + 2 * dayLength <= afterTime || (next && midnight - dayLength >= next.getTime())) continue;
+    if (!extra) {
+      const [minute, hour] = input.cron.split(" ");
+      extra = new Cron(`${minute} ${hour} * * *`, { timezone: input.timeZone ?? SCHEDULE_TIME_ZONE, mode: "5-part" });
+    }
+    const candidate = extra.nextRun(new Date(midnight - 36 * 3_600_000));
     let cursor = candidate;
     for (let count = 0; cursor && count < 4; count += 1) {
       if (localDateString(cursor, input.timeZone) === date && cursor > after && (!next || cursor < next)) next = cursor;
