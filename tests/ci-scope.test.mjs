@@ -37,7 +37,7 @@ test("UI-only changes build the app without running backend suites", () => {
 
 test("scheduler changes select owning workflows and restart tests", () => {
   assert.deepEqual(selectChecks(["lib/scheduler.ts"]), {
-    tests: ["tests/ntfy.test.ts", "tests/persistence.test.ts", "tests/repairs.test.ts", "tests/scheduler.test.ts", "tests/shutdown.test.mjs", "tests/workflow.test.ts"],
+    tests: ["tests/backend-review.test.ts", "tests/ntfy.test.ts", "tests/persistence.test.ts", "tests/repairs.test.ts", "tests/scheduler.test.ts", "tests/shutdown.test.mjs", "tests/workflow.test.ts"],
     source: true,
     container: true,
     browser: false,
@@ -65,7 +65,7 @@ test("shared types select every importing test owner", () => {
 });
 
 test("Ntfy modules select provider and dispatcher tests", () => {
-  assert.deepEqual(selectChecks(["lib/ntfy.ts", "lib/notification.ts"]).tests, ["tests/bark.test.ts", "tests/ntfy.test.ts", "tests/scheduler.test.ts"]);
+  assert.deepEqual(selectChecks(["lib/ntfy.ts", "lib/notification.ts"]).tests, ["tests/api.test.ts", "tests/bark.test.ts", "tests/mcp.test.ts", "tests/ntfy.test.ts", "tests/scheduler.test.ts"]);
 });
 
 test("documentation-only changes do not trigger unrelated application checks", () => {
@@ -80,6 +80,9 @@ test("runtime storage and browser launch changes trigger their end-to-end checks
   assert.equal(selectChecks(["lib/storage.ts"]).container, true);
   assert.equal(selectChecks(["scripts/browser-server.mjs"]).browser, true);
   assert.deepEqual(selectChecks(["scripts/browser-server.mjs"]).tests, ["tests/shutdown.test.mjs"]);
+  const runtime = selectChecks(["scripts/runtime-paths.mjs"]);
+  assert.ok(runtime.tests.includes("tests/password-reset.test.ts"));
+  assert.ok(runtime.tests.includes("tests/environment.test.ts"));
 });
 
 test("build and runtime helpers select production builds and container smoke", () => {
@@ -113,4 +116,7 @@ test("browser selection covers task and history contracts without unrelated glob
   assert.ok(tasks.includes("tests/browser/workspace.spec.ts"));
   assert.equal(tasks.includes("tests/browser/favicon.spec.ts"), false);
   assert.ok(selectBrowserTests(["app/api/deliveries/route.ts"]).includes("tests/browser/history-contracts.spec.ts"));
+  for (const route of ["app/api/overview/route.ts", "app/api/upcoming/route.ts"]) {
+    assert.deepEqual(selectBrowserTests([route]), ["tests/browser/scheduling-contracts.spec.ts", "tests/browser/workspace.spec.ts"]);
+  }
 });
