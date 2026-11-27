@@ -95,7 +95,7 @@ try {
   await measure("processOneDelivery", async () => assert.ok(await scheduler.processOneDelivery(now, async () => {})));
   const settings = { ...db.readSettings(), deviceKey: "benchmark-key" };
   await measure("barkMockSend", () => sendBark(settings, "Benchmark", "Message", async () => Response.json({ code: 200 })));
-  await measure("ntfyMockSend", () => sendNtfy({ ...settings, channelType: "ntfy", topic: "benchmark" }, "Benchmark", "Message", async () => Response.json({ id: "benchmark" })));
+  await measure("ntfyMockSend", () => sendNtfy({ ...settings, channelType: "ntfy", topic: "benchmark" }, "Benchmark", "Message", async () => Response.json({ id: "benchmark", event: "message", topic: "benchmark" })));
   console.log(JSON.stringify({
     revision: execFileSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" }).trim(),
     node: process.version, fixture, results, capacityPlan, listingPlans,

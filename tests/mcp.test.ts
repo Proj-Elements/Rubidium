@@ -145,7 +145,7 @@ test("MCP channel tools enforce scope, hide credentials, and test without delive
   const fetchMock = context.mock.method(globalThis, "fetch", async (url: string | URL | Request, init?: RequestInit) => {
     assert.equal(String(url), "https://ntfy.example/mcp_alerts");
     assert.equal(new Headers(init?.headers).get("authorization"), `Bearer ${input.credential}`);
-    return new Response(null, { status: 200 });
+    return Response.json({ id: "mcp-test-message", event: "message", topic: "mcp_alerts" });
   });
   const readOnlyTest = await callTool(readToken, "test_channel", { id: created.id });
   assert.equal(readOnlyTest.result.isError, true);

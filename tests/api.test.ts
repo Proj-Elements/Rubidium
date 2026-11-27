@@ -283,7 +283,7 @@ test("channel API protects credentials, checks revisions, and tests without queu
   const fetchMock = context.mock.method(globalThis, "fetch", async (url: string | URL | Request, init?: RequestInit) => {
     assert.equal(String(url), "https://ntfy.example/base/api_alerts");
     assert.equal(new Headers(init?.headers).get("authorization"), `Bearer ${payload.credential}`);
-    return new Response(null, { status: 200 });
+    return Response.json({ id: "api-test-message", event: "message", topic: "api_alerts" });
   });
   const tested = await channelTest.POST(request(`/api/channels/${created.id}/test`, "POST", {}), { params: Promise.resolve({ id: created.id }) });
   assert.equal(tested.status, 200);
@@ -328,7 +328,7 @@ test("channel API protects credentials, checks revisions, and tests without queu
   fetchMock.mock.mockImplementation(async (url: string | URL | Request, init?: RequestInit) => {
     assert.equal(String(url), "https://ntfy.default.example/primary_alerts");
     assert.equal(new Headers(init?.headers).get("authorization"), null);
-    return new Response(null, { status: 200 });
+    return Response.json({ id: "primary-test-message", event: "message", topic: "primary_alerts" });
   });
   const defaultTest = await channelTest.POST(request("/api/channels/default/test", "POST", {}), { params: Promise.resolve({ id: "default" }) });
   assert.equal(defaultTest.status, 200);
