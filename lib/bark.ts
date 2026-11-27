@@ -62,22 +62,27 @@ export function barkPushUrl(endpoint: string): URL {
   return url;
 }
 
-async function responseText(response: Response): Promise<string> {
+/** Read at most 16 KiB of acknowledgement text, rejecting with the adapter's error when oversized. */
+export async function responseText(response: Response, oversized: DeliveryError): Promise<string> {
   const reader = response.body?.getReader();
   if (!reader) return "";
   const chunks: Uint8Array[] = [];
   let bytes = 0;
-  while (true) {
-    const { value, done } = await reader.read();
-    if (done) break;
-    bytes += value.byteLength;
-    if (bytes > 16_384) {
-      await reader.cancel();
-      throw new BarkDeliveryError("Bark API 响应过大，无法确认送达");
+  try {
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      bytes += value.byteLength;
+      if (bytes > 16_384) {
+        void reader.cancel().catch(() => undefined);
+        throw oversized;
+      }
+      chunks.push(value);
     }
-    chunks.push(value);
+    return Buffer.concat(chunks, bytes).toString("utf8").trim();
+  } finally {
+    reader.releaseLock();
   }
-  return Buffer.concat(chunks).toString("utf8").trim();
 }
 
 export async function sendBark(
@@ -109,7 +114,7 @@ export async function sendBark(
         retryAt: [429, 503].includes(response.status) ? retryAfter(response.headers.get("retry-after")) : undefined,
       });
     }
-    const text = await responseText(response);
+    const text = await responseText(response, new BarkDeliveryError("Bark API 响应过大，无法确认送达"));
     let result: unknown = null;
     if (text) {
       try {
