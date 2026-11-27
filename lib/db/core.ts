@@ -116,6 +116,8 @@ function migrate(existingVersion: number): void {
     DROP INDEX IF EXISTS deliveries_activity_idx;
     CREATE INDEX IF NOT EXISTS deliveries_sent_idx ON deliveries(status, delivered_at);
     CREATE INDEX IF NOT EXISTS deliveries_expiry_idx ON deliveries(status, expires_at);
+    CREATE INDEX IF NOT EXISTS runtime_endpoint_cooldown_idx ON runtime_state(CAST(value AS INTEGER))
+      WHERE key GLOB 'endpoint:*';
   `);
   const insert = db.prepare("INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)");
   insert.run("default", JSON.stringify(DEFAULT_SETTINGS));

@@ -1,5 +1,4 @@
-import { createHash } from "node:crypto";
-import { HISTORY_PRUNE_BATCH_SIZE, claimDelivery, deliverySettings, dueTaskRows, extendEndpointCooldown, isolateInvalidTask, listChannels, markDeliveryFailed, markDeliverySent, pruneHistory, queueTaskBatch, readRuntimeState, readSettings, writeRuntimeState } from "./db";
+import { HISTORY_PRUNE_BATCH_SIZE, claimDelivery, coolingDownChannelIds, deliverySettings, dueTaskRows, endpointStateKey, extendEndpointCooldown, isolateInvalidTask, markDeliveryFailed, markDeliverySent, pruneHistory, queueTaskBatch, readRuntimeState, readSettings, writeRuntimeState } from "./db";
 import { DeliveryError } from "./bark";
 import { redactSecrets } from "./errors";
 import type { ChannelDeliverySettings } from "./types";
@@ -68,20 +67,13 @@ export async function enqueueDueOccurrences(now = new Date()): Promise<number> {
   finally { enqueueCycle = null; }
 }
 
-function endpointStateKey(settings: ChannelDeliverySettings): string {
-  const identity = settings.channelType === "ntfy"
-    ? `${settings.endpoint}\n${settings.deviceKey}\nntfy:${settings.topic}`
-    : `${settings.endpoint}\n${settings.deviceKey}`;
-  return `endpoint:${createHash("sha256").update(identity).digest("hex")}`;
-}
-
 export async function processOneDelivery(
   now = new Date(),
   deliver: (settings: ChannelDeliverySettings, title: string, body: string) => Promise<void> = sendNotification,
 ): Promise<boolean> {
   if (stopping) return false;
   const claimAt = new Date(Math.max(now.getTime(), Date.now()));
-  const excludedChannels = listChannels().filter((channel) => Number(readRuntimeState(endpointStateKey(deliverySettings(channel.id))) ?? 0) > claimAt.getTime()).map((channel) => channel.id);
+  const excludedChannels = coolingDownChannelIds(claimAt);
   // Lease recovery and expiration still run while the endpoint is cooling
   // down; otherwise a long Retry-After would keep already-undeliverable
   // messages looking pending for days.

@@ -3,20 +3,23 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, before, beforeEach, test } from "node:test";
+import { DEFAULT_SETTINGS } from "../lib/types";
 
 const directory = mkdtempSync(join(tmpdir(), "rubidium-backend-review-"));
 process.env.RUBIDIUM_DATA_DIR = directory;
 let db: typeof import("../lib/db");
-before(async () => { db = await import("../lib/db"); });
+let scheduler: typeof import("../lib/scheduler");
+before(async () => { db = await import("../lib/db"); scheduler = await import("../lib/scheduler"); });
 beforeEach(() => {
-  db.__rawDatabaseForTests().exec("DELETE FROM deliveries; DELETE FROM tasks; DELETE FROM runtime_state;");
+  db.__rawDatabaseForTests().exec("DELETE FROM deliveries; DELETE FROM tasks; DELETE FROM devices; DELETE FROM runtime_state;");
+  db.writeSettings(DEFAULT_SETTINGS);
 });
 after(() => rmSync(directory, { recursive: true, force: true }));
 
 const due = new Date("2030-01-01T01:00:00.000Z");
-function pendingDelivery() {
+function pendingDelivery(deviceId = "default") {
   const task = db.createTask({
-    name: "Original", startsAt: due.toISOString(), preset: "once", cron: "0 9 * * *", repeatCount: 1,
+    name: "Original", startsAt: due.toISOString(), preset: "once", cron: "0 9 * * *", repeatCount: 1, deviceId,
   }, new Date("2030-01-01T00:00:00.000Z"));
   db.queueTaskBatch(task.id, due);
   return db.listDeliveries({ page: 1, pageSize: 50 }).deliveries.find((delivery) => delivery.taskId === task.id)!;
@@ -73,4 +76,28 @@ test("delivery pages retain deterministic ordering when activity and occurrence 
     const actual = [1, 2].flatMap((page) => db.listDeliveries({ page, pageSize: 7, status }).deliveries.map((row) => row.id));
     assert.deepEqual(actual, expected.slice(0, 14));
   }
+});
+
+test("live cooldown selection shares Bark identities, distinguishes Ntfy topics and observes credential rotation", async () => {
+  const endpoint = "https://shared.example";
+  const credential = "shared-benchmark-credential";
+  db.writeSettings({ ...DEFAULT_SETTINGS, endpoint, deviceKey: credential });
+  let mirror = db.saveChannel({ name: "Mirror", type: "bark", endpoint, credential });
+  const ntfyA = db.saveChannel({ name: "Ntfy A", type: "ntfy", endpoint, credential, topic: "a" });
+  const ntfyB = db.saveChannel({ name: "Ntfy B", type: "ntfy", endpoint, credential, topic: "b" });
+  const items = [pendingDelivery(), pendingDelivery(mirror.id), pendingDelivery(ntfyA.id), pendingDelivery(ntfyB.id)];
+  for (const id of ["default", ntfyA.id]) {
+    db.extendEndpointCooldown(db.endpointStateKey(db.deliverySettings(id)), due.getTime() + 60_000);
+  }
+  assert.equal(await scheduler.processOneDelivery(due, async (settings) => {
+    assert.equal(settings.channelType, "ntfy");
+    assert.equal(settings.topic, "b");
+  }), true);
+  assert.equal(await scheduler.processOneDelivery(due, async () => assert.fail("cooling endpoints must not send")), false);
+  mirror = db.saveChannel({ ...mirror, credential: "rotated-credential", revision: mirror.revision });
+  assert.equal(await scheduler.processOneDelivery(due, async (settings) => {
+    assert.equal(settings.deviceKey, "rotated-credential");
+  }), true);
+  const deliveries = db.listDeliveries({ page: 1, pageSize: 50 }).deliveries;
+  assert.deepEqual(items.map((item) => deliveries.find((delivery) => delivery.id === item.id)?.status), ["pending", "sent", "pending", "sent"]);
 });

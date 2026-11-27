@@ -66,3 +66,24 @@ single task. Two scalar counts use covering status and task/status indexes,
 reducing the measured query from 0.837 to 0.149 ms before any index additions.
 The global count remains linear in pending/sending rows; backpressure stays
 transactional and exact.
+
+### Scheduler channel lookups
+
+The baseline sends each mocked delivery in 4.015 ms with 100 extra channels.
+Before claiming every message, it reloads and validates defaults separately
+for each channel, then reads each endpoint cooldown. This repeats linear
+configuration work even when no endpoint is cooling down.
+
+The scheduler now queries active cooldown keys through an expiry index first.
+Healthy endpoints require no channel scan. When cooldowns exist, one bulk
+channel read matches their identities. This preserves shared Bark credentials,
+distinct Ntfy topics and live credential changes. A focused integration test
+covers all three. The duplicated default/named-channel branches in
+`deliverySettings` are also reduced to one lookup with the same default fallback.
+
+After the change the mocked delivery takes 0.402 ms, about 10 times faster.
+With `H` stored cooldown keys and `K` active keys, healthy-channel selection
+uses an `O(log H + K)` index lookup instead of an `O(C)` channel scan and
+per-channel settings queries; matching active cooldowns adds one `O(C)` bulk
+pass. The 44 database-init/provider/scheduler/regression checks pass, as do
+typecheck and focused ESLint.

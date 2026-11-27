@@ -572,24 +572,10 @@ function requireDevice(id: string): void {
 
 export function deliverySettings(deviceId: string, notification = "{}"): ChannelDeliverySettings {
   const defaults = readSettings();
-  let target = defaults;
-  let channelType: ChannelType = "bark";
-  let topic = "";
-  if (deviceId === "default") {
-    const device = statement("SELECT endpoint, device_key deviceKey, type, topic FROM devices WHERE id = 'default'").get() as { endpoint: string; deviceKey: string; type: ChannelType; topic: string } | undefined;
-    if (device) {
-      target = { ...defaults, ...device };
-      channelType = device.type;
-      topic = device.topic;
-    }
-  } else {
-    const device = statement("SELECT endpoint, device_key deviceKey, type, topic FROM devices WHERE id = ?").get(deviceId) as { endpoint: string; deviceKey: string; type: ChannelType; topic: string } | undefined;
-    if (!device) throw new DomainError("目标渠道已删除", 409);
-    target = { ...defaults, ...device };
-    channelType = device.type;
-    topic = device.topic;
-  }
-  return { ...target, ...JSON.parse(notification), channelType, topic };
+  const device = statement("SELECT endpoint, device_key deviceKey, type, topic FROM devices WHERE id = ?")
+    .get(deviceId) as { endpoint: string; deviceKey: string; type: ChannelType; topic: string } | undefined;
+  if (!device && deviceId !== "default") throw new DomainError("目标渠道已删除", 409);
+  return { ...defaults, ...device, ...JSON.parse(notification), channelType: device?.type ?? "bark", topic: device?.topic ?? "" };
 }
 
 function deviceSecrets(): string[] {
@@ -750,6 +736,29 @@ export function dashboardStats(now = new Date(), timeZone = SCHEDULE_TIME_ZONE):
 export function writeRuntimeState(key: string, value: string): void {
   statement("INSERT INTO runtime_state (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value").run(key, value);
 }
+
+/** Identify the endpoint, credential and optional Ntfy topic that share a cooldown. */
+export function endpointStateKey(settings: Pick<ChannelDeliverySettings, "channelType" | "endpoint" | "deviceKey" | "topic">): string {
+  const identity = settings.channelType === "ntfy"
+    ? `${settings.endpoint}\n${settings.deviceKey}\nntfy:${settings.topic}`
+    : `${settings.endpoint}\n${settings.deviceKey}`;
+  return `endpoint:${createHash("sha256").update(identity).digest("hex")}`;
+}
+
+/** Read live cooldowns without loading every channel when all endpoints are healthy. */
+export function coolingDownChannelIds(now: Date): string[] {
+  const cooldowns = new Set((statement("SELECT key FROM runtime_state WHERE key GLOB 'endpoint:*' AND CAST(value AS INTEGER) > ?")
+    .all(now.getTime()) as Array<{ key: string }>).map((row) => row.key));
+  if (!cooldowns.size) return [];
+  const settings = readSettings();
+  const channels = statement("SELECT id, endpoint, device_key deviceKey, type channelType, topic FROM devices")
+    .all() as Array<Pick<ChannelDeliverySettings, "channelType" | "endpoint" | "deviceKey" | "topic"> & { id: string }>;
+  if (!channels.some((channel) => channel.id === "default")) {
+    channels.push({ id: "default", endpoint: settings.endpoint, deviceKey: settings.deviceKey, channelType: "bark", topic: "" });
+  }
+  return channels.filter((channel) => cooldowns.has(endpointStateKey(channel))).map((channel) => channel.id);
+}
+
 export function extendEndpointCooldown(key: string, until: number): void {
   statement(`INSERT INTO runtime_state (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE
     SET value = CAST(MAX(CAST(runtime_state.value AS INTEGER), CAST(excluded.value AS INTEGER)) AS TEXT)`).run(key, String(until));
