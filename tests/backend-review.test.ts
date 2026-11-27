@@ -153,3 +153,56 @@ for (const notification of ["{invalid-json", JSON.stringify({ sound: 42, deviceK
     assert.deepEqual(db.deliveryAttempts(original.id).map((item) => item.outcome).sort(), ["failed", "sent"]);
   });
 }
+
+test("configuration read failures preserve scheduler health reporting and recoverable leases", async (context) => {
+  context.mock.method(console, "error", () => {});
+  const original = pendingDelivery();
+  const raw = db.__rawDatabaseForTests();
+  raw.exec("ALTER TABLE devices RENAME COLUMN type TO unavailable_type");
+  try {
+    await scheduler.runSchedulerCycle(due, async () => assert.fail("unavailable configuration must not send"));
+    assert.equal(db.readRuntimeState("scheduler_error"), "cycle_failed");
+    assert.equal(scheduler.schedulerHealth(), false);
+    const row = raw.prepare("SELECT status, attempts, manual_only, lease_until, last_error FROM deliveries WHERE id = ?").get(original.id)!;
+    assert.equal(row.status, "sending");
+    assert.equal(row.attempts, 0);
+    assert.equal(row.manual_only, 0);
+    assert.equal(row.lease_until, new Date(due.getTime() + 120_000).toISOString());
+    assert.equal(row.last_error, null);
+  } finally {
+    raw.exec("ALTER TABLE devices RENAME COLUMN unavailable_type TO type");
+  }
+  const recoveredAt = new Date(due.getTime() + 121_000);
+  assert.equal(await scheduler.processOneDelivery(recoveredAt, async () => {}), true);
+  assert.deepEqual(db.deliveryAttempts(original.id).map((attempt) => attempt.outcome), ["sent", "interrupted"]);
+  assert.equal(db.listDeliveries({ page: 1, pageSize: 1 }).deliveries[0].attempts, 2);
+  await scheduler.runSchedulerCycle(recoveredAt, async () => {});
+  assert.equal(db.readRuntimeState("scheduler_error"), "");
+  assert.equal(scheduler.schedulerHealth(), true);
+});
+
+test("failed persistence of invalid configuration preserves lease recovery", async (context) => {
+  context.mock.method(console, "error", () => {});
+  const original = pendingDelivery();
+  const raw = db.__rawDatabaseForTests();
+  raw.prepare("UPDATE deliveries SET notification = ? WHERE id = ?").run('{"sound":42}', original.id);
+  raw.exec("CREATE TRIGGER reject_delivery_failure BEFORE UPDATE OF status ON deliveries WHEN NEW.status = 'pending' BEGIN SELECT RAISE(ABORT, 'failure persistence unavailable'); END;");
+  try {
+    await assert.rejects(scheduler.processOneDelivery(due, async () => assert.fail("invalid configuration must not send")), /failure persistence unavailable/);
+    const row = raw.prepare("SELECT status, attempts, manual_only, lease_until, last_error FROM deliveries WHERE id = ?").get(original.id)!;
+    assert.equal(row.status, "sending");
+    assert.equal(row.attempts, 0);
+    assert.equal(row.manual_only, 0);
+    assert.equal(row.lease_until, new Date(due.getTime() + 120_000).toISOString());
+    assert.equal(row.last_error, null);
+    assert.equal(db.deliveryAttempts(original.id)[0].outcome, "sending");
+  } finally {
+    raw.exec("DROP TRIGGER reject_delivery_failure");
+  }
+  assert.equal(await scheduler.processOneDelivery(new Date(due.getTime() + 121_000), async () => assert.fail("invalid configuration must not send")), true);
+  const failed = db.listDeliveries({ page: 1, pageSize: 1 }).deliveries[0];
+  assert.equal(failed.status, "pending");
+  assert.equal(failed.attempts, 2);
+  assert.equal(failed.manualOnly, true);
+  assert.deepEqual(db.deliveryAttempts(original.id).map((attempt) => attempt.outcome), ["failed", "interrupted"]);
+});
