@@ -14,3 +14,8 @@ allowBuilds:
 # TODO: Remove the override when that CLI excludes vulnerable figlet versions.
 overrides:
   "heroui-pro>figlet": "1.11.3"
+  # TODO: Remove after heroui-setup updates its vulnerable exact tar dependency.
+  "heroui-setup@1.0.4>tar": "7.5.21"
+  # The parser uses minimatch's public matcher API; 10.x has no audited fix.
+  # TODO: Remove after typescript-estree adopts minimatch >=11.0.1.
+  "@typescript-eslint/typescript-estree@8.71.2>minimatch": "11.0.1"
