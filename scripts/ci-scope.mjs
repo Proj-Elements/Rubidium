@@ -4,7 +4,7 @@ import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const rules = [
-  [/^lib\/auth\.ts$|^app\/api\/session\//, ["auth", "api"]],
+  [/^lib\/auth\.ts$|^app\/api\/session\//, ["auth", "api", "mcp"]],
   [/^lib\/environment\.(?:mjs|d\.mts)$/, ["environment"]],
   [/^lib\/(errors|storage)\.ts$/, ["auth", "bark", "db-init", "scheduler", "workflow", "api", "persistence", "shutdown"]],
   [/^lib\/(ui|resource)\.ts$|^components\/use-resource\.ts$/, ["ui"]],
@@ -12,17 +12,19 @@ const rules = [
   [/^app\/(?!api\/)|^components\//, ["ui"]],
   [/^lib\/bark\.ts$|^app\/api\/settings\/test\//, ["bark", "ntfy", "scheduler", "workflow"]],
   [/^lib\/(ntfy|notification)\.ts$/, ["bark", "ntfy", "scheduler"]],
-  [/^lib\/cron\.ts$/, ["cron", "validation", "scheduler", "workflow", "api", "persistence"]],
-  [/^lib\/db(?:\.ts|\/)/, ["auth", "db-init", "scheduler", "workflow", "api", "persistence", "shutdown", "data-tools", "repairs"]],
-  [/^lib\/types\.ts$/, ["bark", "ntfy", "cron", "validation", "scheduler", "workflow", "api", "ui", "data-tools", "repairs", "db-init", "persistence"]],
+  [/^lib\/cron\.ts$/, ["cron", "cron-review", "validation", "scheduler", "workflow", "api", "persistence"]],
+  [/^lib\/db(?:\.ts|\/)/, ["auth", "db-init", "scheduler", "workflow", "api", "persistence", "shutdown", "data-tools", "data-transfer", "repairs", "backend-review", "mcp"]],
+  [/^lib\/types\.ts$/, ["bark", "ntfy", "cron", "cron-review", "validation", "scheduler", "workflow", "api", "ui", "data-tools", "repairs", "db-init", "persistence", "backend-review"]],
   [/^lib\/(contracts|logging)\.ts$/, ["http", "api", "ui", "auth", "repairs"]],
   [/^lib\/validation\.ts$/, ["validation", "api", "workflow"]],
   [/^app\/api\/mcp\//, ["mcp"]],
   [/^lib\/http\.ts$|^app\/api\//, ["http", "api"]],
+  [/^lib\/http\.ts$/, ["mcp"]],
   [/^lib\/scheduler\.ts$|^instrumentation\.ts$/, ["scheduler", "workflow", "persistence", "shutdown", "repairs", "ntfy"]],
   [/^scripts\/ci-scope\.mjs$|^\.github\/workflows\/ci\.yml$/, ["ci-scope", "release"]],
   [/^scripts\/release-guard\.mjs$|^\.github\/workflows\/release\.yml$/, ["release", "ci-scope"]],
   [/^scripts\/data-tools\.mjs$/, ["data-tools"]],
+  [/^scripts\/password-reset\.mjs$/, ["password-reset"]],
   [/^lib\/data-transfer\.ts$|^app\/api\/data\/|^tests\/data-transfer\.test\.ts$/, ["data-transfer"]],
   [/^scripts\/(runtime-paths|build-preflight)\.mjs$/, ["data-tools", "artifact", "shutdown", "db-init"]],
   [/^scripts\/start-server\.mjs$/, ["scheduler", "workflow", "persistence", "shutdown"]],
@@ -30,6 +32,40 @@ const rules = [
   [/^scripts\/verify-standalone\.mjs$|^next\.config\.ts$/, ["artifact"]],
   [/^package\.json$|^pnpm-lock\.yaml$|^pnpm-workspace\.yaml$/, ["auth", "bark", "cron", "validation", "http", "ui", "db-init", "scheduler", "workflow", "api", "persistence", "release", "data-tools", "shutdown"]],
 ];
+
+const browserRules = [
+  [/^lib\/auth\.ts$|^app\/api\/session\//, ["setup", "logout"]],
+  [/^app\/(?:api\/)?tasks\/|^components\/(?:task-editor|calendar-field|time-zone-picker|use-unsaved|unsaved-navigation-dialog)\.tsx?$/, ["workspace", "scheduling-contracts"]],
+  [/^app\/(?:api\/)?deliveries\//, ["workspace", "history-contracts"]],
+  [/^app\/api\/data\/|^lib\/data-transfer\.ts$|^components\/data-transfer\.tsx$/, ["data-transfer"]],
+  [/^app\/api\/(?:channels|devices|settings)\/|^components\/channel-manager\.tsx$/, ["channels", "history-contracts"]],
+  [/^app\/api\/security\/|^components\/security-manager\.tsx$/, ["security"]],
+  [/^app\/settings\//, ["channels", "security", "data-transfer", "history-contracts"]],
+  [/^app\/(?:layout\.tsx$|(?:tasks|deliveries|settings)\/layout\.tsx$)/, ["title", "workspace"]],
+  [/^lib\/(?:contracts|types)\.ts$/, ["workspace", "channels", "security", "data-transfer", "scheduling-contracts", "history-contracts"]],
+  [/^lib\/ui\.ts$/, ["workspace", "record-filter", "scheduling-contracts", "history-contracts"]],
+  [/^lib\/resource\.ts$|^components\/use-resource\.ts$/, ["workspace", "record-filter"]],
+  [/^lib\/(?:i18n|locale-server)\.ts$|^lib\/locales\/|^components\/(?:locale-provider|language-switcher)\.tsx$/, ["i18n"]],
+  [/^components\/(?:record-list|selection|pagination|floating-scrollbar)\.tsx$/, ["toolbar", "record-filter", "responsive", "floating-scrollbar"]],
+  [/^components\/(?:nav|brand)\.tsx$/, ["workspace", "responsive", "title", "logout", "source-link", "api-mcp-links"]],
+  [/^components\/theme-toggle\.tsx$/, ["theme"]],
+  [/^app\/globals\.css$/, ["responsive", "theme", "toolbar"]],
+  [/^app\/icon\./, ["favicon"]],
+  [/^app\/page\.tsx$/, ["workspace", "title"]],
+  [/^(?:proxy|next\.config|playwright\.config)\.ts$|^scripts\/browser-server\.mjs$|^package\.json$|^pnpm-lock\.yaml$/, ["workspace", "setup", "responsive"]],
+];
+
+/** Select browser owners explicitly; unknown UI components get the workspace integration check. */
+export function selectBrowserTests(files) {
+  const tests = new Set();
+  for (const file of files) {
+    if (/^tests\/browser\/[^/]+\.spec\.ts$/.test(file)) tests.add(file);
+    const owners = browserRules.filter(([pattern]) => pattern.test(file));
+    for (const [, names] of owners) names.forEach((name) => tests.add(`tests/browser/${name}.spec.ts`));
+    if (!owners.length && /^(?:app\/(?!api\/)|components\/)/.test(file)) tests.add("tests/browser/workspace.spec.ts");
+  }
+  return [...tests].sort();
+}
 
 /** Select owning test modules and integration checks; never default to a global suite. */
 export function selectChecks(files) {
@@ -44,8 +80,8 @@ export function selectChecks(files) {
     if (/^tests\/[^/]+\.test\.(ts|mjs)$/.test(file)) tests.add(file);
   }
   const source = files.some((file) => /^(app\/|components\/|lib\/|scripts\/(build-preflight|setup-heroui|runtime-paths|verify-standalone)\.mjs$|(?:instrumentation|proxy|next\.config)\.ts$|package\.json$|pnpm-lock\.yaml$|pnpm-workspace\.yaml$|tsconfig\.json$|postcss\.config\.mjs$|eslint\.config\.mjs$)/.test(file));
-  const container = files.some((file) => /^(Dockerfile$|\.dockerignore$|docker-compose(?:\.ghcr)?\.yml$|scripts\/(build-preflight|setup-heroui|container-smoke|runtime-paths|verify-standalone|start-server|data-tools)\.mjs$|(?:instrumentation|proxy|next\.config)\.ts$|lib\/environment\.(?:mjs|d\.mts)$|lib\/db\/|lib\/(auth|bark|contracts|cron|db|errors|http|logging|scheduler|storage|types|validation)\.ts$|app\/api\/|package\.json$|pnpm-lock\.yaml$|pnpm-workspace\.yaml$)/.test(file));
-  const browser = files.some((file) => /^(app\/|components\/|lib\/(contracts|i18n|locale-server|ui|resource|types)\.ts$|tests\/browser\/|(?:proxy|next\.config|playwright\.config)\.ts$|scripts\/browser-server\.mjs$|package\.json$|pnpm-lock\.yaml$)/.test(file));
+  const container = files.some((file) => /^(Dockerfile$|\.dockerignore$|docker-compose(?:\.ghcr)?\.yml$|scripts\/(build-preflight|setup-heroui|container-smoke|runtime-paths|verify-standalone|start-server|data-tools|password-reset)\.mjs$|(?:instrumentation|proxy|next\.config)\.ts$|lib\/environment\.(?:mjs|d\.mts)$|lib\/db\/|lib\/(auth|bark|contracts|cron|db|errors|http|logging|scheduler|storage|types|validation)\.ts$|app\/api\/|package\.json$|pnpm-lock\.yaml$|pnpm-workspace\.yaml$)/.test(file));
+  const browser = selectBrowserTests(files).length > 0;
   return { tests: [...tests].sort(), source, container, browser };
 }
 
@@ -77,8 +113,10 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
   // Deleted test modules still affect owners but cannot be executed themselves.
   const tree = new Set(git("ls-tree", "-r", "--name-only", head).split("\n"));
   checks.tests = checks.tests.filter((file) => tree.has(file));
+  checks.browserTests = selectBrowserTests(files).filter((file) => tree.has(file));
+  checks.browser = checks.browserTests.length > 0;
   console.log(JSON.stringify({ base, head, files, ...checks }, null, 2));
   if (process.env.GITHUB_OUTPUT) {
-    appendFileSync(process.env.GITHUB_OUTPUT, `tests=${JSON.stringify(checks.tests)}\nsource=${checks.source}\ncontainer=${checks.container}\nbrowser=${checks.browser}\n`);
+    appendFileSync(process.env.GITHUB_OUTPUT, `tests=${JSON.stringify(checks.tests)}\nsource=${checks.source}\ncontainer=${checks.container}\nbrowser=${checks.browser}\nbrowser_tests=${JSON.stringify(checks.browserTests)}\n`);
   }
 }

@@ -87,3 +87,21 @@ uses an `O(log H + K)` index lookup instead of an `O(C)` channel scan and
 per-channel settings queries; matching active cooldowns adds one `O(C)` bulk
 pass. The 44 database-init/provider/scheduler/regression checks pass, as do
 typecheck and focused ESLint.
+
+### CI selection
+
+Database changes previously selected file-backup tests but omitted encrypted
+snapshot import tests, so the index compatibility regression could pass CI.
+HTTP helpers also omitted MCP checks, the password-reset script omitted its
+own tests, and new backend/cron regression modules had no source mapping.
+These owners are now selected explicitly.
+
+The browser job previously called the entire browser suite for any affected
+UI/API file. The selector now passes named interaction files to Playwright,
+includes newly added specs, and gives unknown UI components the workspace
+integration check. An empty selection cannot silently launch all browser
+tests. Existing version-tag global validation is preserved.
+
+Validation: all 23 CI-selection and release-contract checks pass, including
+workflow YAML/shell syntax and the third-party license inventory. Focused
+ESLint and whitespace checks also pass.

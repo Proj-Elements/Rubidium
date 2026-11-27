@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { resolveDiffBase, selectChecks } from "../scripts/ci-scope.mjs";
+import { resolveDiffBase, selectBrowserTests, selectChecks } from "../scripts/ci-scope.mjs";
 
 test("missing push baselines fall back to the current main merge base", () => {
   const git = (...args) => {
@@ -15,6 +15,12 @@ test("missing push baselines fall back to the current main merge base", () => {
 
 test("database changes verify backups and new server modules receive owning checks", () => {
   assert.ok(selectChecks(["lib/db.ts"]).tests.includes("tests/data-tools.test.mjs"));
+  assert.ok(selectChecks(["lib/db/core.ts"]).tests.includes("tests/data-transfer.test.ts"));
+  assert.ok(selectChecks(["lib/db.ts"]).tests.includes("tests/backend-review.test.ts"));
+  assert.ok(selectChecks(["lib/cron.ts"]).tests.includes("tests/cron-review.test.ts"));
+  assert.ok(selectChecks(["lib/http.ts"]).tests.includes("tests/mcp.test.ts"));
+  assert.deepEqual(selectChecks(["scripts/password-reset.mjs"]).tests, ["tests/password-reset.test.ts"]);
+  assert.equal(selectChecks(["scripts/password-reset.mjs"]).container, true);
   assert.ok(selectChecks(["app/api/data/import/route.ts"]).tests.includes("tests/data-transfer.test.ts"));
   assert.ok(selectChecks(["lib/new-module.ts"]).tests.includes("tests/api.test.ts"));
 });
@@ -51,7 +57,7 @@ test("MCP route changes select MCP protocol and permission tests", () => {
 
 test("shared types select every importing test owner", () => {
   assert.deepEqual(selectChecks(["lib/types.ts"]), {
-    tests: ["tests/api.test.ts", "tests/bark.test.ts", "tests/cron.test.ts", "tests/data-tools.test.mjs", "tests/db-init.test.ts", "tests/ntfy.test.ts", "tests/persistence.test.ts", "tests/repairs.test.ts", "tests/scheduler.test.ts", "tests/ui.test.ts", "tests/validation.test.ts", "tests/workflow.test.ts"],
+    tests: ["tests/api.test.ts", "tests/backend-review.test.ts", "tests/bark.test.ts", "tests/cron-review.test.ts", "tests/cron.test.ts", "tests/data-tools.test.mjs", "tests/db-init.test.ts", "tests/ntfy.test.ts", "tests/persistence.test.ts", "tests/repairs.test.ts", "tests/scheduler.test.ts", "tests/ui.test.ts", "tests/validation.test.ts", "tests/workflow.test.ts"],
     source: true,
     container: true,
     browser: true,
@@ -91,4 +97,20 @@ test("build and runtime helpers select production builds and container smoke", (
 
 test("added tests and CI selector changes are checked directly", () => {
   assert.deepEqual(selectChecks(["tests/cron.test.ts", "scripts/ci-scope.mjs"]).tests, ["tests/ci-scope.test.mjs", "tests/cron.test.ts", "tests/release.test.mjs"]);
+});
+
+test("browser selection runs the owning interaction and includes newly added specs", () => {
+  assert.deepEqual(selectBrowserTests(["components/data-transfer.tsx"]), ["tests/browser/data-transfer.spec.ts"]);
+  assert.deepEqual(selectBrowserTests(["app/api/mcp/route.ts"]), []);
+  assert.deepEqual(selectBrowserTests(["tests/browser/new-contract.spec.ts"]), ["tests/browser/new-contract.spec.ts"]);
+  assert.deepEqual(selectBrowserTests(["components/new-widget.tsx"]), ["tests/browser/workspace.spec.ts"]);
+  assert.deepEqual(selectBrowserTests(["README.md"]), []);
+});
+
+test("browser selection covers task and history contracts without unrelated global checks", () => {
+  const tasks = selectBrowserTests(["components/task-editor.tsx", "app/api/tasks/preview/route.ts"]);
+  assert.ok(tasks.includes("tests/browser/scheduling-contracts.spec.ts"));
+  assert.ok(tasks.includes("tests/browser/workspace.spec.ts"));
+  assert.equal(tasks.includes("tests/browser/favicon.spec.ts"), false);
+  assert.ok(selectBrowserTests(["app/api/deliveries/route.ts"]).includes("tests/browser/history-contracts.spec.ts"));
 });
