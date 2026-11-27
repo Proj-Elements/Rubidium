@@ -225,7 +225,8 @@ export async function restoreData(source, destination) {
     regularFile(join(source, name));
     if (await digest(join(source, name)) !== expected) throw new Error(`Backup checksum mismatch: ${name}`);
   }
-  if (readdirSync(source).some((name) => ![...names, "manifest.json"].includes(name))) throw new Error("Backup contains unexpected files");
+  const listedFiles = new Set([...Object.keys(manifest.files), "manifest.json"]);
+  if (readdirSync(source).some((name) => !listedFiles.has(name))) throw new Error("Backup contains unexpected files or files missing from its manifest");
   createPrivateDirectory(destination);
   try {
     for (const name of Object.keys(manifest.files)) {

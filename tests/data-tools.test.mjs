@@ -251,6 +251,22 @@ test("restore rejects tampered backup content", async () => {
   } finally { rmSync(root, { recursive: true, force: true }); }
 });
 
+test("restore rejects credential files omitted from the backup manifest", async () => {
+  const { root, source } = fixture();
+  const backup = join(root, "backup");
+  const target = join(root, "restored");
+  try {
+    await backupData(source, backup);
+    const manifestPath = join(backup, "manifest.json");
+    const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
+    delete manifest.files["access-password.txt"];
+    writeFileSync(manifestPath, JSON.stringify(manifest), { mode: 0o600 });
+    await assert.rejects(restoreData(backup, target), /manifest|unexpected files/);
+    assert.equal(existsSync(target), false);
+    assert.equal(readFileSync(join(backup, "access-password.txt"), "utf8"), "test-data-tools-password");
+  } finally { rmSync(root, { recursive: true, force: true }); }
+});
+
 test("restore rejects unexpected files in a valid backup", async () => {
   const { root, source } = fixture();
   const backup = join(root, "backup");
