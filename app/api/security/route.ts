@@ -34,7 +34,7 @@ export const POST = apiRoute(async (request: Request) => {
       changePassword(data.current, data.next, clientKey);
     } catch (error) {
       if (!(error instanceof DomainError) || error.status !== 429) throw error;
-      const response = jsonError(error.message, error.status);
+      const response = jsonError(error.message, error.status, error.localized);
       response.headers.set("retry-after", String(loginRetryAfter(clientKey)));
       return response;
     }

@@ -74,6 +74,7 @@ test("repeated wrong logins lock out further guesses including correct passwords
   const change = await security.POST(request("/api/security", "POST", { action: "password", current: "api-test-password-1234", next: "new-api-test-password" }));
   assert.equal(change.status, 429);
   assert.ok(Number(change.headers.get("retry-after")) > 0);
+  assert.equal((await change.json()).errorKey, "errors.currentPasswordInvalid");
 });
 
 test("settings roundtrip never returns the device key and empty edits preserve it", async () => {
