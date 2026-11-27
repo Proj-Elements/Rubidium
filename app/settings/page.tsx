@@ -119,6 +119,7 @@ function HistorySettings({ initial, onSaved }: { initial: SettingsPayload | null
   const [feedback, setFeedback] = useState<{ message: string; kind: "error" | "success" } | null>(null);
   const dirty = days !== savedDays;
   const conflict = Boolean(initial && initial.revision > revision);
+  useUnsaved(dirty);
 
   useEffect(() => {
     if (!initial || dirty || initial.revision <= revision) return;
