@@ -2,7 +2,9 @@ import { randomBytes, randomUUID, createHmac, scryptSync } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
 import { DatabaseSync } from "node:sqlite";
 import { join, resolve } from "node:path";
+import { StringDecoder } from "node:string_decoder";
 import { getEnvironmentVariable } from "../lib/environment.mjs";
+import { loadRuntimeEnvironment, runtimeDirectory } from "./runtime-paths.mjs";
 
 const MIN_PASSWORD_LENGTH = 8;
 const MIN_SECRET_LENGTH = 16;
@@ -27,7 +29,7 @@ export function resetPassword(password, dataDirectory = getEnvironmentVariable("
     throw new Error("Password must contain 8–300 characters and have no leading or trailing spaces");
   }
 
-  const directory = resolve(dataDirectory);
+  const directory = runtimeDirectory(process.cwd(), dataDirectory);
   const databasePath = join(directory, "barker.sqlite");
   if (!existsSync(databasePath)) throw new Error(`Rubidium database does not exist at ${databasePath}; no data was changed`);
   const sessionSecret = configuredSecret("SESSION_SECRET", directory, "session-secret.txt", MIN_SECRET_LENGTH);
@@ -66,6 +68,7 @@ function promptHidden(label) {
   input.resume();
 
   return new Promise((resolvePrompt, rejectPrompt) => {
+    const decoder = new StringDecoder("utf8");
     let value = "";
     let finished = false;
     const finish = (error) => {
@@ -79,7 +82,7 @@ function promptHidden(label) {
       else resolvePrompt(value);
     };
     const onData = (chunk) => {
-      for (const character of chunk.toString("utf8")) {
+      for (const character of decoder.write(chunk)) {
         if (character === "\u0003") { finish(new Error("Password reset cancelled")); return; }
         if (character === "\r" || character === "\n") { finish(); return; }
         if (character === "\u007f" || character === "\b") { value = Array.from(value).slice(0, -1).join(""); continue; }
@@ -92,6 +95,7 @@ function promptHidden(label) {
 
 async function main() {
   if (process.argv.length > 2) throw new Error("不要通过命令参数传递密码，请使用无回显的交互输入。");
+  loadRuntimeEnvironment();
   const password = await promptHidden("新访问密码（8-300 个字符）: ");
   const confirmation = await promptHidden("再次输入访问密码: ");
   if (password !== confirmation) throw new Error("两次输入不一致，未修改数据。");

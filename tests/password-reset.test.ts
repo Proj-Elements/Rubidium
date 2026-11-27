@@ -1,9 +1,11 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { createHash } from "node:crypto";
-import { existsSync, mkdtempSync, rmSync } from "node:fs";
+import { createHash, createHmac, scryptSync } from "node:crypto";
+import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { DatabaseSync } from "node:sqlite";
+import { fileURLToPath } from "node:url";
 import { after, before, test } from "node:test";
 
 const directory = mkdtempSync(join(tmpdir(), "rubidium-password-reset-"));
@@ -22,6 +24,74 @@ before(async () => {
   ({ resetPassword } = await import("../scripts/password-reset.mjs"));
 });
 after(() => rmSync(directory, { recursive: true, force: true }));
+
+function checkConfiguredCliReset(password: string, splitInput = false): void {
+  const root = mkdtempSync(join(tmpdir(), "rubidium-reset-cli-config-"));
+  const configured = join(root, "configured-data");
+  const decoy = join(root, "data");
+  for (const path of [configured, decoy]) {
+    mkdirSync(path);
+    const database = new DatabaseSync(join(path, "barker.sqlite"));
+    database.exec(`CREATE TABLE settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+      CREATE TABLE sessions (id TEXT PRIMARY KEY);
+      CREATE TABLE api_tokens (id TEXT PRIMARY KEY);
+      CREATE TABLE audit_events (id TEXT PRIMARY KEY, action TEXT NOT NULL, target TEXT NOT NULL, created_at TEXT NOT NULL);
+      INSERT INTO sessions VALUES ('current-session'); INSERT INTO api_tokens VALUES ('current-token');`);
+    database.close();
+  }
+  writeFileSync(join(decoy, "session-secret.txt"), "decoy-session-signing-secret", { mode: 0o600 });
+  writeFileSync(join(decoy, "access-password.txt"), "decoy-runtime-password", { mode: 0o600 });
+  const sessionSecret = "configured-cli-session-secret";
+  const runtimePassword = "configured-runtime-password";
+  writeFileSync(join(root, ".env.local"), `RUBIDIUM_DATA_DIR=configured-data\nRUBIDIUM_SESSION_SECRET=${sessionSecret}\nRUBIDIUM_PASSWORD=${runtimePassword}\n`, { mode: 0o600 });
+  const terminal = join(root, "terminal.mjs");
+  writeFileSync(terminal, `
+    import { PassThrough } from 'node:stream';
+    const input = new PassThrough();
+    input.isTTY = true;
+    input.setRawMode = () => input;
+    Object.defineProperty(process, 'stdin', { value: input });
+    const write = process.stdout.write.bind(process.stdout);
+    let prompts = 0;
+    process.stdout.write = (chunk, ...args) => {
+      const result = write(chunk, ...args);
+      if (String(chunk).endsWith(': ')) {
+        const bytes = Buffer.from(${JSON.stringify(password)});
+        const split = ${splitInput} && prompts++ === 0;
+        setImmediate(() => {
+          if (split) { input.write(bytes.subarray(0, 1)); input.write(bytes.subarray(1)); }
+          else input.write(bytes);
+          input.write('\\r');
+        });
+      }
+      return result;
+    };
+  `, { mode: 0o600 });
+  const environment = { ...process.env };
+  for (const prefix of ["RUBIDIUM", "BARKER"]) {
+    for (const name of ["DATA_DIR", "SESSION_SECRET", "PASSWORD"]) delete environment[`${prefix}_${name}`];
+  }
+  try {
+    const result = spawnSync(process.execPath, ["--import", terminal, fileURLToPath(new URL("../scripts/password-reset.mjs", import.meta.url))], {
+      cwd: root, env: environment, encoding: "utf8", timeout: 10_000,
+    });
+    assert.equal(result.status, 0, result.stderr);
+    assert.equal(`${result.stdout}\n${result.stderr}`.includes(password), false);
+    const target = new DatabaseSync(join(configured, "barker.sqlite"), { readOnly: true });
+    const untouched = new DatabaseSync(join(decoy, "barker.sqlite"), { readOnly: true });
+    try {
+      const row = target.prepare("SELECT value FROM settings WHERE key = 'password_override'").get();
+      assert.ok(row, "reset must use the configured data directory");
+      const override = JSON.parse(String(row.value)) as { source: string; salt: string; hash: string };
+      assert.equal(override.source, createHmac("sha256", sessionSecret).update(runtimePassword).digest("hex"));
+      assert.equal(override.hash, scryptSync(password, override.salt, 32).toString("hex"));
+      assert.equal(target.prepare("SELECT COUNT(*) count FROM sessions").get()?.count, 0);
+      assert.equal(target.prepare("SELECT COUNT(*) count FROM api_tokens").get()?.count, 0);
+      assert.equal(untouched.prepare("SELECT value FROM settings WHERE key = 'password_override'").get(), undefined);
+      assert.equal(untouched.prepare("SELECT COUNT(*) count FROM sessions").get()?.count, 1);
+    } finally { target.close(); untouched.close(); }
+  } finally { rmSync(root, { recursive: true, force: true }); }
+}
 
 test("Docker reset rotates the password and revokes access without changing task data", () => {
   const currentPassword = "before-reset-password-2030";
@@ -69,4 +139,12 @@ test("interactive reset refuses non-TTY input without echoing or persisting it",
     assert.equal(`${result.stdout}\n${result.stderr}`.includes(secret), false);
     assert.equal(existsSync(join(emptyDirectory, "barker.sqlite")), false);
   } finally { rmSync(emptyDirectory, { recursive: true, force: true }); }
+});
+
+test("password reset CLI loads the same local configuration as the server", () => {
+  checkConfiguredCliReset("configured-next-password-2035");
+});
+
+test("password reset CLI preserves UTF-8 characters split across terminal chunks", () => {
+  checkConfiguredCliReset("密码-reset-password-2035", true);
 });
