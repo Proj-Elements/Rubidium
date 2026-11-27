@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import type { SQLInputValue } from "node:sqlite";
 import { after, before, test } from "node:test";
 
 const directory = mkdtempSync(join(tmpdir(), "rubidium-mcp-"));
@@ -165,4 +166,96 @@ test("MCP channel tools enforce scope, hide credentials, and test without delive
   const deleted = await callTool(writeToken, "delete_channel", { id: created.id, revision: cleared.revision });
   assert.equal(deleted.result.isError, undefined);
   assert.equal(database.listChannels().length, 1);
+});
+
+test("MCP authentication storage failures return sanitized JSON with a request ID", async (context) => {
+  const readToken = token("read");
+  const logged = context.mock.method(console, "error", () => {});
+  const raw = database.__rawDatabaseForTests();
+  raw.exec("ALTER TABLE api_tokens RENAME TO api_tokens_unavailable");
+  try {
+    const response = await rpc(readToken, "tools/list");
+    assert.equal(response.status, 500);
+    assert.doesNotMatch(JSON.stringify(await response.json()), /SQLITE|no such table|api_tokens/);
+    assert.ok(response.headers.get("x-request-id"));
+    assert.equal(logged.mock.callCount(), 1);
+    const record = JSON.parse(String(logged.mock.calls[0].arguments[0]));
+    assert.equal(record.requestId, response.headers.get("x-request-id"));
+    assert.equal(record.path, "/api/mcp");
+  } finally {
+    raw.exec("ALTER TABLE api_tokens_unavailable RENAME TO api_tokens");
+  }
+});
+
+test("MCP get_task applies the same sanitized failure contract as API-backed tools", async (context) => {
+  const readToken = token("read");
+  const missing = await callTool(readToken, "get_task", { id: "missing-task" });
+  assert.equal(missing.result.structuredContent?.status, 404);
+
+  const logged = context.mock.method(console, "error", () => {});
+  const raw = database.__rawDatabaseForTests();
+  raw.exec("ALTER TABLE tasks RENAME TO tasks_unavailable");
+  try {
+    const result = await callTool(readToken, "get_task", { id: "missing-task" });
+    assert.doesNotMatch(JSON.stringify(result), /SQLITE|no such table|tasks_unavailable/);
+    assert.equal(result.result.isError, true);
+    assert.equal(result.result.structuredContent?.status, 500);
+    assert.equal(logged.mock.callCount(), 1);
+  } finally {
+    raw.exec("ALTER TABLE tasks_unavailable RENAME TO tasks");
+  }
+});
+
+test("MCP sanitizes permission lookup failures during a tool call", async (context) => {
+  const readToken = token("read");
+  const { statement } = await import("../lib/db/core");
+  const lookup = statement("SELECT 1 FROM api_tokens WHERE digest = ? AND (expires_at = ? OR expires_at > ?) AND (scope = 'write' OR ? = 0)");
+  const get = lookup.get.bind(lookup);
+  let lookups = 0;
+  context.mock.method(lookup, "get", (...bindings: SQLInputValue[]) => {
+    if (++lookups === 2) throw new Error("SQLITE_IOERR: /private/data/token-file");
+    return get(...bindings);
+  });
+  const logged = context.mock.method(console, "error", () => {});
+  const result = await callTool(readToken, "list_tasks", {});
+  assert.doesNotMatch(JSON.stringify(result), /SQLITE|private|token-file/);
+  assert.equal(result.result.structuredContent?.status, 500);
+  assert.equal(result.result.isError, true);
+  assert.equal(logged.mock.callCount(), 1);
+  assert.equal(lookups, 2);
+});
+
+test("MCP rejects cross-origin tool calls and cookie-only authentication", async () => {
+  const writeToken = token("write");
+  const count = database.listTasks().length;
+  const body = JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name: "create_task", arguments: task } });
+  const headers = {
+    host: "localhost:3000",
+    authorization: `Bearer ${writeToken}`,
+    "content-type": "application/json",
+    accept: "application/json, text/event-stream",
+    "mcp-protocol-version": "2025-03-26",
+  };
+  const originCases: Record<string, string>[] = [
+    { origin: "https://other.example" },
+    { origin: "http://localhost:3000", "sec-fetch-site": "cross-site" },
+  ];
+  for (const originHeaders of originCases) {
+    const response = await mcp.POST(new Request("http://localhost:3000/api/mcp", {
+      method: "POST", headers: { ...headers, ...originHeaders }, body,
+    }));
+    assert.equal(response.status, 403);
+    assert.equal(database.listTasks().length, count);
+  }
+
+  const sameOrigin = await mcp.POST(new Request("http://localhost:3000/api/mcp", {
+    method: "POST", headers: { ...headers, origin: "http://localhost:3000", "sec-fetch-site": "same-origin" },
+    body: JSON.stringify({ jsonrpc: "2.0", id: 2, method: "tools/list", params: {} }),
+  }));
+  assert.equal(sameOrigin.status, 200);
+
+  const cookieOnly = await mcp.POST(new Request("http://localhost:3000/api/mcp", {
+    method: "POST", headers: { ...headers, authorization: "", cookie: `barker_session=${auth.createSessionToken()}` }, body,
+  }));
+  assert.equal(cookieOnly.status, 401);
 });

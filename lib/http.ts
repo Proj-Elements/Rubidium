@@ -46,8 +46,8 @@ export function jsonErrorFrom(error: unknown, fallbackStatus = 500, fallbackMess
 
 /** Keep every API failure in the JSON contract, including auth/DB bootstrapping errors. */
 export function apiRoute<Args extends unknown[]>(
-  handler: (...args: Args) => Promise<NextResponse>,
-): (...args: Args) => Promise<NextResponse> {
+  handler: (...args: Args) => Promise<Response>,
+): (...args: Args) => Promise<Response> {
   return async (...args) => {
     const requestId = randomUUID();
     try {
@@ -89,6 +89,25 @@ export function jsonObjectBody(value: unknown): Record<string, unknown> {
   return value as Record<string, unknown>;
 }
 
+/** Reject explicit cross-origin browser requests while allowing clients without Origin metadata. */
+export function requireSameOrigin(request: Request): NextResponse | null {
+  const site = request.headers.get("sec-fetch-site");
+  if (site && site !== "same-origin" && site !== "none") return jsonError("跨站请求被拒绝", 403);
+  const origin = request.headers.get("origin");
+  if (origin) {
+    try {
+      const url = new URL(origin);
+      if (url.origin !== origin || !["http:", "https:"].includes(url.protocol)
+        || url.protocol !== new URL(request.url).protocol || url.host !== request.headers.get("host")) {
+        return jsonError("跨站请求被拒绝", 403);
+      }
+    } catch {
+      return jsonError("跨站请求被拒绝", 403);
+    }
+  }
+  return null;
+}
+
 /**
  * Cheap CSRF defence in depth: mutate only via same-origin JSON requests.
  * SameSite=Lax already blocks classic cross-site form posts; this also covers
@@ -104,17 +123,7 @@ export function requireSameOriginMutation(request: Request, maximumBytes = MAX_R
   if (expectsJsonBody && contentType !== "application/json") {
     return jsonError("请求必须使用 application/json", 415);
   }
-  const site = request.headers.get("sec-fetch-site");
-  if (site && site !== "same-origin" && site !== "none") return jsonError("跨站请求被拒绝", 403);
-  const origin = request.headers.get("origin");
-  if (origin) {
-    try {
-      if (new URL(origin).host !== request.headers.get("host")) return jsonError("跨站请求被拒绝", 403);
-    } catch {
-      return jsonError("跨站请求被拒绝", 403);
-    }
-  }
-  return null;
+  return requireSameOrigin(request);
 }
 
 export function validationMessage(error: { issues?: Array<{ path: PropertyKey[]; message: string }> }): string {

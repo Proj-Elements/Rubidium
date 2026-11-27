@@ -27,6 +27,20 @@ test("mutations reject oversized bodies, cross-origin requests and non-JSON form
   assert.equal(requireSameOriginMutation(jsonRequest("{}", { origin: "http://localhost:3000", "sec-fetch-site": "same-origin" })), null);
 });
 
+test("same-origin checks include the scheme and require a serialized HTTP origin", () => {
+  for (const origin of [
+    "https://localhost:3000",
+    "ftp://localhost:3000",
+    "http://user:password@localhost:3000",
+    "http://localhost:3000/untrusted-path",
+  ]) {
+    assert.equal(requireSameOriginMutation(jsonRequest("{}", { origin }))?.status, 403, origin);
+  }
+  assert.equal(requireSameOriginMutation(new Request("https://localhost:3000/api/tasks", {
+    method: "POST", headers: { host: "localhost:3000", "content-type": "application/json", origin: "https://localhost:3000" }, body: "{}",
+  })), null);
+});
+
 test("unexpected backend failures map to 500 without exposing their message", async () => {
   const response = jsonErrorFrom(new Error("SQLITE_READONLY: sensitive path"));
   assert.equal(response.status, 500);
