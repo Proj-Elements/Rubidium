@@ -115,6 +115,15 @@ test("settings reject stale revisions and endpoint changes without a new key", a
   assert.equal(database.readSettings().endpoint, previous.endpoint);
 });
 
+test("settings reject malformed device keys without silently preserving them or advancing revision", async () => {
+  const previous = database.readSettingsState();
+  for (const deviceKey of [null, 42, {}, []]) {
+    const response = await settings.PUT(request("/api/settings", "PUT", { ...previous.settings, deviceKey, revision: previous.revision }));
+    assert.equal(response.status, 400);
+    assert.deepEqual(database.readSettingsState(), previous);
+  }
+});
+
 test("history retention settings persist and reject values outside the supported range", async () => {
   const current = database.readSettingsState();
   const first = await settings.PUT(request("/api/settings", "PUT", { ...current.settings, historyRetentionDays: 45, revision: current.revision }));

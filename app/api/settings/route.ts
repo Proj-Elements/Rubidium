@@ -24,10 +24,12 @@ export const PUT = apiRoute(async (request: Request): Promise<NextResponse> => {
   if (data.clearDeviceKey !== undefined && typeof data.clearDeviceKey !== "boolean") {
     return jsonError("清除 Device Key 的标记无效", 400);
   }
+  const deviceKey = data.deviceKey;
+  if (deviceKey !== undefined && typeof deviceKey !== "string") return jsonError("Device Key 必须是字符串", 400);
   const previous = readSettings();
   const clearDeviceKey = data.clearDeviceKey === true;
   const endpointChanged = typeof data.endpoint === "string" && data.endpoint.trim().replace(/\/+$/, "") !== previous.endpoint.replace(/\/+$/, "");
-  const hasDeviceKey = typeof data.deviceKey === "string" && Boolean(data.deviceKey.trim());
+  const hasDeviceKey = Boolean(deviceKey?.trim());
   if (clearDeviceKey && hasDeviceKey) return jsonError("不能同时清除并填写新的 Device Key", 400);
   if (clearDeviceKey && endpointChanged) return jsonError("更换服务地址并清除旧密钥时，请改为填写新服务的 Device Key", 400);
   if (endpointChanged && !hasDeviceKey) return jsonError("更换服务地址时必须填写该服务的 Device Key", 400);
