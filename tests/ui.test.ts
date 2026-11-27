@@ -136,6 +136,26 @@ test("task wall-clock conversion keeps preset days and rejects nonexistent DST t
   assert.equal(toOffsetDateTime("2026-11-01T01:30", "America/New_York"), "2026-11-01T05:30:00.000Z");
 });
 
+test("wall-clock conversion preserves an unchanged saved instant in a DST overlap", () => {
+  const convert: (value: string, timeZone: string, savedInstant?: string) => string = toOffsetDateTime;
+  const secondOccurrence = "2026-11-01T06:30:00.000Z";
+  assert.equal(convert("2026-11-01T01:30", "America/New_York", secondOccurrence), secondOccurrence);
+  assert.equal(convert("2026-11-01T01:31", "America/New_York", secondOccurrence), "2026-11-01T05:31:00.000Z");
+  assert.equal(convert("2026-11-01T01:30", "UTC", secondOccurrence), "2026-11-01T01:30:00.000Z");
+  assert.equal(convert("2026-03-08T02:30", "America/New_York", secondOccurrence), "");
+  assert.equal(convert("2026-11-01T01:30", "America/New_York", "invalid"), "2026-11-01T05:30:00.000Z");
+  assert.equal(convert("2026-11-01T01:30", "America/New_York", "2026-11-01T01:30:59-05:00"), secondOccurrence);
+  assert.equal(convert("2026-04-05T01:45", "Australia/Lord_Howe", "2026-04-04T15:15:00.000Z"), "2026-04-04T15:15:00.000Z");
+  assert.equal(convert("2026-04-05T01:45", "Australia/Lord_Howe"), "2026-04-04T14:45:00.000Z");
+  assert.equal(convert("2026-10-04T02:15", "Australia/Lord_Howe"), "");
+  assert.equal(convert("2030-11-04T09:00", "Asia/Kathmandu"), "2030-11-04T03:15:00.000Z");
+});
+
+test("wall-clock conversion rejects invalid zones rather than substituting Shanghai", () => {
+  assert.equal(toOffsetDateTime("2030-11-04T09:00", "Mars/Olympus"), "");
+  assert.equal(toOffsetDateTime("2030-11-04T09:00", "+08:00"), "");
+});
+
 test("corrupt stored dates and timezones cannot crash the task editor", () => {
   assert.equal(localInputValue(new Date("invalid"), "Mars/Olympus"), "");
   assert.equal(localInputValue(new Date("2030-06-01T22:00:00Z"), "Mars/Olympus"), "2030-06-02T06:00");

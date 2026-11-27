@@ -1,5 +1,6 @@
+import { parseDateTime } from "@internationalized/date";
 import { presetCronFromParts, SCHEDULE_TIME_ZONE, type RecurrencePreset } from "./types";
-import { deliverySchema, SECURITY_SESSION_PAGE_SIZE, taskSchema, timestampSchema } from "./contracts";
+import { deliverySchema, SECURITY_SESSION_PAGE_SIZE, taskSchema, timestampSchema, timeZoneSchema } from "./contracts";
 import { isMessageKey, localeTags, translate, type Locale, type MessageKey, type MessageValues } from "./i18n";
 
 export { SCHEDULE_TIME_ZONE };
@@ -28,22 +29,23 @@ export function localDateValue(date = new Date(), timeZone = SCHEDULE_TIME_ZONE)
   return localInputValue(date, timeZone).slice(0, 10);
 }
 
-/** Shanghai has no DST in the supported scheduling range. */
-export function toOffsetDateTime(value: string, timeZone = SCHEDULE_TIME_ZONE): string {
+/** Preserve an unchanged saved instant; new overlap times use the earlier occurrence. */
+export function toOffsetDateTime(value: string, timeZone = SCHEDULE_TIME_ZONE, savedInstant?: string): string {
   const wall = Date.parse(`${value}:00Z`);
-  if (!Number.isFinite(wall)) return "";
+  if (!Number.isFinite(wall) || !timeZoneSchema.safeParse(timeZone).success) return "";
   const wallDate = new Date(wall);
   if (wallDate.toISOString().slice(0, 16) !== value) return "";
   if (timeZone === SCHEDULE_TIME_ZONE) return `${value}:00+08:00`;
-  const candidates = new Set<number>();
-  for (const offset of [-36, 0, 36]) {
-    const probe = wall + offset * 3_600_000;
-    const display = localInputValue(new Date(probe), timeZone);
-    const difference = Date.parse(`${display}:00Z`) - Math.floor(probe / 60_000) * 60_000;
-    const candidate = wall - difference;
-    if (localInputValue(new Date(candidate), timeZone) === value) candidates.add(candidate);
+  if (savedInstant && timestampSchema.safeParse(savedInstant).success) {
+    const saved = new Date(Math.floor(Date.parse(savedInstant) / 60_000) * 60_000);
+    if (localInputValue(saved, timeZone) === value) return saved.toISOString();
   }
-  return candidates.size ? new Date(Math.min(...candidates)).toISOString() : "";
+  try {
+    const candidate = parseDateTime(value).toDate(timeZone, "earlier");
+    return localInputValue(candidate, timeZone) === value ? candidate.toISOString() : "";
+  } catch {
+    return "";
+  }
 }
 
 export function duplicateStart(task: { startsAt: string; nextRunAt: string | null; timeZone?: string }, now = new Date()): string {

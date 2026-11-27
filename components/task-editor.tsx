@@ -54,15 +54,16 @@ export function TaskEditor({ task, duplicate = false, onClose }: { task?: Task; 
   const contentSize = reminderContentBytes(name, description);
   const contentOverLimit = contentSize > REMINDER_CONTENT_MAX_BYTES;
   const generatedCron = preset === "custom" ? cron : clientPresetCron(preset, startsAt);
+  const savedStart = persisted?.startsAt ?? (duplicate ? task?.nextRunAt ?? task?.startsAt : task?.startsAt);
   const payload = useMemo<TaskInput>(() => ({
-    name, description, startsAt: toOffsetDateTime(startsAt, timeZone), timeZone,
+    name, description, startsAt: toOffsetDateTime(startsAt, timeZone, savedStart), timeZone,
     maxLatenessMinutes: Number.isNaN(lateness) ? null : lateness, preset, cron: generatedCron,
     repeatCount: preset === "once" ? 1 : limit === "count" ? count : null,
     endDate: preset !== "once" && limit === "date" ? endDate : null,
-    deviceId, notification: { ...(sound ? { sound } : {}), ...(group ? { group } : {}) },
+    deviceId, notification: { ...task?.notification, sound: sound || undefined, group: group || undefined },
     skipDates: skipDates.split(/[\s,，]+/).filter(Boolean),
     includeDates: preset === "weekdays" ? includeDates.split(/[\s,，]+/).filter(Boolean) : [],
-  }), [name, description, startsAt, timeZone, lateness, preset, generatedCron, limit, count, endDate, deviceId, sound, group, skipDates, includeDates]);
+  }), [name, description, startsAt, timeZone, savedStart, lateness, preset, generatedCron, limit, count, endDate, deviceId, task?.notification, sound, group, skipDates, includeDates]);
   const serialized = JSON.stringify(payload);
   const [savedPayload, setSavedPayload] = useState(serialized);
   const latestPayload = useRef(serialized);
