@@ -54,6 +54,26 @@ test("logout revokes the persisted session", () => {
   assert.equal(auth.isValidSessionToken(token), false);
 });
 
+test("Bearer schemes are case-insensitive and declared tokens retain their scope over cookies", () => {
+  const readToken = auth.createApiToken("Auth scope reader", "read", 1);
+  const writeToken = auth.createApiToken("Auth scope writer", "write", 1);
+  const cookie = `barker_session=${auth.createSessionToken()}`;
+  for (const scheme of ["Bearer", "bearer", "BEARER", "bEaReR"]) {
+    for (const separator of [" ", "   "]) {
+      const headers = { authorization: `${scheme}${separator}${readToken}`, cookie };
+      assert.equal(auth.requestIsAuthorized(new Request("http://localhost/api/tasks", { headers })), true);
+      assert.equal(auth.requestIsAuthorized(new Request("http://localhost/api/tasks", { method: "POST", headers })), false);
+      assert.equal(auth.requestIsAuthorized(new Request("http://localhost/api/tasks", {
+        method: "POST", headers: { authorization: `${scheme}${separator}${writeToken}`, cookie },
+      })), true);
+    }
+  }
+  for (const authorization of ["Bearer", "bearer invalid-token", `Bearer\t${readToken}`]) {
+    assert.equal(auth.requestIsAuthorized(new Request("http://localhost/api/tasks", { headers: { authorization, cookie } })), false);
+  }
+  assert.equal(auth.requestIsAuthorized(new Request("http://localhost/api/tasks", { headers: { cookie } })), true);
+});
+
 test("changing the password invalidates persisted sessions across process restarts", () => {
   const dir = mkdtempSync(join(tmpdir(), "barker-password-rotation-"));
   const execute = (password: string, code: string) => spawnSync(process.execPath, ["--import", "tsx", "--input-type=module", "--eval", code], {

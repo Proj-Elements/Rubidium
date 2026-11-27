@@ -69,7 +69,6 @@ function toolSuccess(value: Record<string, unknown>): ToolResult {
 }
 
 function authorized(authorization: string, method: string): boolean {
-  if (!authorization.startsWith("Bearer ")) return false;
   return requestIsAuthorized(new Request("http://rubidium.local/api/mcp", { method, headers: { authorization } }));
 }
 

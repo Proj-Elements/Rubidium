@@ -259,3 +259,23 @@ test("MCP rejects cross-origin tool calls and cookie-only authentication", async
   }));
   assert.equal(cookieOnly.status, 401);
 });
+
+test("MCP accepts case-insensitive Bearer schemes and still rejects read-only tool writes", async () => {
+  const readToken = token("read");
+  const count = database.listTasks().length;
+  const response = await mcp.POST(new Request("http://localhost:3000/api/mcp", {
+    method: "POST",
+    headers: {
+      authorization: `bEaReR ${readToken}`,
+      "content-type": "application/json",
+      accept: "application/json, text/event-stream",
+      "mcp-protocol-version": "2025-03-26",
+    },
+    body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name: "create_task", arguments: task } }),
+  }));
+  assert.equal(response.status, 200);
+  const result = (await response.json()).result;
+  assert.equal(result.isError, true);
+  assert.equal(result.structuredContent.status, 403);
+  assert.equal(database.listTasks().length, count);
+});

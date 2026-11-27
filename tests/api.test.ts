@@ -232,6 +232,15 @@ test("security audit requires a session and device updates require a non-empty I
   assert.equal((await devices.POST(request("/api/devices", "POST", device))).status, 200);
 });
 
+test("a lowercase read-only Bearer token cannot fall back to a browser cookie for writes", async () => {
+  const token = auth.createApiToken("Mixed credentials reader", "read", 1);
+  const count = database.listTasks().length;
+  const response = await tasks.POST(request("/api/tasks", "POST", input, true, { authorization: `bearer ${token}` }));
+  assert.equal(response.status, 401);
+  assert.equal(database.listTasks().length, count);
+  assert.equal((await tasks.GET(request("/api/tasks", "GET", undefined, false, { authorization: `bearer ${token}` }))).status, 200);
+});
+
 test("channel API protects credentials, checks revisions, and tests without queue records", async (context) => {
   const payload = {
     name: "API Ntfy", type: "ntfy", endpoint: "https://ntfy.example/base", topic: "api_alerts", credential: "private-channel-token",

@@ -316,10 +316,11 @@ export function getCookieValue(header: string | null, name = AUTH_COOKIE): strin
 }
 
 export function requestIsAuthorized(request: Request): boolean {
-  const bearer = request.headers.get("authorization");
-  if (bearer?.startsWith("Bearer ")) {
-    const value = bearer.slice(7);
-    if (value.length > 128) return false;
+  const authorization = request.headers.get("authorization");
+  if (authorization && /^Bearer(?:\s|$)/i.test(authorization)) {
+    // A declared Bearer credential must never fall back to a more privileged cookie.
+    const value = /^Bearer +(\S+)$/i.exec(authorization)?.[1];
+    if (!value || value.length > 128) return false;
     return apiTokenValid(createHash("sha256").update(value).digest("hex"), !["GET", "HEAD"].includes(request.method));
   }
   return isValidSessionToken(getCookieValue(request.headers.get("cookie")));
