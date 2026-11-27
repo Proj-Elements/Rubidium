@@ -139,11 +139,14 @@ test("Bark and Ntfy channels are manageable and selectable in touch landscape", 
   await expect(editor.getByLabel("通知渠道", { exact: true })).toBeVisible();
   await editor.getByLabel("通知渠道", { exact: true }).click();
   await page.getByRole("option", { name: "QA Ntfy Updated · Ntfy", exact: true }).click();
-  await page.keyboard.press("Escape");
+  await expect(editor.getByLabel("通知渠道", { exact: true })).toHaveAttribute("aria-expanded", "false");
   await expect(editor.getByRole("button", { name: "QA Ntfy Updated · Ntfy 通知渠道", exact: true })).toBeVisible();
   await page.screenshot({ path: test.info().outputPath("task-channel-selection-568x320.png"), animations: "disabled" });
   await editor.getByRole("button", { name: "关闭编辑器", exact: true }).click();
-  await page.getByRole("alertdialog").getByRole("button", { name: "放弃修改", exact: true }).click();
+  const discard = page.getByRole("alertdialog", { name: "放弃尚未保存的修改？", exact: true });
+  await expect(discard).toBeVisible();
+  await discard.getByRole("button", { name: "放弃修改", exact: true }).click();
+  await expect(editor).toBeHidden();
 
   await page.goto("/settings");
   const finalChannel = page.getByRole("listitem").filter({ hasText: "QA Ntfy Updated" });

@@ -304,6 +304,26 @@ times out after 15,005.81 ms. An oversized response fails in 1.96 ms even when
 its cancellation never settles, with its reader unlocked. These measurements
 use isolated loopback services and the same integrated adapter implementation.
 
+### Channel test follow-up
+
+At `bf22357`, [push CI](https://github.com/Proj-Elements/Rubidium/actions/runs/46023533639)
+passed 280 affected Node checks, all 76 selected browser checks, the production
+build and the cold Linux container/startup/retry checks. The corresponding
+[PR run](https://github.com/Proj-Elements/Rubidium/actions/runs/46024200764)
+passed its backend/build/container checks and 75 browser checks, but timed out
+while closing the channel-selection editor in WebKit.
+
+The test pressed Escape after selecting a channel had already closed the
+popover. An isolated WebKit reproduction confirms that Escape then opens the
+unsaved-change confirmation and makes the editor inert, so its close button
+cannot receive the next click. The test now waits for the selector's closed
+state, clicks the editor close button, and explicitly awaits and resolves the
+named discard dialog. Application behavior is unchanged.
+
+The corrected channel test passes in Chromium and WebKit (2/2), and focused
+ESLint passes. Before/after screenshots and dialog state were inspected. CI
+results for the final revision remain attached to the branch and PR.
+
 ## Verification limits
 
 GitHub CI and container results are attached to the published branch/PR's
