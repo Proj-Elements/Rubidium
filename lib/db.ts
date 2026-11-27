@@ -25,6 +25,9 @@ type TaskRow = {
 };
 const TASK_SELECT = `SELECT tasks.*, (SELECT COUNT(*) FROM deliveries
   WHERE task_id = tasks.id AND status IN ('pending', 'sending')) pending_count FROM tasks`;
+// The activity timestamp is also the delivery edit revision. Advance it even
+// when two mutations share a clock tick or the wall clock moves backwards.
+const NEXT_DELIVERY_ACTIVITY = "CASE WHEN activity_at >= ? THEN strftime('%Y-%m-%dT%H:%M:%fZ', activity_at, '+0.001 seconds') ELSE ? END";
 function likePattern(value: string): string {
   return `%${value.replace(/[\\%_]/g, "\\$&")}%`;
 }
@@ -405,16 +408,16 @@ export function claimDelivery(now = new Date(), claimPending = true, excludedDev
   return transaction(() => {
     const timestamp = now.toISOString();
     const recovered = statement(`UPDATE deliveries SET status = 'pending', lease_until = NULL, attempts = attempts + 1,
-      activity_at = ?, last_error = '发送租约过期，上次接收状态未知，等待重试' WHERE id IN (
+      activity_at = ${NEXT_DELIVERY_ACTIVITY}, last_error = '发送租约过期，上次接收状态未知，等待重试' WHERE id IN (
         SELECT id FROM deliveries WHERE status = 'sending' AND lease_until <= ? ORDER BY lease_until, id LIMIT 100
-      ) RETURNING id, task_id`).all(timestamp, timestamp) as Array<{ id: string; task_id: string }>;
+      ) RETURNING id, task_id`).all(timestamp, timestamp, timestamp) as Array<{ id: string; task_id: string }>;
     for (const row of recovered) {
       statement(`UPDATE delivery_attempts SET outcome = 'interrupted', finished_at = ?, error = '发送进程中断，无法确认上游接收状态'
         WHERE outcome = 'sending' AND delivery_id = ? AND lease_token <= ?`).run(timestamp, row.id, timestamp);
     }
-    const expired = statement(`UPDATE deliveries SET status = 'expired', activity_at = ?, last_error = '已超过允许的延迟时间'
+    const expired = statement(`UPDATE deliveries SET status = 'expired', activity_at = ${NEXT_DELIVERY_ACTIVITY}, last_error = '已超过允许的延迟时间'
       WHERE id IN (SELECT id FROM deliveries WHERE status = 'pending' AND expires_at <= ? ORDER BY expires_at, id LIMIT 250)
-      RETURNING task_id`).all(timestamp, timestamp) as Array<{ task_id: string }>;
+      RETURNING task_id`).all(timestamp, timestamp, timestamp) as Array<{ task_id: string }>;
     for (const taskId of new Set([...recovered, ...expired].map((row) => row.task_id))) refreshTaskError(taskId);
     if (!claimPending) return null;
     const row = statement(`SELECT id, task_id taskId, occurrence_at occurrenceAt, attempts, title name, body description, device_id deviceId, notification FROM deliveries
@@ -423,7 +426,8 @@ export function claimDelivery(now = new Date(), claimPending = true, excludedDev
       ORDER BY next_attempt_at, occurrence_at, created_at, id LIMIT 1`).get(timestamp, timestamp, ...excludedDevices) as Omit<ClaimedDelivery, "leaseUntil"> | undefined;
     if (!row) return null;
     const leaseUntil = new Date(now.getTime() + 120_000).toISOString();
-    statement("UPDATE deliveries SET status = 'sending', lease_until = ?, activity_at = ? WHERE id = ?").run(leaseUntil, timestamp, row.id);
+    statement(`UPDATE deliveries SET status = 'sending', lease_until = ?, activity_at = ${NEXT_DELIVERY_ACTIVITY} WHERE id = ?`)
+      .run(leaseUntil, timestamp, timestamp, row.id);
     statement("INSERT INTO delivery_attempts (id, delivery_id, lease_token, started_at, outcome) VALUES (?, ?, ?, ?, 'sending')")
       .run(randomUUID(), row.id, leaseUntil, timestamp);
     statement(`DELETE FROM delivery_attempts WHERE delivery_id = ? AND id NOT IN (
@@ -438,8 +442,9 @@ function refreshTaskError(taskId: string): void {
 }
 export function markDeliverySent(id: string, leaseUntil: string, now = new Date()): void {
   transaction(() => {
-    const changed = statement(`UPDATE deliveries SET status = 'sent', attempts = attempts + 1, delivered_at = ?, activity_at = ?, last_error = NULL,
-      lease_until = NULL WHERE id = ? AND status = 'sending' AND lease_until = ?`).run(now.toISOString(), now.toISOString(), id, leaseUntil);
+    const timestamp = now.toISOString();
+    const changed = statement(`UPDATE deliveries SET status = 'sent', attempts = attempts + 1, delivered_at = ?, activity_at = ${NEXT_DELIVERY_ACTIVITY}, last_error = NULL,
+      lease_until = NULL WHERE id = ? AND status = 'sending' AND lease_until = ?`).run(timestamp, timestamp, timestamp, id, leaseUntil);
     if (!changed.changes) return;
     statement("UPDATE delivery_attempts SET outcome = 'sent', finished_at = ? WHERE delivery_id = ? AND lease_token = ? AND outcome = 'sending'")
       .run(now.toISOString(), id, leaseUntil);
@@ -453,8 +458,9 @@ export function markDeliveryFailed(id: string, leaseUntil: string, attempts: num
     const message = redactSecrets(error, deviceSecrets());
     const delay = Math.min(5 * 2 ** Math.min(Math.max(attempts - 1, 0), 10), 3600) * 1000;
     const next = new Date(Math.max(now.getTime() + delay, retryAt?.getTime() ?? 0)).toISOString();
+    const timestamp = now.toISOString();
     const changed = statement(`UPDATE deliveries SET status = 'pending', attempts = ?, next_attempt_at = ?, last_error = ?, lease_until = NULL,
-      activity_at = ?, manual_only = ? WHERE id = ? AND status = 'sending' AND lease_until = ?`).run(attempts, next, message, now.toISOString(), Number(manualOnly), id, leaseUntil);
+      activity_at = ${NEXT_DELIVERY_ACTIVITY}, manual_only = ? WHERE id = ? AND status = 'sending' AND lease_until = ?`).run(attempts, next, message, timestamp, timestamp, Number(manualOnly), id, leaseUntil);
     if (!changed.changes) return;
     statement("UPDATE delivery_attempts SET outcome = 'failed', finished_at = ?, error = ? WHERE delivery_id = ? AND lease_token = ? AND outcome = 'sending'")
       .run(now.toISOString(), message, id, leaseUntil);
@@ -500,8 +506,8 @@ export function retryDeliveryResult(id: string, now = new Date()): "queued" | "m
     if (!row) return "missing";
     const timestamp = now.toISOString();
     if (row.status !== "pending" || (row.expires_at !== null && row.expires_at <= timestamp)) return "conflict";
-    const changed = statement("UPDATE deliveries SET next_attempt_at = ?, activity_at = ?, manual_only = 0 WHERE id = ? AND status = 'pending' AND (expires_at IS NULL OR expires_at > ?)")
-      .run(timestamp, timestamp, id, timestamp).changes;
+    const changed = statement(`UPDATE deliveries SET next_attempt_at = ?, activity_at = ${NEXT_DELIVERY_ACTIVITY}, manual_only = 0 WHERE id = ? AND status = 'pending' AND (expires_at IS NULL OR expires_at > ?)`)
+      .run(timestamp, timestamp, timestamp, id, timestamp).changes;
     if (!changed) return "conflict";
     auditEvent("delivery.retry", id);
     return "queued";
@@ -510,8 +516,9 @@ export function retryDeliveryResult(id: string, now = new Date()): "queued" | "m
 export function retryDelivery(id: string, now = new Date()): boolean { return retryDeliveryResult(id, now) === "queued"; }
 export function cancelDeliveryResult(id: string, now = new Date()): "cancelled" | "missing" | "conflict" {
   return transaction(() => {
-    const row = statement("UPDATE deliveries SET status = 'cancelled', last_error = NULL, activity_at = ? WHERE id = ? AND status = 'pending' RETURNING task_id")
-      .get(now.toISOString(), id) as { task_id: string } | undefined;
+    const timestamp = now.toISOString();
+    const row = statement(`UPDATE deliveries SET status = 'cancelled', last_error = NULL, activity_at = ${NEXT_DELIVERY_ACTIVITY} WHERE id = ? AND status = 'pending' RETURNING task_id`)
+      .get(timestamp, timestamp, id) as { task_id: string } | undefined;
     if (!row) return statement("SELECT 1 FROM deliveries WHERE id = ?").get(id) ? "conflict" : "missing";
     refreshTaskError(row.task_id);
     auditEvent("delivery.cancel", id);
@@ -719,9 +726,9 @@ export function permanentlyDeleteTask(id: string, revision: number): void {
 export function editDelivery(id: string, title: string, body: string, expected: string, now = new Date()): void {
   transaction(() => {
     const timestamp = now.toISOString();
-    const changed = statement(`UPDATE deliveries SET title = ?, body = ?, manual_only = 0, next_attempt_at = ?, activity_at = ?
+    const changed = statement(`UPDATE deliveries SET title = ?, body = ?, manual_only = 0, next_attempt_at = ?, activity_at = ${NEXT_DELIVERY_ACTIVITY}
       WHERE id = ? AND status = 'pending' AND activity_at = ? AND (expires_at IS NULL OR expires_at > ?)`)
-      .run(title, body, timestamp, timestamp, id, expected, timestamp);
+      .run(title, body, timestamp, timestamp, timestamp, id, expected, timestamp);
     if (!changed.changes) throw new DomainError("消息状态已变化，请刷新后重试", 409);
     auditEvent("delivery.edit", id);
   });
