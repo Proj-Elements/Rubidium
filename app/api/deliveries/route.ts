@@ -1,11 +1,15 @@
 import { NextResponse } from "next/server";
+import { z } from "zod";
 import { requestIsAuthorized } from "@/lib/auth";
 import { HISTORY_PRUNE_BATCH_SIZE, cancelDelivery, compactDatabase, listDeliveries, pruneHistory, retryDelivery } from "@/lib/db";
-import { apiRoute, jsonError, jsonObjectBody, requestBody, requireSameOriginMutation } from "@/lib/http";
+import { apiRoute, jsonError, jsonObjectBody, requestBody, requireSameOriginMutation, validationMessage } from "@/lib/http";
+import { timestampSchema } from "@/lib/contracts";
 import type { DeliveryFilter } from "@/lib/types";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+
+const cleanupSchema = z.object({ before: timestampSchema, all: z.boolean().optional(), compact: z.boolean().optional() });
 
 export const GET = apiRoute(async (request: Request): Promise<NextResponse> => {
   if (!requestIsAuthorized(request)) return jsonError("未授权", 401);
@@ -26,8 +30,10 @@ export const DELETE = apiRoute(async (request: Request): Promise<NextResponse> =
   if (!requestIsAuthorized(request)) return jsonError("未授权", 401);
   const blocked = requireSameOriginMutation(request);
   if (blocked) return blocked;
-  const body = jsonObjectBody(await requestBody(request));
-  const before = typeof body.before === "string" ? new Date(body.before) : new Date(NaN);
+  const result = cleanupSchema.safeParse(await requestBody(request));
+  if (!result.success) return jsonError(validationMessage(result.error), 400);
+  const body = result.data;
+  const before = new Date(body.before);
   if (!Number.isFinite(before.getTime()) || before.getTime() > Date.now() - 7 * 86_400_000) return jsonError("只能清理至少七天前的已结束记录", 400);
   let removed = 0;
   let batch: number;

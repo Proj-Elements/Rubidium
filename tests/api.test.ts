@@ -504,6 +504,34 @@ test("bulk history cleanup crosses bounded batches without deleting retrying del
   assert.deepEqual({ queued: database.getTask(task.id)?.queuedCount, sent: database.getTask(task.id)?.sentCount }, { queued: 106, sent: 105 });
 });
 
+test("history cleanup validates exact cutoff dates and boolean flags before deleting records", async (context) => {
+  context.mock.timers.enable({ apis: ["Date"], now: new Date("2030-03-31T00:00:00Z") });
+  const reminder = database.createTask({ ...input, startsAt: "2029-11-05T09:00:00+08:00", name: "Strict history cutoff" });
+  const raw = database.__rawDatabaseForTests();
+  const timestamp = "2030-03-02T00:00:00.000Z";
+  const id = "strict-history-cutoff-record";
+  raw.prepare(`INSERT INTO deliveries
+    (id, task_id, occurrence_at, status, attempts, next_attempt_at, created_at, delivered_at, title, body, activity_at)
+    VALUES (?, ?, ?, 'sent', 1, ?, ?, ?, 'History cutoff', '', ?)`)
+    .run(id, reminder.id, timestamp, timestamp, timestamp, timestamp, timestamp);
+
+  for (const body of [
+    { before: "2030-02-31T00:00:00Z" },
+    { before: "03/03/2030" },
+    { before: "2030-03-03" },
+    { before: "2030-03-03T00:00:00Z", all: "true" },
+    { before: "2030-03-03T00:00:00Z", compact: 1 },
+  ]) {
+    const response = await deliveries.DELETE(request("/api/deliveries", "DELETE", body));
+    assert.ok(raw.prepare("SELECT 1 FROM deliveries WHERE id = ?").get(id), "invalid cleanup input must not delete history");
+    assert.equal(response.status, 400);
+  }
+
+  const response = await deliveries.DELETE(request("/api/deliveries", "DELETE", { before: "2030-03-03T08:00:00+08:00", all: false, compact: false }));
+  assert.equal(response.status, 200);
+  assert.equal(raw.prepare("SELECT 1 FROM deliveries WHERE id = ?").get(id), undefined);
+});
+
 test("delivery retry distinguishes a missing record from a state conflict", async () => {
   const missing = await deliveryRetry.POST(request("/api/deliveries/missing/retry", "POST", {}), { params: Promise.resolve({ id: "missing" }) });
   assert.equal(missing.status, 404);
