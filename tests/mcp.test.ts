@@ -279,3 +279,24 @@ test("MCP accepts case-insensitive Bearer schemes and still rejects read-only to
   assert.equal(result.structuredContent.status, 403);
   assert.equal(database.listTasks().length, count);
 });
+
+test("MCP accepts both declared date-override limits while bounding excess input elements", async () => {
+  const dates = (year: number) => Array.from({ length: 366 }, (_, index) => new Date(Date.UTC(year, 0, 1) + index * 86_400_000).toISOString().slice(0, 10));
+  const input = { ...task, skipDates: dates(2029), includeDates: dates(2031) };
+  const { taskInputSchema } = await import("../lib/validation");
+  assert.equal(taskInputSchema.safeParse(input).success, true);
+
+  const writeToken = token("write");
+  const created = await callTool(writeToken, "create_task", input);
+  assert.equal(created.result.isError, undefined);
+  const entity = created.result.structuredContent?.task as { id: string; skipDates: string[]; includeDates: string[] };
+  assert.equal(entity.skipDates.length, 366);
+  assert.equal(entity.includeDates.length, 366);
+  assert.ok(database.getTask(entity.id));
+
+  const count = database.listTasks().length;
+  const excess = { ...input, ...Object.fromEntries(Array.from({ length: 1000 }, (_, index) => [`extra_${index}`, null])) };
+  const rejected = await callTool(writeToken, "create_task", excess);
+  assert.equal(rejected.result.isError, true);
+  assert.equal(database.listTasks().length, count);
+});

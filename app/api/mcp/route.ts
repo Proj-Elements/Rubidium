@@ -110,7 +110,8 @@ async function callApi(
 }
 
 function createServer(authorization: string): McpServer {
-  const server = new McpServer({ name: "rubidium", version: packageMetadata.version }, { maxToolInputElements: 500 });
+  // A valid task can include two 366-entry date arrays plus its scalar fields.
+  const server = new McpServer({ name: "rubidium", version: packageMetadata.version }, { maxToolInputElements: 1000 });
 
   server.registerTool("list_tasks", {
     title: "列出提醒",
