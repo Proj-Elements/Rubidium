@@ -122,3 +122,34 @@ test("queued notification options cannot override live channel settings", async 
   }), true);
   assert.equal(db.listDeliveries({ page: 1, pageSize: 1 }).deliveries[0].status, "sent");
 });
+
+for (const notification of ["{invalid-json", JSON.stringify({ sound: 42, deviceKey: "untrusted-stored-secret" })]) {
+  test(`invalid queued notification options release the claim and require repair: ${notification}`, async () => {
+    const original = pendingDelivery();
+    const raw = db.__rawDatabaseForTests();
+    raw.prepare("UPDATE deliveries SET notification = ? WHERE id = ?").run(notification, original.id);
+
+    assert.equal(await scheduler.processOneDelivery(due, async () => assert.fail("invalid options must not send")), true);
+    const failed = db.listDeliveries({ page: 1, pageSize: 1 }).deliveries[0];
+    assert.equal(failed.status, "pending");
+    assert.equal(failed.manualOnly, true);
+    assert.equal(failed.attempts, 1);
+    assert.equal(raw.prepare("SELECT lease_until FROM deliveries WHERE id = ?").get(original.id)?.lease_until, null);
+    const [attempt] = db.deliveryAttempts(original.id);
+    assert.equal(attempt.outcome, "failed");
+    assert.ok(attempt.finishedAt);
+    assert.equal(attempt.error, failed.lastError);
+    assert.doesNotMatch(failed.lastError!, /untrusted-stored-secret|invalid-json/);
+
+    const healthy = pendingDelivery();
+    assert.equal(await scheduler.processOneDelivery(due, async () => {}), true);
+    assert.equal(db.listDeliveries({ page: 1, pageSize: 50 }).deliveries.find((item) => item.id === healthy.id)?.status, "sent");
+    assert.equal(await scheduler.processOneDelivery(new Date(due.getTime() + 180_000), async () => assert.fail("invalid options must wait for repair")), false);
+
+    raw.prepare("UPDATE deliveries SET notification = '{}' WHERE id = ?").run(original.id);
+    assert.equal(db.retryDeliveryResult(original.id, due), "queued");
+    assert.equal(await scheduler.processOneDelivery(due, async () => {}), true);
+    assert.equal(db.listDeliveries({ page: 1, pageSize: 50 }).deliveries.find((item) => item.id === original.id)?.status, "sent");
+    assert.deepEqual(db.deliveryAttempts(original.id).map((item) => item.outcome).sort(), ["failed", "sent"]);
+  });
+}

@@ -576,7 +576,9 @@ export function deliverySettings(deviceId: string, notification = "{}"): Channel
     .get(deviceId) as Pick<ChannelDeliverySettings, "endpoint" | "deviceKey" | "channelType" | "topic"> | undefined;
   if (!device && deviceId !== "default") throw new DomainError("目标渠道已删除", 409);
   // Persisted notification options may customize presentation, never channel identity.
-  const options = taskFields.shape.notification.parse(JSON.parse(notification));
+  let options: Task["notification"];
+  try { options = taskFields.shape.notification.parse(JSON.parse(notification)); }
+  catch { throw new DomainError("通知配置无效，等待修复后重试", 409); }
   return { ...defaults, ...device, ...options, channelType: device?.channelType ?? "bark", topic: device?.topic ?? "" };
 }
 

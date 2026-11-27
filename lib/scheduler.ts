@@ -1,6 +1,6 @@
 import { HISTORY_PRUNE_BATCH_SIZE, claimDelivery, coolingDownChannelIds, deliverySettings, dueTaskRows, endpointStateKey, extendEndpointCooldown, isolateInvalidTask, markDeliveryFailed, markDeliverySent, pruneHistory, queueTaskBatch, readRuntimeState, readSettings, writeRuntimeState } from "./db";
 import { DeliveryError } from "./bark";
-import { redactSecrets } from "./errors";
+import { DomainError, redactSecrets } from "./errors";
 import type { ChannelDeliverySettings } from "./types";
 import { logError } from "./logging";
 import { sendNotification } from "./notification";
@@ -79,21 +79,23 @@ export async function processOneDelivery(
   // messages looking pending for days.
   const item = claimDelivery(claimAt, true, excludedChannels);
   if (!item) return false;
-  const settings = deliverySettings(item.deviceId, item.notification);
-  const endpointKey = endpointStateKey(settings);
+  let settings: ChannelDeliverySettings | undefined;
   const attempt = item.attempts + 1;
   const completedAt = (): Date => new Date(Math.max(claimAt.getTime(), Date.now()));
   try {
+    settings = deliverySettings(item.deviceId, item.notification);
     await deliver(settings, item.name, item.description || "计划提醒时间已到。");
     markDeliverySent(item.id, item.leaseUntil, completedAt());
   } catch (error) {
+    if (!settings && !(error instanceof DomainError)) throw error;
     const nowCompleted = completedAt();
-    const message = redactSecrets(error instanceof Error ? error.message : "未知推送错误", [settings.deviceKey]);
+    const message = redactSecrets(error instanceof Error ? error.message : "未知推送错误", [settings?.deviceKey ?? ""]);
     const retryAt = error instanceof DeliveryError ? error.retryAt : undefined;
-    markDeliveryFailed(item.id, item.leaseUntil, attempt, message, nowCompleted, retryAt, error instanceof DeliveryError && error.kind === "permanent");
-    if (error instanceof DeliveryError && error.scope === "endpoint") {
+    // Invalid configuration must finish its claim and wait for repair, not lease recovery.
+    markDeliveryFailed(item.id, item.leaseUntil, attempt, message, nowCompleted, retryAt, !settings || error instanceof DeliveryError && error.kind === "permanent");
+    if (settings && error instanceof DeliveryError && error.scope === "endpoint") {
       const delay = error.kind === "permanent" ? 60_000 : 5000;
-      extendEndpointCooldown(endpointKey, Math.max(retryAt?.getTime() ?? 0, nowCompleted.getTime() + delay));
+      extendEndpointCooldown(endpointStateKey(settings), Math.max(retryAt?.getTime() ?? 0, nowCompleted.getTime() + delay));
     }
     logError("delivery.failed", new Error(message), { deliveryId: item.id, attempt });
   }
