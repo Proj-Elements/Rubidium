@@ -1,6 +1,6 @@
 import { parseDateTime } from "@internationalized/date";
 import { presetCronFromParts, SCHEDULE_TIME_ZONE, type RecurrencePreset } from "./types";
-import { deliverySchema, SECURITY_SESSION_PAGE_SIZE, taskSchema, timestampSchema, timeZoneSchema } from "./contracts";
+import { deliverySchema, SECURITY_SESSION_PAGE_SIZE, settingsFields, taskSchema, timestampSchema, timeZoneSchema } from "./contracts";
 import { isMessageKey, localeTags, translate, type Locale, type MessageKey, type MessageValues } from "./i18n";
 
 export { SCHEDULE_TIME_ZONE };
@@ -110,10 +110,28 @@ function dateValue(value: unknown): boolean {
   return typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value)
     && Number.isFinite(Date.parse(`${value}T00:00:00Z`)) && new Date(`${value}T00:00:00Z`).toISOString().slice(0, 10) === value;
 }
-function timestampValue(value: unknown): boolean { return typeof value === "string" && Number.isFinite(Date.parse(value)); }
+function timestampValue(value: unknown): boolean { return timestampSchema.safeParse(value).success; }
 function nullableTimestamp(value: unknown): boolean { return value === null || timestampValue(value); }
+function occurrenceValue(value: unknown): value is Record<string, unknown> {
+  return objectValue(value) && typeof value.taskId === "string" && timestampValue(value.occurrenceAt);
+}
+function bulkResultsValue(value: unknown): boolean {
+  return Array.isArray(value) && value.every((item) => objectValue(item) && typeof item.id === "string"
+    && typeof item.success === "boolean" && (item.error === undefined || typeof item.error === "string"));
+}
+function epochValue(value: unknown): boolean { return nonNegativeInteger(value) && validDate(new Date(Number(value))); }
+function base64Value(value: unknown, bytes?: number): boolean {
+  // Repeating groups exhaust the regexp stack on valid multi-megabyte exports.
+  if (typeof value !== "string" || !value || value.length % 4 !== 0 || !/^[A-Za-z0-9+/]*={0,2}$/.test(value)) return false;
+  if (bytes === undefined) return true;
+  if (value.length !== 4 * Math.ceil(bytes / 3)) return false;
+  const decoded = atob(value);
+  return decoded.length === bytes && btoa(decoded) === value;
+}
 function taskValue(value: unknown): boolean {
-  return taskSchema.safeParse(value).success;
+  // The client uses the response directly, so schema input defaults must be present.
+  return objectValue(value) && ["timeZone", "deviceId", "notification", "skipDates", "includeDates"].every((key) => value[key] !== undefined)
+    && taskSchema.safeParse(value).success;
 }
 function deliveryValue(value: unknown): boolean {
   return deliverySchema.safeParse(value).success;
@@ -133,7 +151,7 @@ export function validApiPayload(url: string, data: unknown): boolean {
     return typeof object.initialized === "boolean" && typeof object.setupEnabled === "boolean" && typeof object.setupTokenRequired === "boolean";
   }
   if (path === "/api/overview") return Array.isArray(object.tasks) && object.tasks.every(taskValue)
-    && Array.isArray(object.upcoming) && object.upcoming.every((item) => objectValue(item) && typeof item.taskId === "string" && timestampValue(item.occurrenceAt))
+    && Array.isArray(object.upcoming) && object.upcoming.every(occurrenceValue)
     && Array.isArray(object.upcomingDays) && object.upcomingDays.every((item) => objectValue(item) && dateValue(item.date) && nonNegativeInteger(item.total) && nonNegativeInteger(item.hidden))
     && Array.isArray(object.recent) && object.recent.every(deliveryValue)
     && Array.isArray(object.activity) && object.activity.every((item) => objectValue(item) && dateValue(item.date) && nonNegativeInteger(item.sent))
@@ -141,22 +159,23 @@ export function validApiPayload(url: string, data: unknown): boolean {
     && objectValue(object.deliveries) && nonNegativeInteger(object.deliveries.pending) && nonNegativeInteger(object.deliveries.retrying) && nullableTimestamp(object.deliveries.nextRetryAt)
     && typeof object.endpoint === "string" && typeof object.deviceKeyConfigured === "boolean"
     && objectValue(object.defaultChannel) && (object.defaultChannel.type === "bark" || object.defaultChannel.type === "ntfy")
-    && typeof object.defaultChannel.credentialConfigured === "boolean" && timestampValue(object.serverTime);
-  if (path === "/api/tasks/preview") return Array.isArray(object.dates) && object.dates.every((value) => timestampSchema.safeParse(value).success);
+    && typeof object.defaultChannel.credentialConfigured === "boolean" && timestampValue(object.serverTime)
+    && (!("displayTimeZone" in object) || timeZoneSchema.safeParse(object.displayTimeZone).success);
+  if (path === "/api/tasks/preview") return Array.isArray(object.dates) && object.dates.every(timestampValue);
   if (path === "/api/settings") {
     if (!Number.isSafeInteger(object.revision) || Number(object.revision) < 1) return false;
     if (object.saved === true) return true;
-    return objectValue(object.settings) && ["endpoint", "title", "sound", "group", "icon"].every((key) => typeof (object.settings as Record<string, unknown>)[key] === "string")
+    return objectValue(object.settings) && settingsFields.safeParse(object.settings).success && typeof object.settings.historyRetentionDays === "number"
       && typeof object.deviceKeyConfigured === "boolean" && typeof object.dataDir === "string";
   }
   if (path === "/api/settings/test") return object.delivered === true;
   if (path === "/api/tasks" || /^\/api\/tasks\/[^/]+$/.test(path)) {
     if ("task" in object) return taskValue(object.task);
-    if (object.archived === true || object.deleted === true || Array.isArray(object.results)) return true;
+    if (object.archived === true || object.deleted === true || bulkResultsValue(object.results)) return true;
     return Array.isArray(object.tasks) && object.tasks.every(taskValue) && (!("total" in object) || paginationValue(object));
   }
   if (path === "/api/deliveries") return nonNegativeInteger(object.removed)
-    || Array.isArray(object.results)
+    || bulkResultsValue(object.results)
     || (Array.isArray(object.deliveries) && object.deliveries.every(deliveryValue) && paginationValue(object));
   if (/^\/api\/deliveries\/[^/]+\/attempts$/.test(path)) return Array.isArray(object.attempts)
     && object.attempts.every((item) => objectValue(item) && typeof item.id === "string" && typeof item.deliveryId === "string"
@@ -176,13 +195,19 @@ export function validApiPayload(url: string, data: unknown): boolean {
   }
   if (/^\/api\/channels\/[^/]+\/test$/.test(path)) return object.delivered === true;
   if (path === "/api/security") return object.saved === true || object.revoked === true || typeof object.token === "string"
-    || (Array.isArray(object.sessions) && Array.isArray(object.tokens) && objectValue(object.sessionPagination)
+    || (Array.isArray(object.sessions) && object.sessions.every((item) => objectValue(item) && typeof item.id === "string" && epochValue(item.expiresAt))
+      && Array.isArray(object.tokens) && object.tokens.every((item) => objectValue(item) && typeof item.id === "string" && typeof item.name === "string"
+        && (item.scope === "read" || item.scope === "write") && epochValue(item.expiresAt)) && objectValue(object.sessionPagination)
       && paginationValue(object.sessionPagination) && Number(object.sessionPagination.pageSize) === SECURITY_SESSION_PAGE_SIZE
       && object.sessions.length <= Number(object.sessionPagination.pageSize));
-  if (path === "/api/data/export") return object.format === "rubidium-encrypted-export" && object.version === 1 && typeof object.payload === "string";
+  if (path === "/api/data/export") return object.format === "rubidium-encrypted-export" && object.version === 1
+    && nonNegativeInteger(object.schemaVersion) && Number(object.schemaVersion) > 0 && object.cipher === "aes-256-gcm" && object.kdf === "scrypt"
+    && base64Value(object.salt, 16) && base64Value(object.iv, 12) && base64Value(object.tag, 16) && base64Value(object.payload);
   if (path === "/api/data/import") return object.imported === true;
-  if (path === "/api/audit") return Array.isArray(object.events);
-  if (path === "/api/upcoming") return Array.isArray(object.items) && nonNegativeInteger(object.total);
+  if (path === "/api/audit") return Array.isArray(object.events) && object.events.every((item) => objectValue(item) && typeof item.id === "string"
+    && typeof item.action === "string" && typeof item.target === "string" && timestampValue(item.createdAt));
+  if (path === "/api/upcoming") return Array.isArray(object.items) && object.items.every((item) => occurrenceValue(item) && typeof item.name === "string")
+    && nonNegativeInteger(object.total) && (object.next === null || occurrenceValue(object.next));
   return false;
 }
 

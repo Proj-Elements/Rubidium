@@ -62,3 +62,33 @@ test("an unchanged start in the second DST overlap keeps its saved instant and p
   const listing = await page.request.get("/api/tasks").then((response) => response.json());
   expect(listing.tasks.find((item: { id: string }) => item.id === task.id).startsAt).toBe(task.startsAt);
 });
+
+test("a task response missing notification defaults shows an error and recovers before opening details", async ({ page }) => {
+  await login(page);
+  const name = `Response defaults ${test.info().project.name}`;
+  const start = new Date(Date.now() + 300_000);
+  start.setUTCSeconds(0, 0);
+  const created = await page.request.post("/api/tasks", { data: {
+    name, startsAt: start.toISOString(), timeZone: "UTC", preset: "once", cron: `${start.getUTCMinutes()} ${start.getUTCHours()} * * *`, repeatCount: 1,
+  } });
+  expect(created.status()).toBe(201);
+  const { task } = await created.json();
+  let incomplete = true;
+  const errors: string[] = [];
+  page.on("pageerror", (error) => errors.push(error.message));
+  await page.route("**/api/overview", async (route) => {
+    const response = await route.fetch();
+    const payload = await response.json();
+    if (incomplete) delete payload.tasks.find((item: { id: string }) => item.id === task.id).notification;
+    await route.fulfill({ response, json: payload });
+  });
+  await page.goto("/");
+  await expect(page.locator(".notice-error")).toContainText("服务响应格式无效，请重新同步");
+  await page.screenshot({ path: test.info().outputPath("response-defaults-error.png"), animations: "disabled" });
+  incomplete = false;
+  await page.getByRole("button", { name: "重试", exact: true }).click();
+  await expect(page.locator(".notice-error")).toBeHidden();
+  await page.getByRole("grid", { name: "接下来的提醒", exact: true }).getByRole("row", { name: `查看提醒详情：${name}`, exact: true }).click();
+  await expect(page.getByRole("dialog", { name: "提醒详情", exact: true })).toBeVisible();
+  expect(errors).toEqual([]);
+});
