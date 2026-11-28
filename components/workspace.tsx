@@ -40,8 +40,8 @@ function WorkspaceContent({ children }: { children: ReactNode }) {
       if (alive) { setAuthenticated(data.authenticated); setInitialized(data.initialized); setSetupEnabled(data.setupEnabled); setSetupTokenRequired(data.setupTokenRequired); }
     }).catch((error) => { if (alive) setError(errorMessage(error, locale)); });
     const expired = () => setAuthenticated(false);
-    window.addEventListener("barker:unauthorized", expired);
-    return () => { alive = false; window.removeEventListener("barker:unauthorized", expired); };
+    window.addEventListener("rubidium:unauthorized", expired);
+    return () => { alive = false; window.removeEventListener("rubidium:unauthorized", expired); };
   }, [locale]);
   return <>
     <Toast.Provider placement="top end" />

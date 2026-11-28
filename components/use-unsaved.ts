@@ -4,7 +4,7 @@ import { useEffect } from "react";
 
 let dirtyFormCount = 0;
 let removePageGuards: (() => void) | null = null;
-const guardEvent = "barker:unsaved-navigation";
+const guardEvent = "rubidium:unsaved-navigation";
 
 export interface UnsavedNavigationRequest {
   proceed: () => void;
@@ -41,7 +41,7 @@ function acquirePageGuards(): void {
   document.addEventListener("click", interceptLink, true);
   const guardedUrl = window.location.href;
   const guardedState = window.history.state;
-  window.history.pushState({ ...guardedState, barkerUnsaved: true }, "", guardedUrl);
+  window.history.pushState({ ...guardedState, rubidiumUnsaved: true }, "", guardedUrl);
   let leaving = false;
   const popstate = (event: PopStateEvent) => {
     if (leaving) return;
@@ -50,7 +50,7 @@ function acquirePageGuards(): void {
       leaving = true;
       window.history.back();
     }, () => {
-      window.history.pushState({ ...guardedState, barkerUnsaved: true }, "", guardedUrl);
+      window.history.pushState({ ...guardedState, rubidiumUnsaved: true }, "", guardedUrl);
     });
   };
   window.addEventListener("popstate", popstate, true);
@@ -58,7 +58,7 @@ function acquirePageGuards(): void {
     window.removeEventListener("beforeunload", beforeUnload);
     document.removeEventListener("click", interceptLink, true);
     window.removeEventListener("popstate", popstate, true);
-    if (!leaving && window.history.state?.barkerUnsaved) window.history.replaceState(guardedState, "", guardedUrl);
+    if (!leaving && window.history.state?.rubidiumUnsaved) window.history.replaceState(guardedState, "", guardedUrl);
   };
 }
 

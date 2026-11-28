@@ -31,8 +31,8 @@ function checkConfiguredCliReset(password: string, splitInput = false): void {
   const decoy = join(root, "data");
   for (const path of [configured, decoy]) {
     mkdirSync(path);
-    const database = new DatabaseSync(join(path, "barker.sqlite"));
-    database.exec(`CREATE TABLE settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+    const database = new DatabaseSync(join(path, "rubidium.sqlite"));
+    database.exec(`PRAGMA user_version=6; CREATE TABLE settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);
       CREATE TABLE sessions (id TEXT PRIMARY KEY);
       CREATE TABLE api_tokens (id TEXT PRIMARY KEY);
       CREATE TABLE audit_events (id TEXT PRIMARY KEY, action TEXT NOT NULL, target TEXT NOT NULL, created_at TEXT NOT NULL);
@@ -40,7 +40,6 @@ function checkConfiguredCliReset(password: string, splitInput = false): void {
     database.close();
   }
   writeFileSync(join(decoy, "session-secret.txt"), "decoy-session-signing-secret", { mode: 0o600 });
-  writeFileSync(join(decoy, "access-password.txt"), "decoy-runtime-password", { mode: 0o600 });
   const sessionSecret = "configured-cli-session-secret";
   const runtimePassword = "configured-runtime-password";
   writeFileSync(join(root, ".env.local"), `RUBIDIUM_DATA_DIR=configured-data\nRUBIDIUM_SESSION_SECRET=${sessionSecret}\nRUBIDIUM_PASSWORD=${runtimePassword}\n`, { mode: 0o600 });
@@ -77,8 +76,8 @@ function checkConfiguredCliReset(password: string, splitInput = false): void {
     });
     assert.equal(result.status, 0, result.stderr);
     assert.equal(`${result.stdout}\n${result.stderr}`.includes(password), false);
-    const target = new DatabaseSync(join(configured, "barker.sqlite"), { readOnly: true });
-    const untouched = new DatabaseSync(join(decoy, "barker.sqlite"), { readOnly: true });
+    const target = new DatabaseSync(join(configured, "rubidium.sqlite"), { readOnly: true });
+    const untouched = new DatabaseSync(join(decoy, "rubidium.sqlite"), { readOnly: true });
     try {
       const row = target.prepare("SELECT value FROM settings WHERE key = 'password_override'").get();
       assert.ok(row, "reset must use the configured data directory");
@@ -122,7 +121,7 @@ test("reset rejects weak passwords and missing databases without creating data",
   const emptyDirectory = mkdtempSync(join(tmpdir(), "rubidium-password-reset-empty-"));
   try {
     assert.throws(() => resetPassword("valid-reset-password-2030", emptyDirectory), /database does not exist/);
-    assert.equal(existsSync(join(emptyDirectory, "barker.sqlite")), false);
+    assert.equal(existsSync(join(emptyDirectory, "rubidium.sqlite")), false);
   } finally { rmSync(emptyDirectory, { recursive: true, force: true }); }
 });
 
@@ -137,7 +136,7 @@ test("interactive reset refuses non-TTY input without echoing or persisting it",
     assert.equal(result.status, 1);
     assert.match(result.stderr, /必须通过交互终端运行/);
     assert.equal(`${result.stdout}\n${result.stderr}`.includes(secret), false);
-    assert.equal(existsSync(join(emptyDirectory, "barker.sqlite")), false);
+    assert.equal(existsSync(join(emptyDirectory, "rubidium.sqlite")), false);
   } finally { rmSync(emptyDirectory, { recursive: true, force: true }); }
 });
 

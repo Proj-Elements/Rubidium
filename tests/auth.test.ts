@@ -57,7 +57,7 @@ test("logout revokes the persisted session", () => {
 test("Bearer schemes are case-insensitive and declared tokens retain their scope over cookies", () => {
   const readToken = auth.createApiToken("Auth scope reader", "read", 1);
   const writeToken = auth.createApiToken("Auth scope writer", "write", 1);
-  const cookie = `barker_session=${auth.createSessionToken()}`;
+  const cookie = `rubidium_session=${auth.createSessionToken()}`;
   for (const scheme of ["Bearer", "bearer", "BEARER", "bEaReR"]) {
     for (const separator of [" ", "   "]) {
       const headers = { authorization: `${scheme}${separator}${readToken}`, cookie };
@@ -176,7 +176,7 @@ test("oversized configured passwords fail startup instead of creating an unusabl
 });
 
 test("session cookies follow HTTP or HTTPS and malformed cookies are ignored", () => {
-  assert.equal(auth.getCookieValue("barker_session=%bad"), null);
+  assert.equal(auth.getCookieValue("rubidium_session=%bad"), null);
   assert.equal(auth.requestUsesHttps(new Request("http://localhost:3000")), false);
   assert.doesNotMatch(auth.setSessionCookie("abc"), /Secure/);
   assert.match(auth.setSessionCookie("abc", true), /Secure/);
@@ -264,4 +264,9 @@ test("Secure cookie only follows an explicit trust decision", () => {
   process.env.RUBIDIUM_TRUST_PROXY = "1";
   assert.equal(auth.requestUsesHttps(request), true);
   delete process.env.RUBIDIUM_TRUST_PROXY;
+});
+
+test("v1 session cookies are rejected even when their token is valid", () => {
+  const token = auth.createSessionToken();
+  assert.equal(auth.requestIsAuthorized(new Request("http://localhost/api/tasks", { headers: { cookie: `barker_session=${token}` } })), false);
 });

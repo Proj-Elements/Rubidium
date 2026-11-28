@@ -21,7 +21,8 @@ before(async () => {
   db = await import("../lib/db"); scheduler = await import("../lib/scheduler"); auth = await import("../lib/auth");
 });
 beforeEach(() => {
-  db.__rawDatabaseForTests().exec("DELETE FROM deliveries; DELETE FROM tasks; DELETE FROM devices; DELETE FROM runtime_state; DELETE FROM api_tokens;");
+  db.__rawDatabaseForTests().exec("DELETE FROM deliveries; DELETE FROM tasks; DELETE FROM devices WHERE id <> 'default'; DELETE FROM runtime_state; DELETE FROM api_tokens;");
+  db.__rawDatabaseForTests().exec("UPDATE devices SET type = 'bark', endpoint = 'https://api.day.app', topic = '', device_key = '' WHERE id = 'default'");
 });
 after(() => rmSync(directory, { recursive: true, force: true }));
 const created = new Date("2030-01-01T00:00:00Z");
@@ -42,7 +43,7 @@ test("delivery order follows occurrence time and ordinary settings retain retry 
   assert.equal(first.occurrenceAt, "2030-01-01T00:01:00.000Z");
   db.markDeliveryFailed(first.id, first.leaseUntil, 1, "429", due, new Date("2030-01-01T02:00:00Z"));
   const previous = db.readSettingsState();
-  const { endpoint, deviceKey } = previous.settings;
+  const { endpoint, deviceKey } = db.deliverySettings("default");
   const cooldown = `endpoint:${createHash("sha256").update(`${endpoint}\n${deviceKey}`).digest("hex")}`;
   db.writeRuntimeState(cooldown, "1893463200000");
   db.writeSettings({ ...previous.settings, group: "new-group" }, previous.revision);
@@ -82,8 +83,8 @@ test("expired pending deliveries cannot be edited", () => {
 });
 
 test("Bark endpoint failures start a cooldown while payload failures leave other messages eligible", async () => {
-  const settings = { ...db.readSettings(), deviceKey: "regression-cooldown-device" };
-  db.writeSettings(settings);
+  db.saveChannel({ ...db.listChannels()[0], credential: "regression-cooldown-device" });
+  const settings = db.deliverySettings("default");
   const cooldown = `endpoint:${createHash("sha256").update(`${settings.endpoint}\n${settings.deviceKey}`).digest("hex")}`;
   for (const name of ["First outbox entry", "Second outbox entry"]) {
     const reminder = db.createTask({ ...input, name }, created);
@@ -98,15 +99,15 @@ test("Bark endpoint failures start a cooldown while payload failures leave other
 });
 
 test("task-specific devices and options stay attached to queued messages", async () => {
-  const device = db.saveDevice({ name: "Work", endpoint: "https://work.example", deviceKey: "work-device-key" });
+  const device = db.saveChannel({ name: "Work", type: "bark", endpoint: "https://work.example", credential: "work-device-key" });
   const task = db.createTask({ ...input, deviceId: device.id, notification: { group: "work", sound: "bell" } }, created);
   await scheduler.enqueueDueOccurrences(due);
   await scheduler.processOneDelivery(due, async (settings) => {
     assert.equal(settings.endpoint, "https://work.example"); assert.equal(settings.deviceKey, "work-device-key"); assert.equal(settings.group, "work");
   });
-  assert.throws(() => db.removeDevice(device.id, device.revision), /仍被/);
+  assert.throws(() => db.removeChannel(device.id, device.revision), /仍被/);
   assert.equal(db.getTask(task.id)?.sentCount, 1);
-  assert.equal(JSON.stringify(db.listDevices()).includes("work-device-key"), false);
+  assert.equal(JSON.stringify(db.listChannels()).includes("work-device-key"), false);
 });
 
 test("Ntfy channels retain protected configuration and task bindings", async () => {

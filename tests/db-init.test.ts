@@ -43,13 +43,13 @@ test("importing server modules creates no database, directories or secrets", () 
 test("an older application refuses to downgrade a newer database schema", async () => {
   const newerDirectory = mkdtempSync(join(tmpdir(), "barker-newer-schema-"));
   try {
-    const database = new DatabaseSync(join(newerDirectory, "barker.sqlite"));
+    const database = new DatabaseSync(join(newerDirectory, "rubidium.sqlite"));
     database.exec("PRAGMA user_version = 99");
     database.close();
     const result = await startInitializer(newerDirectory);
     assert.notEqual(result.code, 0);
-    assert.match(result.error, /newer than supported/);
-    const inspect = new DatabaseSync(join(newerDirectory, "barker.sqlite"), { readOnly: true });
+    assert.match(result.error, /Unsupported database schema/);
+    const inspect = new DatabaseSync(join(newerDirectory, "rubidium.sqlite"), { readOnly: true });
     assert.equal(inspect.prepare("PRAGMA user_version").get()?.user_version, 99);
     inspect.close();
   } finally {
@@ -57,16 +57,16 @@ test("an older application refuses to downgrade a newer database schema", async 
   }
 });
 
-test("a migration failure leaves a shared connection open", () => {
+test("an initialization failure leaves a shared connection open", () => {
   const result = spawnSync(process.execPath, ["--import", "tsx", "--input-type=module", "--eval", `
     import assert from 'node:assert/strict';
     import { DatabaseSync } from 'node:sqlite';
     const connection = new DatabaseSync(':memory:');
     connection.exec('PRAGMA user_version=99');
-    globalThis.barkerDb = connection;
+    globalThis.rubidiumDb = connection;
     const { initializeDatabase } = await import('./lib/db.ts');
-    assert.throws(initializeDatabase, /newer than supported/);
-    assert.equal(globalThis.barkerDb, connection);
+    assert.throws(initializeDatabase, /Unsupported database schema/);
+    assert.equal(globalThis.rubidiumDb, connection);
     assert.equal(connection.prepare('PRAGMA user_version').get().user_version, 99);
     connection.close();
   `], { env: { ...process.env, RUBIDIUM_DATA_DIR: directory }, encoding: "utf8" });
@@ -76,7 +76,7 @@ test("a migration failure leaves a shared connection open", () => {
 test("startup tightens existing data directory and database permissions", async () => {
   const existing = mkdtempSync(join(tmpdir(), "barker-permissions-"));
   try {
-    const path = join(existing, "barker.sqlite");
+    const path = join(existing, "rubidium.sqlite");
     const database = new DatabaseSync(path);
     database.close();
     chmodSync(existing, 0o755); chmodSync(path, 0o644);

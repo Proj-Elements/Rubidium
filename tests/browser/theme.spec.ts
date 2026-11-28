@@ -13,7 +13,7 @@ test("appearance cycles through system, light, and dark while tracking OS change
   await page.screenshot({ path: test.info().outputPath("system-dark-landscape.png"), animations: "disabled" });
   await theme.click();
   await expect(theme).toHaveAccessibleName("外观：浅色，切换为深色");
-  await expect.poll(() => page.evaluate(() => localStorage.getItem("barker:appearance"))).toBe("light");
+  await expect.poll(() => page.evaluate(() => localStorage.getItem("rubidium:appearance"))).toBe("light");
   await expect.poll(() => page.evaluate(() => getComputedStyle(document.documentElement).colorScheme)).toBe("light");
   await page.screenshot({ path: test.info().outputPath("explicit-light-landscape.png"), animations: "disabled" });
   await theme.click();

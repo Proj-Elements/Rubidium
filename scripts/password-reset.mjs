@@ -3,6 +3,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { DatabaseSync } from "node:sqlite";
 import { join, resolve } from "node:path";
 import { StringDecoder } from "node:string_decoder";
+import { DATABASE_FILENAME, assertV2DataDirectory } from "../lib/storage-format.mjs";
 import { getEnvironmentVariable } from "../lib/environment.mjs";
 import { loadRuntimeEnvironment, runtimeDirectory } from "./runtime-paths.mjs";
 
@@ -30,11 +31,13 @@ export function resetPassword(password, dataDirectory = getEnvironmentVariable("
   }
 
   const directory = runtimeDirectory(process.cwd(), dataDirectory);
-  const databasePath = join(directory, "barker.sqlite");
+  assertV2DataDirectory(directory);
+  const databasePath = join(directory, DATABASE_FILENAME);
   if (!existsSync(databasePath)) throw new Error(`Rubidium database does not exist at ${databasePath}; no data was changed`);
   const sessionSecret = configuredSecret("SESSION_SECRET", directory, "session-secret.txt", MIN_SECRET_LENGTH);
   if (!sessionSecret) throw new Error("Session signing secret is missing; no data was changed");
-  const runtimePassword = configuredSecret("PASSWORD", directory, "access-password.txt", MIN_PASSWORD_LENGTH);
+  const runtimePassword = getEnvironmentVariable("PASSWORD")?.trim() || "";
+  if (runtimePassword && (runtimePassword.length < MIN_PASSWORD_LENGTH || runtimePassword.length > MAX_PASSWORD_LENGTH)) throw new Error("RUBIDIUM_PASSWORD must contain 8–300 characters");
   const source = runtimePassword ? createHmac("sha256", sessionSecret).update(runtimePassword).digest("hex") : "setup";
   const salt = randomBytes(32).toString("hex");
   const override = JSON.stringify({ source, salt, hash: scryptSync(password, salt, 32).toString("hex") });

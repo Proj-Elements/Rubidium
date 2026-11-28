@@ -16,7 +16,7 @@ const MAX_DELIVERIES_PER_CYCLE = 20;
 const DELIVERY_CONCURRENCY = 4;
 const HISTORY_MAINTENANCE_INTERVAL_MS = 60_000;
 const yieldToEventLoop = (): Promise<void> => new Promise((resolve) => setImmediate(resolve));
-const globalWorker = globalThis as typeof globalThis & { barkerSchedulerStarted?: boolean };
+const globalWorker = globalThis as typeof globalThis & { rubidiumSchedulerStarted?: boolean };
 let nextHistoryMaintenanceAt = 0;
 
 function pruneHistoryBatch(now: Date): number {
@@ -151,16 +151,16 @@ export function schedulerHealth(now = Date.now()): boolean {
 export async function stopScheduler(): Promise<void> {
   stopping = true;
   if (timer) clearInterval(timer);
-  globalWorker.barkerSchedulerStarted = false;
+  globalWorker.rubidiumSchedulerStarted = false;
   await Promise.allSettled([cycle, enqueueCycle]);
   try { writeRuntimeState("scheduler_heartbeat", "0"); }
   catch { console.error("[Rubidium] could not clear shutdown heartbeat"); }
 }
 
 export function startScheduler(): void {
-  if (getEnvironmentVariable("DISABLE_SCHEDULER") === "1" || globalWorker.barkerSchedulerStarted) return;
+  if (getEnvironmentVariable("DISABLE_SCHEDULER") === "1" || globalWorker.rubidiumSchedulerStarted) return;
   stopping = false;
-  globalWorker.barkerSchedulerStarted = true;
+  globalWorker.rubidiumSchedulerStarted = true;
   const tick = () => {
     void runSchedulerCycle().catch((error) => logError("scheduler.cycle.failed", error));
   };
@@ -169,8 +169,8 @@ export function startScheduler(): void {
   process.once("SIGTERM", () => { void stopScheduler(); });
   process.once("SIGINT", () => { void stopScheduler(); });
   if (process.send) process.on("message", (message: unknown) => {
-    if (message && typeof message === "object" && "type" in message && message.type === "barker:shutdown") {
-      void stopScheduler().finally(() => { if (process.connected) process.send?.({ type: "barker:stopped" }); });
+    if (message && typeof message === "object" && "type" in message && message.type === "rubidium:shutdown") {
+      void stopScheduler().finally(() => { if (process.connected) process.send?.({ type: "rubidium:stopped" }); });
     }
   });
   tick();

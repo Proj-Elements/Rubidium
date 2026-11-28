@@ -104,10 +104,10 @@ test("a successful newer message does not hide another message's failure", async
 });
 
 test("valid JSON with invalid settings fields safely falls back to defaults", () => {
-  for (const value of [null, [], { deviceKey: 123 }, { endpoint: "file:///tmp" }]) {
+  for (const value of [null, [], { title: 123 }, { displayTimeZone: "invalid" }]) {
     db.__rawDatabaseForTests().prepare("UPDATE settings SET value = ? WHERE key = 'default'").run(JSON.stringify(value));
-    assert.equal(db.readSettings().deviceKey, "");
-    assert.equal(db.readSettings().endpoint, "https://api.day.app");
+    assert.equal(db.readSettings().title, "Rubidium 提醒");
+    assert.equal(db.readSettings().displayTimeZone, "Asia/Shanghai");
   }
 });
 
@@ -196,21 +196,22 @@ test("history pruning preserves cumulative scheduling budgets and pending messag
   assert.equal(db.getTask(task.id)?.queuedCount, 3);
 });
 
-test("a bad optional setting preserves the endpoint and device key, including after rotation", (context) => {
+test("invalid preferences do not change channel credentials, including after rotation", (context) => {
   const messages: string[] = [];
   context.mock.method(console, "error", (message: string) => messages.push(message));
-  const valid = { endpoint: "https://bark.test", deviceKey: "legacy/key", title: "Barker", sound: "", group: "", icon: "", historyRetentionDays: 0 };
+  const valid = { ...db.readSettings(), title: "Rubidium", sound: "", group: "", icon: "", historyRetentionDays: 0 };
+  const channel = db.saveChannel({ ...db.listChannels()[0], endpoint: "https://bark.test", credential: "previous/key" });
   db.__rawDatabaseForTests().prepare("UPDATE settings SET value = ? WHERE key = 'default'").run(JSON.stringify({ ...valid, icon: "bad icon" }));
-  assert.equal(db.readSettings().endpoint, valid.endpoint);
-  assert.equal(db.readSettings().deviceKey, valid.deviceKey);
+  assert.equal(db.deliverySettings("default").endpoint, channel.endpoint);
+  assert.equal(db.deliverySettings("default").deviceKey, "previous/key");
   assert.equal(db.readSettings().icon, "");
   const task = db.createTask(input, created);
-  db.__rawDatabaseForTests().prepare("UPDATE tasks SET last_error = ? WHERE id = ?").run(`upstream exposed ${valid.deviceKey} ${encodeURIComponent(valid.deviceKey)}`, task.id);
-  db.writeSettings({ ...valid, deviceKey: "replacement-key" });
-  assert.doesNotMatch(db.getTask(task.id)?.lastError ?? "", /legacy/);
-  logError("test.default-channel-secret", new Error("legacy/key replacement-key"));
+  db.__rawDatabaseForTests().prepare("UPDATE tasks SET last_error = ? WHERE id = ?").run(`upstream exposed previous/key ${encodeURIComponent("previous/key")}`, task.id);
+  db.saveChannel({ ...channel, credential: "replacement-key" });
+  assert.doesNotMatch(db.getTask(task.id)?.lastError ?? "", /previous/);
+  logError("test.default-channel-secret", new Error("previous/key replacement-key"));
   const logged = messages.pop() ?? "";
-  assert.match(logged, /legacy\/key/);
+  assert.match(logged, /previous\/key/);
   assert.doesNotMatch(logged, /replacement-key/);
 });
 

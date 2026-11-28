@@ -102,7 +102,7 @@ test("explicit setup override enables initialization without a bootstrap token",
   } finally { rmSync(allowDirectory, { recursive: true, force: true }); }
 });
 
-test("existing generated password files remain valid for upgraded installs", () => {
+test("v1 generated password files are rejected without initializing v2", () => {
   const legacyDirectory = mkdtempSync(join(tmpdir(), "rubidium-legacy-password-"));
   const password = "legacy-install-password-2030";
   writeFileSync(join(legacyDirectory, "access-password.txt"), `${password}\n`, { mode: 0o600 });
@@ -110,8 +110,8 @@ test("existing generated password files remain valid for upgraded installs", () 
     const result = spawnSync(process.execPath, ["--import", "tsx", "--input-type=module", "--eval", `const auth = await import('./lib/auth.ts'); console.log(JSON.stringify({ configured: auth.passwordIsConfigured(), accepted: auth.verifyPassword(${JSON.stringify(password)}) }));`], {
       cwd: process.cwd(), env: { ...process.env, RUBIDIUM_DATA_DIR: legacyDirectory, RUBIDIUM_PASSWORD: "", RUBIDIUM_SESSION_SECRET: "rubidium-legacy-session-secret" }, encoding: "utf8",
     });
-    assert.equal(result.status, 0, result.stderr);
-    assert.deepEqual(JSON.parse(result.stdout.trim()), { configured: true, accepted: true });
+    assert.notEqual(result.status, 0);
+    assert.match(result.stderr, /v1 migration is not supported/);
   } finally { rmSync(legacyDirectory, { recursive: true, force: true }); }
 });
 

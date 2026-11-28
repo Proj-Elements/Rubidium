@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { presetCron } from "../lib/cron";
-import { settingsSchema, taskInputSchema } from "../lib/validation";
+import { barkSettingsSchema, settingsSchema, taskInputSchema } from "../lib/validation";
 
 const startsAt = "2026-10-19T01:30:00.000+00:00";
 
@@ -15,18 +15,18 @@ test("task input accepts presets, rejects conflicting limits", () => {
   assert.equal(taskInputSchema.safeParse({ ...base, cron: "0 9 * * *" }).success, false);
 });
 
-test("settings allow an empty device key and strip credentials from the endpoint", () => {
-  const minimal = settingsSchema.safeParse({ endpoint: "https://api.day.app", title: "Rubidium 提醒", sound: "1107", group: "Rubidium", icon: "" });
+test("Bark settings accept an empty key and reject credentials embedded in the endpoint", () => {
+  const minimal = barkSettingsSchema.safeParse({ endpoint: "https://api.day.app", deviceKey: "", title: "Rubidium 提醒", sound: "1107", group: "Rubidium", icon: "" });
   assert.equal(minimal.success, true);
   assert.equal(minimal.data?.deviceKey, "");
-  const withCreds = settingsSchema.safeParse({ endpoint: "https://user:pass@api.day.app", deviceKey: "k", title: "t", sound: "", group: "", icon: "" });
+  const withCreds = barkSettingsSchema.safeParse({ endpoint: "https://user:pass@api.day.app", deviceKey: "k", title: "t", sound: "", group: "", icon: "" });
   assert.equal(withCreds.success, false);
-  const badIcon = settingsSchema.safeParse({ endpoint: "https://api.day.app", deviceKey: "k", title: "t", sound: "", group: "", icon: "not-a-url" });
+  const badIcon = barkSettingsSchema.safeParse({ endpoint: "https://api.day.app", deviceKey: "k", title: "t", sound: "", group: "", icon: "not-a-url" });
   assert.equal(badIcon.success, false);
 });
 
 test("history retention accepts disabled or bounded whole-day values", () => {
-  const base = { endpoint: "https://api.day.app", title: "Rubidium 提醒", sound: "1107", group: "Rubidium", icon: "" };
+  const base = { title: "Rubidium 提醒", sound: "1107", group: "Rubidium", icon: "" };
   assert.equal(settingsSchema.parse(base).historyRetentionDays, 0);
   assert.equal(settingsSchema.safeParse({ ...base, historyRetentionDays: 0 }).success, true);
   assert.equal(settingsSchema.safeParse({ ...base, historyRetentionDays: 36500 }).success, true);
@@ -55,7 +55,7 @@ test("control characters and absurd repeat counts are rejected", () => {
 });
 
 test("malformed or dangerous Bark endpoints are rejected without throwing", () => {
-  const base = { title: "t", sound: "", group: "", icon: "" };
+  const base = { title: "t", sound: "", group: "", icon: "", deviceKey: "" };
   for (const bad of [
     "https://",
     "http://",
@@ -68,11 +68,11 @@ test("malformed or dangerous Bark endpoints are rejected without throwing", () =
     "https://api.day.app/?k=1",
     "https://api.day.app/#f",
   ]) {
-    assert.equal(settingsSchema.safeParse({ ...base, endpoint: bad }).success, false, bad);
+    assert.equal(barkSettingsSchema.safeParse({ ...base, endpoint: bad }).success, false, bad);
   }
-  assert.equal(settingsSchema.safeParse({ ...base, endpoint: "https://api.day.app", icon: "ftp://x/y.png" }).success, false);
-  assert.equal(settingsSchema.safeParse({ ...base, endpoint: "https://api.day.app", icon: "https://example.com/i.png" }).success, true);
-  assert.equal(settingsSchema.safeParse({ ...base, endpoint: "https://api.day.app", icon: `https://x/${"a".repeat(400)}` }).success, false);
+  assert.equal(barkSettingsSchema.safeParse({ ...base, endpoint: "https://api.day.app", icon: "ftp://x/y.png" }).success, false);
+  assert.equal(barkSettingsSchema.safeParse({ ...base, endpoint: "https://api.day.app", icon: "https://example.com/i.png" }).success, true);
+  assert.equal(barkSettingsSchema.safeParse({ ...base, endpoint: "https://api.day.app", icon: `https://x/${"a".repeat(400)}` }).success, false);
 });
 
 test("task timezone and final payload byte limit are validated", () => {
@@ -81,5 +81,13 @@ test("task timezone and final payload byte limit are validated", () => {
   assert.equal(taskInputSchema.safeParse({ ...base, timeZone: "Mars/Olympus" }).success, false);
   assert.equal(taskInputSchema.safeParse({ ...base, timeZone: "+08:00" }).success, false);
   assert.equal(taskInputSchema.safeParse({ ...base, description: "中".repeat(1001) }).success, false);
-  assert.equal(settingsSchema.safeParse({ endpoint: "https://api.day.app", deviceKey: "中".repeat(300), title: "Barker", sound: "中".repeat(80), group: "中".repeat(100), icon: "" }).success, false);
+  assert.equal(barkSettingsSchema.safeParse({ endpoint: "https://api.day.app", deviceKey: "中".repeat(300), title: "Barker", sound: "中".repeat(80), group: "中".repeat(100), icon: "" }).success, false);
+});
+
+test("application preferences reject v1 credential fields", () => {
+  const preferences = { title: "Rubidium", sound: "", group: "", icon: "" };
+  assert.equal(settingsSchema.safeParse(preferences).success, true);
+  for (const field of [{ endpoint: "https://api.day.app" }, { deviceKey: "" }, { clearDeviceKey: true }]) {
+    assert.equal(settingsSchema.safeParse({ ...preferences, ...field }).success, false);
+  }
 });

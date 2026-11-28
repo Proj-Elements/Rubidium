@@ -93,7 +93,7 @@ try {
   await measure("queueBatch25", () => assert.ok(db.queueTaskBatch(tasks[0].id, now, 25) > 0));
   await measure("claimDelivery", () => assert.ok(db.claimDelivery(now)));
   await measure("processOneDelivery", async () => assert.ok(await scheduler.processOneDelivery(now, async () => {})));
-  const settings = { ...db.readSettings(), deviceKey: "benchmark-key" };
+  const settings = { ...db.deliverySettings("default"), deviceKey: "benchmark-key" };
   await measure("barkMockSend", () => sendBark(settings, "Benchmark", "Message", async () => Response.json({ code: 200 })));
   await measure("ntfyMockSend", () => sendNtfy({ ...settings, channelType: "ntfy", topic: "benchmark" }, "Benchmark", "Message", async () => Response.json({ id: "benchmark", event: "message", topic: "benchmark" })));
   console.log(JSON.stringify({

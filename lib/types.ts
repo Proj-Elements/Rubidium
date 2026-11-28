@@ -28,7 +28,8 @@ export type Task = z.output<typeof taskSchema>;
 export type ScheduledTask = Pick<Task, "id" | "name" | "status" | "preset" | "cron" | "timeZone" | "nextRunAt" | "pausedAt"
   | "endDate" | "repeatCount" | "queuedCount" | "skipDates" | "includeDates">;
 
-export type BarkSettings = Omit<z.output<typeof settingsFields>, "displayTimeZone"> & { displayTimeZone?: string };
+export type AppSettings = z.output<typeof settingsFields>;
+export type BarkSettings = Omit<AppSettings, "displayTimeZone"> & { displayTimeZone?: string; endpoint: string; deviceKey: string };
 export type ChannelInput = z.input<typeof channelFields>;
 export type ChannelType = z.output<typeof channelFields>["type"];
 export type ChannelDeliverySettings = BarkSettings & { channelType: ChannelType; topic: string };
@@ -68,8 +69,6 @@ export interface Dashboard {
   tasks: Task[];
   upcoming: Array<{ taskId: string; occurrenceAt: string }>;
   upcomingDays: Array<{ date: string; total: number; hidden: number }>;
-  deviceKeyConfigured: boolean;
-  endpoint: string;
   deliveries: { pending: number; retrying: number; nextRetryAt: string | null };
   stats: { active: number; paused: number; todaySent: number; totalSent: number };
   activity: Array<{ date: string; sent: number }>;
@@ -77,11 +76,9 @@ export interface Dashboard {
   serverTime: string;
 }
 
-export const DEFAULT_SETTINGS: BarkSettings = {
+export const DEFAULT_SETTINGS: AppSettings = {
   displayTimeZone: SCHEDULE_TIME_ZONE,
   historyRetentionDays: 0,
-  endpoint: "https://api.day.app",
-  deviceKey: "",
   title: "Rubidium 提醒",
   sound: "1107",
   group: "Rubidium",
@@ -92,12 +89,4 @@ export interface NotificationOptions {
   sound?: string;
   group?: string;
   icon?: string;
-}
-
-export interface Device {
-  id: string;
-  name: string;
-  endpoint: string;
-  deviceKeyConfigured: boolean;
-  revision: number;
 }

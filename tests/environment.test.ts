@@ -6,20 +6,13 @@ import { join } from "node:path";
 import { test } from "node:test";
 import { getEnvironmentVariable } from "../lib/environment.mjs";
 
-test("new environment names take priority over legacy aliases", () => {
-  assert.equal(getEnvironmentVariable("PASSWORD", {
-    RUBIDIUM_PASSWORD: "current-password",
-    BARKER_PASSWORD: "legacy-password",
-  }), "current-password");
-  assert.equal(getEnvironmentVariable("PASSWORD", {
-    RUBIDIUM_PASSWORD: "",
-    BARKER_PASSWORD: "legacy-password",
-  }), "");
-});
-
-test("legacy environment names remain accepted when the new name is absent", () => {
-  assert.equal(getEnvironmentVariable("DATA_DIR", { BARKER_DATA_DIR: "/legacy/data" }), "/legacy/data");
+test("only RUBIDIUM environment names are accepted", () => {
+  assert.equal(getEnvironmentVariable("PASSWORD", { RUBIDIUM_PASSWORD: "current-password" }), "current-password");
+  assert.equal(getEnvironmentVariable("PASSWORD", { RUBIDIUM_PASSWORD: "" }), "");
   assert.equal(getEnvironmentVariable("DATA_DIR", {}), undefined);
+  for (const environment of [{ BARKER_DATA_DIR: "/v1/data" }, { BARKER_DATA_DIR: "/v1/data", RUBIDIUM_DATA_DIR: "/v2/data" }]) {
+    assert.throws(() => getEnvironmentVariable("DATA_DIR", environment), /BARKER_DATA_DIR.*no longer supported/);
+  }
 });
 
 test("runtime paths reject symlinks into build output, including nonexistent descendants", async () => {

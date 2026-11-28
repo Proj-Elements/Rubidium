@@ -7,7 +7,7 @@ test("API clients reject HTML or structurally invalid success payloads", () => {
   assert.equal(validApiPayload("/api/tasks", { tasks: [] }), true);
   assert.equal(validApiPayload("/api/overview", {
     tasks: [], upcoming: [], upcomingDays: [], recent: [], activity: [], stats: { active: 0, paused: 0, todaySent: 0, totalSent: 0 },
-    deliveries: { pending: 0, retrying: 0, nextRetryAt: null }, endpoint: "https://api.day.app", deviceKeyConfigured: false,
+    deliveries: { pending: 0, retrying: 0, nextRetryAt: null },
     defaultChannel: { type: "bark", credentialConfigured: false }, serverTime: "2030-01-01T00:00:00Z",
   }), true);
   assert.equal(validApiPayload("/api/tasks", {}), false);
@@ -18,11 +18,12 @@ test("API clients reject HTML or structurally invalid success payloads", () => {
   assert.equal(validApiPayload("/api/tasks/preview", { dates: ["not-a-date"] }), false);
   assert.equal(validApiPayload("/api/tasks/preview", { dates: ["2030-02-31T01:00:00Z"] }), false);
   assert.equal(validApiPayload("/api/tasks/preview", { dates: ["2030-02-28T01:00:00Z"] }), true);
-  assert.equal(validApiPayload("/api/settings/test", { delivered: false }), false);
+  assert.equal(validApiPayload("/api/settings/test", { delivered: true }), false);
+  assert.equal(validApiPayload("/api/devices", { devices: [] }), false);
   assert.equal(validApiPayload("/api/overview", { tasks: [], upcoming: [], upcomingDays: [], recent: [], activity: [], stats: {}, deliveries: {}, serverTime: "2030-01-01T00:00:00Z" }), false);
   assert.equal(validApiPayload("/api/overview", {
     tasks: [], upcoming: [], upcomingDays: [], recent: [], activity: [], stats: { active: 0, paused: 0, todaySent: 0, totalSent: 0 },
-    deliveries: { pending: 0, retrying: 0, nextRetryAt: null }, endpoint: "https://api.day.app", deviceKeyConfigured: false,
+    deliveries: { pending: 0, retrying: 0, nextRetryAt: null },
     defaultChannel: { type: "smtp", credentialConfigured: false }, serverTime: "2030-01-01T00:00:00Z",
   }), false);
   assert.equal(validApiPayload("/api/settings", { tasks: [] }), false);
@@ -86,14 +87,14 @@ test("audit payloads require complete events with valid timestamps", () => {
 });
 
 test("display preferences require valid scheduling zones and retention limits", () => {
-  const settings = { endpoint: "https://api.day.app", title: "Reminder", sound: "", group: "", icon: "", displayTimeZone: "UTC", historyRetentionDays: 0 };
-  const payload = { settings, revision: 1, deviceKeyConfigured: false, dataDir: "/tmp/example" };
+  const settings = { title: "Reminder", sound: "", group: "", icon: "", displayTimeZone: "UTC", historyRetentionDays: 0 };
+  const payload = { settings, revision: 1, dataDir: "/tmp/example" };
   assert.equal(validApiPayload("/api/settings", payload), true);
   assert.equal(validApiPayload("/api/settings", { ...payload, settings: { ...settings, displayTimeZone: "Mars/Olympus" } }), false);
   assert.equal(validApiPayload("/api/settings", { ...payload, settings: { ...settings, historyRetentionDays: -1 } }), false);
   const overview = {
     tasks: [], upcoming: [], upcomingDays: [], recent: [], activity: [], stats: { active: 0, paused: 0, todaySent: 0, totalSent: 0 },
-    deliveries: { pending: 0, retrying: 0, nextRetryAt: null }, endpoint: settings.endpoint, deviceKeyConfigured: false,
+    deliveries: { pending: 0, retrying: 0, nextRetryAt: null },
     defaultChannel: { type: "bark", credentialConfigured: false }, serverTime: "2030-01-01T00:00:00Z", displayTimeZone: "UTC",
   };
   assert.equal(validApiPayload("/api/overview", overview), true);
@@ -101,19 +102,19 @@ test("display preferences require valid scheduling zones and retention limits", 
 });
 
 test("encrypted export responses require their encryption metadata before download", () => {
-  const envelope = { format: "rubidium-encrypted-export", version: 1, schemaVersion: 1, cipher: "aes-256-gcm", kdf: "scrypt",
+  const envelope = { format: "rubidium-encrypted-export", version: 2, schemaVersion: 6, cipher: "aes-256-gcm", kdf: "scrypt",
     salt: Buffer.alloc(16).toString("base64"), iv: Buffer.alloc(12).toString("base64"), tag: Buffer.alloc(16).toString("base64"), payload: "AQID" };
   assert.equal(validApiPayload("/api/data/export", envelope), true);
   for (const value of [
     { format: envelope.format, version: 1, payload: envelope.payload },
-    { ...envelope, iv: "not-base64" }, { ...envelope, tag: "AQID" }, { ...envelope, payload: "" },
+    { ...envelope, version: 1 }, { ...envelope, schemaVersion: 5 }, { ...envelope, iv: "not-base64" }, { ...envelope, tag: "AQID" }, { ...envelope, payload: "" },
     { ...envelope, salt: `${envelope.salt.slice(0, -3)}B==` },
     ...["A===", "AQ=I", "AQID!", "AQI"].map((payload) => ({ ...envelope, payload })),
   ]) assert.equal(validApiPayload("/api/data/export", value), false);
 });
 
 test("the API client accepts a valid multi-megabyte encrypted export without exhausting the regexp stack", async (context) => {
-  const envelope = { format: "rubidium-encrypted-export", version: 1, schemaVersion: 1, cipher: "aes-256-gcm", kdf: "scrypt",
+  const envelope = { format: "rubidium-encrypted-export", version: 2, schemaVersion: 6, cipher: "aes-256-gcm", kdf: "scrypt",
     salt: Buffer.alloc(16).toString("base64"), iv: Buffer.alloc(12).toString("base64"), tag: Buffer.alloc(16).toString("base64"),
     payload: Buffer.alloc(8 * 1024 * 1024 + 2, 255).toString("base64") };
   context.mock.method(globalThis, "fetch", async () => Response.json(envelope));

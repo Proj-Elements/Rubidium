@@ -172,8 +172,8 @@ test("archive cannot discard even a permanently failed delivery", async () => {
 test("corrupt settings fall back to defaults instead of failing every request", () => {
   db.__rawDatabaseForTests().prepare("UPDATE settings SET value = ? WHERE key = 'default'").run("{broken json");
   const settings = db.readSettings();
-  assert.equal(settings.endpoint, "https://api.day.app");
-  assert.equal(settings.deviceKey, "");
+  assert.equal(settings.title, "Rubidium 提醒");
+  assert.equal(settings.displayTimeZone, "Asia/Shanghai");
 });
 
 test("editing at the exact due minute does not consume a repeat", async () => {

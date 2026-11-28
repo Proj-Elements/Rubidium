@@ -9,7 +9,7 @@ import { setLogSecret } from "./logging";
 import { MIN_PASSWORD_LENGTH, passwordValidationLocalized, passwordValidationMessage } from "./password-policy";
 import { getEnvironmentVariable } from "./environment.mjs";
 
-const AUTH_COOKIE = "barker_session";
+const AUTH_COOKIE = "rubidium_session";
 const SESSION_DURATION_SECONDS = 12 * 60 * 60;
 /** A shorter secret is guessable enough to forge session cookies / log in. */
 const MIN_SECRET_LENGTH = 16;
@@ -90,13 +90,7 @@ function loadConfiguredPassword(): string | null {
     return configured;
   }
 
-  const path = join(/* turbopackIgnore: true */ runtimeDataDir, "access-password.txt");
-  privateFile(path);
-  const existing = readSecretFile(path);
-  if (existing === null) return null;
-  const invalidPassword = passwordValidationMessage(existing);
-  if (invalidPassword) throw new Error(`Rubidium access password file ${path}: ${invalidPassword}`);
-  return existing;
+  return null;
 }
 
 function loadSetupToken(): string | null {

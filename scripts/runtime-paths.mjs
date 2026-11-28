@@ -1,5 +1,6 @@
 import { existsSync } from "node:fs";
 import { resolve } from "node:path";
+import { assertV2DataDirectory } from "../lib/storage-format.mjs";
 import { resolveRuntimeDataDirectory } from "../lib/environment.mjs";
 
 export { resolveRuntimeDataDirectory as runtimeDirectory };
@@ -14,9 +15,9 @@ export function loadRuntimeEnvironment(directory = process.cwd()) {
 
 export function checkLegacyData(directory = process.cwd()) {
   loadRuntimeEnvironment(directory);
-  resolveRuntimeDataDirectory(directory);
+  assertV2DataDirectory(resolveRuntimeDataDirectory(directory));
   const legacy = resolve(directory, ".next/standalone/data/barker.sqlite");
   if (existsSync(legacy)) {
-    throw new Error(`Legacy runtime database found at ${legacy}. Stop the old server and run pnpm data:backup <new-backup-dir> .next/standalone/data, then pnpm data:restore <new-dir-outside-.next> <new-backup-dir> from the project root. Move the old data directory out of .next before building.`);
+    throw new Error(`Rubidium v1 runtime data found at ${legacy}. Keep it outside .next and use a fresh v2 data directory; v1 migration is not supported.`);
   }
 }

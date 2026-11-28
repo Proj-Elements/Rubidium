@@ -7,6 +7,7 @@ import { refreshChannelLogSecrets } from "./db";
 import { auditEvent } from "./db/security";
 import { channelFields, deliverySchema, taskSchema, timestampSchema } from "./contracts";
 import { settingsSchema, taskInputSchema } from "./validation";
+import { TRANSFER_VERSION } from "./storage-format.mjs";
 import { transferPasswordValidationIssue } from "./password-policy";
 
 export const MAX_TRANSFER_BYTES = 40 * 1024 * 1024;
@@ -24,7 +25,7 @@ const optionalTimestampSchema = timestampSchema.nullable();
 
 export interface EncryptedExport {
   format: typeof FORMAT;
-  version: 1;
+  version: typeof TRANSFER_VERSION;
   schemaVersion: number;
   cipher: typeof CIPHER;
   kdf: typeof KDF;
@@ -41,7 +42,7 @@ function validatePassphrase(passphrase: string): void {
 }
 
 function aad(schemaVersion: number): Buffer {
-  return Buffer.from(`${FORMAT}:1:${schemaVersion}:${CIPHER}:${KDF}`);
+  return Buffer.from(`${FORMAT}:${TRANSFER_VERSION}:${schemaVersion}:${CIPHER}:${KDF}`);
 }
 
 export function encryptExport(snapshot: Buffer, passphrase: string): EncryptedExport {
@@ -57,7 +58,7 @@ export function encryptExport(snapshot: Buffer, passphrase: string): EncryptedEx
   cipher.setAAD(aad(schemaVersion));
   const payload = Buffer.concat([cipher.update(compressed), cipher.final()]);
   return {
-    format: FORMAT, version: 1, schemaVersion, cipher: CIPHER, kdf: KDF,
+    format: FORMAT, version: TRANSFER_VERSION, schemaVersion, cipher: CIPHER, kdf: KDF,
     salt: salt.toString("base64"), iv: iv.toString("base64"), tag: cipher.getAuthTag().toString("base64"), payload: payload.toString("base64"),
   };
 }
@@ -74,7 +75,7 @@ export function decryptExport(value: unknown, passphrase: string): Buffer {
   validatePassphrase(passphrase);
   if (!value || typeof value !== "object" || Array.isArray(value)) throw new DomainError("导出文件格式无效");
   const envelope = value as Partial<EncryptedExport>;
-  if (envelope.format !== FORMAT || envelope.version !== 1 || envelope.cipher !== CIPHER || envelope.kdf !== KDF) {
+  if (envelope.format !== FORMAT || envelope.version !== TRANSFER_VERSION || envelope.cipher !== CIPHER || envelope.kdf !== KDF) {
     throw new DomainError("导出文件版本或加密格式不受支持");
   }
   if (envelope.schemaVersion !== CURRENT_SCHEMA_VERSION) throw new DomainError("导出数据版本与当前 Rubidium 不兼容");
@@ -164,10 +165,10 @@ function validateSnapshot(path: string): void {
     }
     if (invalidDelivery) throw new DomainError("导出投递记录无效");
 
-    if (source.prepare("SELECT 1 FROM tasks WHERE device_id != 'default' AND device_id NOT IN (SELECT id FROM devices) LIMIT 1").get()) {
+    if (source.prepare("SELECT 1 FROM tasks WHERE device_id NOT IN (SELECT id FROM devices) LIMIT 1").get()) {
       throw new DomainError("导出提醒引用了不存在的设备");
     }
-    if (source.prepare("SELECT 1 FROM deliveries WHERE status IN ('pending', 'sending') AND device_id != 'default' AND device_id NOT IN (SELECT id FROM devices) LIMIT 1").get()) {
+    if (source.prepare("SELECT 1 FROM deliveries WHERE status IN ('pending', 'sending') AND device_id NOT IN (SELECT id FROM devices) LIMIT 1").get()) {
       throw new DomainError("导出投递记录引用了不存在的设备");
     }
 
@@ -181,6 +182,7 @@ function validateSnapshot(path: string): void {
     const revision = Number((source.prepare("SELECT value FROM settings WHERE key = 'revision'").get() as { value?: string } | undefined)?.value);
     if (!Number.isSafeInteger(revision) || revision < 1) throw new DomainError("导出设置数据无效");
 
+    if (!source.prepare("SELECT 1 FROM devices WHERE id = 'default'").get()) throw new DomainError("导出数据缺少默认通知渠道");
     const devices = source.prepare("SELECT id, name, type, endpoint, topic, device_key, revision FROM devices");
     for (const raw of devices.iterate()) {
       const row = raw as Record<string, unknown>;

@@ -255,7 +255,7 @@ test("MCP rejects cross-origin tool calls and cookie-only authentication", async
   assert.equal(sameOrigin.status, 200);
 
   const cookieOnly = await mcp.POST(new Request("http://localhost:3000/api/mcp", {
-    method: "POST", headers: { ...headers, authorization: "", cookie: `barker_session=${auth.createSessionToken()}` }, body,
+    method: "POST", headers: { ...headers, authorization: "", cookie: `rubidium_session=${auth.createSessionToken()}` }, body,
   }));
   assert.equal(cookieOnly.status, 401);
 });

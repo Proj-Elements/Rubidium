@@ -157,7 +157,6 @@ export function validApiPayload(url: string, data: unknown): boolean {
     && Array.isArray(object.activity) && object.activity.every((item) => objectValue(item) && dateValue(item.date) && nonNegativeInteger(item.sent))
     && objectValue(object.stats) && ["active", "paused", "todaySent", "totalSent"].every((key) => nonNegativeInteger((object.stats as Record<string, unknown>)[key]))
     && objectValue(object.deliveries) && nonNegativeInteger(object.deliveries.pending) && nonNegativeInteger(object.deliveries.retrying) && nullableTimestamp(object.deliveries.nextRetryAt)
-    && typeof object.endpoint === "string" && typeof object.deviceKeyConfigured === "boolean"
     && objectValue(object.defaultChannel) && (object.defaultChannel.type === "bark" || object.defaultChannel.type === "ntfy")
     && typeof object.defaultChannel.credentialConfigured === "boolean" && timestampValue(object.serverTime)
     && (!("displayTimeZone" in object) || timeZoneSchema.safeParse(object.displayTimeZone).success);
@@ -166,9 +165,8 @@ export function validApiPayload(url: string, data: unknown): boolean {
     if (!Number.isSafeInteger(object.revision) || Number(object.revision) < 1) return false;
     if (object.saved === true) return true;
     return objectValue(object.settings) && settingsFields.safeParse(object.settings).success && typeof object.settings.historyRetentionDays === "number"
-      && typeof object.deviceKeyConfigured === "boolean" && typeof object.dataDir === "string";
+      && typeof object.dataDir === "string";
   }
-  if (path === "/api/settings/test") return object.delivered === true;
   if (path === "/api/tasks" || /^\/api\/tasks\/[^/]+$/.test(path)) {
     if ("task" in object) return taskValue(object.task);
     if (object.archived === true || object.deleted === true || bulkResultsValue(object.results)) return true;
@@ -184,7 +182,6 @@ export function validApiPayload(url: string, data: unknown): boolean {
   if (/^\/api\/deliveries\/[^/]+\/retry$/.test(path)) return object.queued === true;
   if (/^\/api\/deliveries\/[^/]+\/cancel$/.test(path)) return object.cancelled === true;
   if (/^\/api\/deliveries\/[^/]+$/.test(path)) return object.saved === true;
-  if (path === "/api/devices") return (Array.isArray(object.devices) && object.devices.every((device) => objectValue(device) && typeof device.id === "string" && typeof device.endpoint === "string" && typeof device.deviceKeyConfigured === "boolean")) || objectValue(object.device) || object.deleted === true;
   if (path === "/api/channels") {
     const channelValue = (value: unknown) => objectValue(value) && typeof value.id === "string" && typeof value.name === "string"
       && (value.type === "bark" || value.type === "ntfy") && typeof value.endpoint === "string" && typeof value.topic === "string"
@@ -200,8 +197,8 @@ export function validApiPayload(url: string, data: unknown): boolean {
         && (item.scope === "read" || item.scope === "write") && epochValue(item.expiresAt)) && objectValue(object.sessionPagination)
       && paginationValue(object.sessionPagination) && Number(object.sessionPagination.pageSize) === SECURITY_SESSION_PAGE_SIZE
       && object.sessions.length <= Number(object.sessionPagination.pageSize));
-  if (path === "/api/data/export") return object.format === "rubidium-encrypted-export" && object.version === 1
-    && nonNegativeInteger(object.schemaVersion) && Number(object.schemaVersion) > 0 && object.cipher === "aes-256-gcm" && object.kdf === "scrypt"
+  if (path === "/api/data/export") return object.format === "rubidium-encrypted-export" && object.version === 2
+    && object.schemaVersion === 6 && object.cipher === "aes-256-gcm" && object.kdf === "scrypt"
     && base64Value(object.salt, 16) && base64Value(object.iv, 12) && base64Value(object.tag, 16) && base64Value(object.payload);
   if (path === "/api/data/import") return object.imported === true;
   if (path === "/api/audit") return Array.isArray(object.events) && object.events.every((item) => objectValue(item) && typeof item.id === "string"
@@ -228,7 +225,7 @@ export async function api<T>(url: string, init?: RequestInit): Promise<T> {
   catch { throw new ApiError("服务响应损坏，请重新同步", response.status, { key: "errors.corruptResponse" }); }
   if (!response.ok) {
     if (response.status === 401 && url !== "/api/session" && typeof window !== "undefined") {
-      window.dispatchEvent(new Event("barker:unauthorized"));
+      window.dispatchEvent(new Event("rubidium:unauthorized"));
     }
     const key = isMessageKey(data?.errorKey) ? data.errorKey : undefined;
     const values = data?.errorValues && typeof data.errorValues === "object" && !Array.isArray(data.errorValues)

@@ -12,7 +12,7 @@ test("first-visit setup stays usable in touch landscape and confirms the passwor
     await route.fulfill({ json: { authenticated: false, initialized: false, setupEnabled: true, setupTokenRequired: true } });
   });
   await page.route("**/api/overview", (route) => route.fulfill({ json: {
-    tasks: [], upcoming: [], upcomingDays: [], deviceKeyConfigured: false, defaultChannel: { type: "bark", credentialConfigured: false }, endpoint: "https://api.day.app",
+    tasks: [], upcoming: [], upcomingDays: [],  defaultChannel: { type: "bark", credentialConfigured: false },
     deliveries: { pending: 0, retrying: 0, nextRetryAt: null },
     stats: { active: 0, paused: 0, todaySent: 0, totalSent: 0 }, activity: [], recent: [], serverTime: new Date().toISOString(),
   } }));

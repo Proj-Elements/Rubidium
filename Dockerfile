@@ -51,6 +51,7 @@ COPY --from=builder --chown=nextjs:nodejs /app/LICENSE /app/THIRD_PARTY_NOTICES.
 COPY --from=builder --chown=nextjs:nodejs /app/scripts/start-server.mjs ./scripts/start-server.mjs
 COPY --from=builder --chown=nextjs:nodejs /app/scripts/runtime-paths.mjs ./scripts/runtime-paths.mjs
 COPY --from=builder --chown=nextjs:nodejs /app/lib/environment.mjs ./lib/environment.mjs
+COPY --from=builder --chown=nextjs:nodejs /app/lib/storage-format.mjs ./lib/storage-format.mjs
 COPY --from=builder --chown=nextjs:nodejs /app/scripts/data-tools.mjs ./scripts/data-tools.mjs
 COPY --from=builder --chown=nextjs:nodejs /app/scripts/password-reset.mjs ./scripts/password-reset.mjs
 

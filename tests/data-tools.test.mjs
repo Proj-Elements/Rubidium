@@ -16,13 +16,14 @@ function fixture() {
   const root = mkdtempSync(join(tmpdir(), "barker-data-tools-"));
   const source = join(root, "source");
   mkdirSync(source);
-  const database = new DatabaseSync(join(source, "barker.sqlite"));
+  const database = new DatabaseSync(join(source, "rubidium.sqlite"));
   database.exec(`
-    PRAGMA user_version = 4;
+    PRAGMA user_version = 6;
     CREATE TABLE settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);
     CREATE TABLE tasks (id TEXT PRIMARY KEY);
     CREATE TABLE deliveries (id TEXT PRIMARY KEY, task_id TEXT NOT NULL REFERENCES tasks(id));
     CREATE TABLE sessions (id TEXT PRIMARY KEY);
+    CREATE TABLE api_tokens (id TEXT PRIMARY KEY);
     CREATE TABLE runtime_state (key TEXT PRIMARY KEY, value TEXT NOT NULL);
     INSERT INTO settings VALUES ('default', '{}');
     INSERT INTO tasks VALUES ('task');
@@ -31,7 +32,6 @@ function fixture() {
     INSERT INTO runtime_state VALUES ('scheduler_heartbeat', '1');
   `);
   database.close();
-  writeFileSync(join(source, "access-password.txt"), "test-data-tools-password", { mode: 0o644 });
   writeFileSync(join(source, "session-secret.txt"), "test-data-tools-session-secret", { mode: 0o644 });
   return { root, source };
 }
@@ -41,7 +41,7 @@ test("backup tooling tracks and round-trips the current application schema", asy
   const { root, source } = fixture();
   const backup = join(root, "backup");
   const restored = join(root, "restored");
-  const sourceDatabase = new DatabaseSync(join(source, "barker.sqlite"));
+  const sourceDatabase = new DatabaseSync(join(source, "rubidium.sqlite"));
   sourceDatabase.exec(`
     PRAGMA user_version = ${CURRENT_SCHEMA_VERSION};
     CREATE TABLE devices (id TEXT PRIMARY KEY, name TEXT NOT NULL, endpoint TEXT NOT NULL, device_key TEXT NOT NULL, revision INTEGER NOT NULL, type TEXT NOT NULL, topic TEXT NOT NULL);
@@ -55,7 +55,7 @@ test("backup tooling tracks and round-trips the current application schema", asy
     const result = await backupData(source, backup);
     assert.equal(result.schemaVersion, CURRENT_SCHEMA_VERSION);
     await restoreData(backup, restored);
-    const restoredDatabase = new DatabaseSync(join(restored, "barker.sqlite"), { readOnly: true });
+    const restoredDatabase = new DatabaseSync(join(restored, "rubidium.sqlite"), { readOnly: true });
     try {
       assert.equal(restoredDatabase.prepare("PRAGMA user_version").get().user_version, CURRENT_SCHEMA_VERSION);
       const channel = restoredDatabase.prepare("SELECT type, topic FROM devices WHERE id = 'ntfy-id'").get();
@@ -94,7 +94,7 @@ test("CLI backs up and restores a real current application database", () => {
 
     const verifyCode = `
       import { DatabaseSync } from "node:sqlite";
-      const database = new DatabaseSync(${JSON.stringify(join(restored, "barker.sqlite"))}, { readOnly: true });
+      const database = new DatabaseSync(${JSON.stringify(join(restored, "rubidium.sqlite"))}, { readOnly: true });
       const version = database.prepare("PRAGMA user_version").get().user_version;
       const integrity = database.prepare("PRAGMA integrity_check").all();
       const foreignKeys = database.prepare("PRAGMA foreign_key_check").all();
@@ -117,19 +117,19 @@ test("restore rejects a newer schema without changing the backup or leaving a ta
   const target = join(root, "restored");
   try {
     await backupData(source, backup);
-    const database = new DatabaseSync(join(backup, "barker.sqlite"));
+    const database = new DatabaseSync(join(backup, "rubidium.sqlite"));
     database.exec(`PRAGMA user_version = ${CURRENT_SCHEMA_VERSION + 1}`);
     database.close();
     const manifestPath = join(backup, "manifest.json");
     const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
     manifest.schemaVersion = CURRENT_SCHEMA_VERSION + 1;
-    manifest.files["barker.sqlite"] = digest(join(backup, "barker.sqlite"));
+    manifest.files["rubidium.sqlite"] = digest(join(backup, "rubidium.sqlite"));
     writeFileSync(manifestPath, JSON.stringify(manifest, null, 2), { mode: 0o600 });
-    const backupDigest = digest(join(backup, "barker.sqlite"));
+    const backupDigest = digest(join(backup, "rubidium.sqlite"));
 
-    await assert.rejects(restoreData(backup, target), new RegExp(`Unsupported schema version ${CURRENT_SCHEMA_VERSION + 1}`));
+    await assert.rejects(restoreData(backup, target), /Invalid backup manifest|Unsupported schema version/);
     assert.equal(existsSync(target), false);
-    assert.equal(digest(join(backup, "barker.sqlite")), backupDigest);
+    assert.equal(digest(join(backup, "rubidium.sqlite")), backupDigest);
   } finally { rmSync(root, { recursive: true, force: true }); }
 });
 
@@ -139,18 +139,18 @@ test("backup and restore are checksummed, private, and never overwrite data", as
   const restored = join(root, "restored");
   try {
     const result = await backupData(source, backup);
-    assert.equal(result.schemaVersion, 4);
-    assert.deepEqual(result.files, ["barker.sqlite", "access-password.txt", "session-secret.txt"]);
+    assert.equal(result.schemaVersion, 6);
+    assert.deepEqual(result.files, ["rubidium.sqlite", "session-secret.txt"]);
     assert.equal(statSync(backup).mode & 0o777, 0o700);
-    for (const file of ["barker.sqlite", "access-password.txt", "session-secret.txt", "manifest.json"]) assert.equal(statSync(join(backup, file)).mode & 0o777, 0o600);
+    for (const file of ["rubidium.sqlite", "session-secret.txt", "manifest.json"]) assert.equal(statSync(join(backup, file)).mode & 0o777, 0o600);
     await assert.rejects(backupData(source, backup), /already exists/);
     await restoreData(backup, restored);
     assert.equal(statSync(restored).mode & 0o777, 0o700);
-    for (const file of ["barker.sqlite", "access-password.txt", "session-secret.txt", "manifest.json"]) assert.equal(statSync(join(restored, file)).mode & 0o777, 0o600);
+    for (const file of ["rubidium.sqlite", "session-secret.txt", "manifest.json"]) assert.equal(statSync(join(restored, file)).mode & 0o777, 0o600);
     const manifest = JSON.parse(readFileSync(join(restored, "manifest.json"), "utf8"));
-    assert.equal(manifest.schemaVersion, 4);
+    assert.equal(manifest.schemaVersion, 6);
     for (const [name, checksum] of Object.entries(manifest.files)) assert.equal(checksum, digest(join(restored, name)));
-    const database = new DatabaseSync(join(restored, "barker.sqlite"), { readOnly: true });
+    const database = new DatabaseSync(join(restored, "rubidium.sqlite"), { readOnly: true });
     assert.equal(database.prepare("SELECT COUNT(*) count FROM tasks").get().count, 1);
     assert.equal(database.prepare("SELECT COUNT(*) count FROM deliveries").get().count, 1);
     assert.equal(database.prepare("SELECT COUNT(*) count FROM sessions").get().count, 0);
@@ -170,7 +170,7 @@ test("encrypted operations backups protect secrets and reject bad keys or damage
   const existingTarget = join(root, "existing-target");
   try {
     const result = await backupDataEncrypted(source, backup, backupKey);
-    assert.deepEqual(result.files, ["access-password.txt.enc", "barker.sqlite.enc", "manifest.json.enc", "session-secret.txt.enc"]);
+    assert.deepEqual(result.files, ["manifest.json.enc", "rubidium.sqlite.enc", "session-secret.txt.enc"]);
     assert.equal(statSync(backup).mode & 0o777, 0o700);
     for (const file of result.files) {
       assert.equal(statSync(join(backup, file)).mode & 0o777, 0o600);
@@ -179,9 +179,8 @@ test("encrypted operations backups protect secrets and reject bad keys or damage
     }
 
     await restoreDataEncrypted(backup, restored, backupKey);
-    assert.equal(readFileSync(join(restored, "access-password.txt"), "utf8"), "test-data-tools-password");
     assert.equal(readFileSync(join(restored, "session-secret.txt"), "utf8"), "test-data-tools-session-secret");
-    const database = new DatabaseSync(join(restored, "barker.sqlite"), { readOnly: true });
+    const database = new DatabaseSync(join(restored, "rubidium.sqlite"), { readOnly: true });
     assert.equal(database.prepare("SELECT COUNT(*) count FROM tasks").get().count, 1);
     assert.equal(database.prepare("SELECT COUNT(*) count FROM sessions").get().count, 0);
     database.close();
@@ -190,9 +189,9 @@ test("encrypted operations backups protect secrets and reject bad keys or damage
     assert.equal(existsSync(wrongKeyTarget), false);
 
     cpSync(backup, damaged, { recursive: true });
-    const damagedDatabase = readFileSync(join(damaged, "barker.sqlite.enc"));
+    const damagedDatabase = readFileSync(join(damaged, "rubidium.sqlite.enc"));
     damagedDatabase[damagedDatabase.length - 1] ^= 1;
-    writeFileSync(join(damaged, "barker.sqlite.enc"), damagedDatabase);
+    writeFileSync(join(damaged, "rubidium.sqlite.enc"), damagedDatabase);
     await assert.rejects(restoreDataEncrypted(damaged, damagedTarget, backupKey), /incorrect or encrypted file is damaged/);
     assert.equal(existsSync(damagedTarget), false);
 
@@ -213,7 +212,7 @@ test("encrypted backup CLI reads passphrases from the environment or a private k
   try {
     const backedUp = spawnSync(process.execPath, ["scripts/data-tools.mjs", "backup-encrypted", backup, source], { cwd: process.cwd(), env: environment, encoding: "utf8" });
     assert.equal(backedUp.status, 0, backedUp.stderr);
-    assert.equal(JSON.parse(backedUp.stdout).schemaVersion, 4);
+    assert.equal(JSON.parse(backedUp.stdout).schemaVersion, 6);
     assert.doesNotMatch(backedUp.stdout, new RegExp(backupKey));
     const restoredResult = spawnSync(process.execPath, ["scripts/data-tools.mjs", "restore-encrypted", restored, backup], { cwd: process.cwd(), env: environment, encoding: "utf8" });
     assert.equal(restoredResult.status, 0, restoredResult.stderr);
@@ -245,7 +244,7 @@ test("restore rejects tampered backup content", async () => {
   const backup = join(root, "backup");
   try {
     await backupData(source, backup);
-    writeFileSync(join(backup, "access-password.txt"), "tampered");
+    writeFileSync(join(backup, "session-secret.txt"), "tampered");
     await assert.rejects(restoreData(backup, join(root, "restored")), /checksum/);
     rmSync(join(root, "restored"), { recursive: true, force: true });
   } finally { rmSync(root, { recursive: true, force: true }); }
@@ -259,11 +258,11 @@ test("restore rejects credential files omitted from the backup manifest", async 
     await backupData(source, backup);
     const manifestPath = join(backup, "manifest.json");
     const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
-    delete manifest.files["access-password.txt"];
+    delete manifest.files["session-secret.txt"];
     writeFileSync(manifestPath, JSON.stringify(manifest), { mode: 0o600 });
     await assert.rejects(restoreData(backup, target), /manifest|unexpected files/);
     assert.equal(existsSync(target), false);
-    assert.equal(readFileSync(join(backup, "access-password.txt"), "utf8"), "test-data-tools-password");
+    assert.equal(readFileSync(join(backup, "session-secret.txt"), "utf8"), "test-data-tools-session-secret");
   } finally { rmSync(root, { recursive: true, force: true }); }
 });
 
@@ -305,15 +304,35 @@ test("backup CLI refuses an existing target", () => {
 
 test("a live WAL database produces a portable backup without sidecars", async () => {
   const { root, source } = fixture();
-  const live = new DatabaseSync(join(source, "barker.sqlite"));
+  const live = new DatabaseSync(join(source, "rubidium.sqlite"));
   try {
     live.exec("PRAGMA journal_mode=WAL; INSERT INTO tasks VALUES ('uncheckpointed');");
-    assert.equal(existsSync(join(source, "barker.sqlite-wal")), true);
+    assert.equal(existsSync(join(source, "rubidium.sqlite-wal")), true);
     await backupData(source, join(root, "snapshot"));
-    for (const suffix of ["-wal", "-shm"]) assert.equal(existsSync(join(root, "snapshot", `barker.sqlite${suffix}`)), false);
+    for (const suffix of ["-wal", "-shm"]) assert.equal(existsSync(join(root, "snapshot", `rubidium.sqlite${suffix}`)), false);
     await restoreData(join(root, "snapshot"), join(root, "restore"));
-    const restored = new DatabaseSync(join(root, "restore", "barker.sqlite"));
+    const restored = new DatabaseSync(join(root, "restore", "rubidium.sqlite"));
     assert.equal(restored.prepare("SELECT COUNT(*) count FROM tasks").get().count, 2);
     restored.close();
   } finally { live.close(); rmSync(root, { recursive: true, force: true }); }
+});
+
+test("v1 backup manifests and renamed schema5 databases are rejected without a target", async () => {
+  const { root, source } = fixture();
+  const backup = join(root, "backup");
+  const target = join(root, "target");
+  try {
+    await backupData(source, backup);
+    const manifestPath = join(backup, "manifest.json");
+    const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
+    writeFileSync(manifestPath, JSON.stringify({ ...manifest, format: 1 }));
+    await assert.rejects(restoreData(backup, target), /Invalid backup manifest/);
+    assert.equal(existsSync(target), false);
+    const database = new DatabaseSync(join(source, "rubidium.sqlite"));
+    database.exec("PRAGMA user_version=5"); database.close();
+    const original = digest(join(source, "rubidium.sqlite"));
+    await assert.rejects(backupData(source, target), /v1 migration is not supported/);
+    assert.equal(existsSync(target), false);
+    assert.equal(digest(join(source, "rubidium.sqlite")), original);
+  } finally { rmSync(root, { recursive: true, force: true }); }
 });

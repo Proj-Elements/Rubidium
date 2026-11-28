@@ -118,7 +118,7 @@ export function TaskEditor({ task, duplicate = false, onClose }: { task?: Task; 
       setPersisted(response.task); setSavedPayload(serialized);
       notify(editing ? t("reminder.updated") : t("reminder.saved"));
       void refresh();
-      window.dispatchEvent(new Event("barker:tasks-changed"));
+      window.dispatchEvent(new Event("rubidium:tasks-changed"));
       if (latestPayload.current === serialized) onClose();
       else setError(t("reminder.savedWithNewEdits"));
     } catch (error) { setError(errorMessage(error, locale)); }

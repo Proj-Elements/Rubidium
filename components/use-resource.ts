@@ -26,13 +26,13 @@ export function useResource<T>(url: string, poll = 5000, enabled = true) {
     const onFocus = () => { if (!document.hidden) void resource.refresh(); };
     window.addEventListener("focus", onFocus);
     document.addEventListener("visibilitychange", onFocus);
-    window.addEventListener("barker:tasks-changed", onFocus);
+    window.addEventListener("rubidium:tasks-changed", onFocus);
     return () => {
       resource.stop();
       if (poller.current?.url === url) poller.current = null;
       window.removeEventListener("focus", onFocus);
       document.removeEventListener("visibilitychange", onFocus);
-      window.removeEventListener("barker:tasks-changed", onFocus);
+      window.removeEventListener("rubidium:tasks-changed", onFocus);
     };
   }, [url, poll, enabled, locale]);
   return { data: state.url === url ? state.data : null, error: state.url === url ? state.error : "", refresh };

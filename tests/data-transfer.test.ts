@@ -93,11 +93,11 @@ test("valid multi-megabyte exports decrypt within the documented transfer limit"
   assert.deepEqual(transfer.decryptExport(encrypted, passphrase), snapshot);
 });
 
-test("baseline v5 encrypted exports import after index-only runtime migrations", () => {
+test("v2 exports import across index-only changes", () => {
   const currentIndexes = ["deliveries_activity_order_idx", "deliveries_status_activity_idx", "runtime_endpoint_cooldown_idx"];
   const original = new DatabaseSync(snapshotPath, { readOnly: true });
   try {
-    assert.equal(original.prepare("PRAGMA user_version").get()?.user_version, 5);
+    assert.equal(original.prepare("PRAGMA user_version").get()?.user_version, 6);
     assert.ok(original.prepare("SELECT 1 FROM sqlite_schema WHERE name = 'deliveries_activity_idx'").get());
     for (const index of currentIndexes) assert.equal(original.prepare("SELECT 1 FROM sqlite_schema WHERE name = ?").get(index), undefined);
   } finally { original.close(); }
@@ -272,7 +272,7 @@ test("export and import API require a browser session and restore only after aut
     method: "POST",
     headers: {
       host: "localhost:3000", origin: "http://localhost:3000", "content-type": "application/json",
-      ...(session ? { cookie: `barker_session=${auth.createSessionToken()}` } : {}),
+      ...(session ? { cookie: `rubidium_session=${auth.createSessionToken()}` } : {}),
     },
     body: JSON.stringify(body),
   });
@@ -316,4 +316,13 @@ test("export and import API require a browser session and restore only after aut
   assert.equal(imported.status, 200);
   assert.ok(database.listTasks().some((task) => task.name === "导出提醒"));
   assert.equal(database.listTasks().some((task) => task.name === "错误密码后应保留"), false);
+});
+
+test("v1 exports and schema5 snapshots are rejected without replacing v2 data", () => {
+  const encrypted = transfer.encryptExport(readFileSync(snapshotPath), "v1-rejection-password-2035");
+  assert.throws(() => transfer.decryptExport({ ...encrypted, version: 1 }, "v1-rejection-password-2035"), /不受支持/);
+  const path = editedSnapshot("v1-schema", (snapshot) => snapshot.exec("PRAGMA user_version=5"));
+  const tasks = database.listTasks();
+  assert.throws(() => transfer.importDatabaseSnapshot(path), /不兼容/);
+  assert.deepEqual(database.listTasks(), tasks);
 });

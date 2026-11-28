@@ -23,7 +23,6 @@ let cancellation: typeof import("../app/api/deliveries/[id]/cancel/route");
 let attempts: typeof import("../app/api/deliveries/[id]/attempts/route");
 let deliveryRetry: typeof import("../app/api/deliveries/[id]/retry/route");
 let audit: typeof import("../app/api/audit/route");
-let devices: typeof import("../app/api/devices/route");
 let channels: typeof import("../app/api/channels/route");
 let channelTest: typeof import("../app/api/channels/[id]/test/route");
 let security: typeof import("../app/api/security/route");
@@ -37,14 +36,14 @@ before(async () => {
   cancellation = await import("../app/api/deliveries/[id]/cancel/route");
   attempts = await import("../app/api/deliveries/[id]/attempts/route");
   deliveryRetry = await import("../app/api/deliveries/[id]/retry/route");
-  audit = await import("../app/api/audit/route"); devices = await import("../app/api/devices/route");
+  audit = await import("../app/api/audit/route");
   channels = await import("../app/api/channels/route"); channelTest = await import("../app/api/channels/[id]/test/route");
   security = await import("../app/api/security/route"); upcoming = await import("../app/api/upcoming/route");
 });
 after(() => rmSync(directory, { recursive: true, force: true }));
 
 function request(path: string, method = "GET", body?: unknown, authorized = true, extraHeaders: Record<string, string> = {}) {
-  return new Request(`http://localhost:3000${path}`, { method, headers: { host: "localhost:3000", "content-type": "application/json", ...(authorized ? { cookie: `barker_session=${auth.createSessionToken()}` } : {}), ...extraHeaders }, ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
+  return new Request(`http://localhost:3000${path}`, { method, headers: { host: "localhost:3000", "content-type": "application/json", ...(authorized ? { cookie: `rubidium_session=${auth.createSessionToken()}` } : {}), ...extraHeaders }, ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
 }
 const input = { name: "API reminder", description: "First line\nSecond line", startsAt: "2030-11-05T09:00:00+08:00", preset: "weekdays" as const, cron: "0 9 * * 1-5", repeatCount: 3, endDate: null };
 
@@ -77,16 +76,13 @@ test("repeated wrong logins lock out further guesses including correct passwords
   assert.equal((await change.json()).errorKey, "errors.currentPasswordInvalid");
 });
 
-test("settings roundtrip never returns the device key and empty edits preserve it", async () => {
-  const value = { endpoint: "https://example.test", deviceKey: "secret-device-key", title: "Barker", sound: "", group: "Barker", icon: "" };
+test("settings contain preferences only and never channel credentials", async () => {
+  const value = { title: "Rubidium", sound: "", group: "Personal", icon: "", displayTimeZone: "UTC", historyRetentionDays: 0 };
   const revision = database.settingsRevision();
   assert.equal((await settings.PUT(request("/api/settings", "PUT", { ...value, revision }))).status, 200);
-  assert.equal((await settings.PUT(request("/api/settings", "PUT", { ...value, revision: revision + 1, deviceKey: "", group: "Personal" }))).status, 200);
   const payload = await (await settings.GET(request("/api/settings"))).json();
-  assert.equal(payload.deviceKeyConfigured, true);
-  assert.equal(payload.settings.group, "Personal");
-  assert.equal(JSON.stringify(payload).includes("secret-device-key"), false);
-  assert.equal(payload.settings.deviceKey, undefined);
+  assert.deepEqual(payload.settings, value);
+  for (const key of ["endpoint", "deviceKey", "deviceKeyConfigured"]) assert.equal(key in payload.settings || key in payload, false);
 });
 
 test("create, preview, pause, edit and archive form a complete authenticated workflow", async (testContext) => {
@@ -108,18 +104,11 @@ test("create, preview, pause, edit and archive form a complete authenticated wor
   assert.equal(listing.tasks[0].status, "archived");
 });
 
-test("settings reject stale revisions and endpoint changes without a new key", async () => {
-  const previous = database.readSettings();
-  const revision = database.settingsRevision();
-  assert.equal((await settings.PUT(request("/api/settings", "PUT", { ...previous, revision: revision - 1 }))).status, 409);
-  assert.equal((await settings.PUT(request("/api/settings", "PUT", { ...previous, deviceKey: "", endpoint: "https://other.test", revision }))).status, 400);
-  assert.equal(database.readSettings().endpoint, previous.endpoint);
-});
-
-test("settings reject malformed device keys without silently preserving them or advancing revision", async () => {
+test("settings reject stale revisions and all removed v1 credential fields without mutation", async () => {
   const previous = database.readSettingsState();
-  for (const deviceKey of [null, 42, {}, []]) {
-    const response = await settings.PUT(request("/api/settings", "PUT", { ...previous.settings, deviceKey, revision: previous.revision }));
+  assert.equal((await settings.PUT(request("/api/settings", "PUT", { ...previous.settings, revision: previous.revision - 1 }))).status, 409);
+  for (const field of [{ endpoint: "https://other.test" }, { deviceKey: "" }, { deviceKey: "secret" }, { clearDeviceKey: false }, { deviceKey: null }, { deviceKey: 42 }]) {
+    const response = await settings.PUT(request("/api/settings", "PUT", { ...previous.settings, ...field, revision: previous.revision }));
     assert.equal(response.status, 400);
     assert.deepEqual(database.readSettingsState(), previous);
   }
@@ -134,16 +123,6 @@ test("history retention settings persist and reject values outside the supported
   const updated = database.readSettingsState();
   const invalid = await settings.PUT(request("/api/settings", "PUT", { ...updated.settings, historyRetentionDays: 36501, revision: updated.revision }));
   assert.equal(invalid.status, 400);
-});
-
-test("settings can explicitly remove a stored device key without changing the endpoint", async () => {
-  const previous = database.readSettings();
-  const revision = database.settingsRevision();
-  assert.equal((await settings.PUT(request("/api/settings", "PUT", { ...previous, deviceKey: "", clearDeviceKey: true, revision }))).status, 200);
-  assert.equal(database.readSettings().deviceKey, "");
-  const next = database.settingsRevision();
-  assert.equal((await settings.PUT(request("/api/settings", "PUT", { ...previous, deviceKey: "replacement-device-key", revision: next }))).status, 200);
-  assert.equal(database.readSettings().deviceKey, "replacement-device-key");
 });
 
 test("task mutation requires revisions and idempotent creation does not duplicate a request", async () => {
@@ -232,14 +211,14 @@ test("bulk permanent deletion only removes archived tasks with matching revision
   assert.ok(database.getTask(active.id));
 });
 
-test("security audit requires a session and device updates require a non-empty ID", async () => {
+test("security audit requires a session and channel updates require a non-empty ID", async () => {
   const token = auth.createApiToken("API reader", "read", 1);
   assert.equal((await tasks.GET(request("/api/tasks", "GET", undefined, false, { authorization: `Bearer ${token}` }))).status, 200);
   assert.equal((await audit.GET(request("/api/audit", "GET", undefined, false, { authorization: `Bearer ${token}` }))).status, 401);
   assert.equal((await audit.GET(request("/api/audit"))).status, 200);
-  const device = { name: "Test device", endpoint: "https://example.test", deviceKey: "test-device-key" };
-  assert.equal((await devices.POST(request("/api/devices", "POST", { ...device, id: "" }))).status, 400);
-  assert.equal((await devices.POST(request("/api/devices", "POST", device))).status, 200);
+  const channel = { name: "Test channel", type: "bark", endpoint: "https://example.test", credential: "test-device-key" };
+  assert.equal((await channels.POST(request("/api/channels", "POST", { ...channel, id: "" }))).status, 400);
+  assert.equal((await channels.POST(request("/api/channels", "POST", channel))).status, 201);
 });
 
 test("a lowercase read-only Bearer token cannot fall back to a browser cookie for writes", async () => {
@@ -303,11 +282,13 @@ test("channel API protects credentials, checks revisions, and tests without queu
   assert.equal((await channels.DELETE(request(`/api/channels?id=${created.id}`, "DELETE", undefined, true, { "if-match": String(cleared.revision) }))).status, 200);
 
   const defaultChannel = listing.channels.find((channel: { isDefault: boolean }) => channel.isDefault);
+  const preferencesBeforeChannelEdit = database.readSettingsState();
   const defaultUpdate = await channels.PUT(request("/api/channels", "PUT", {
     id: "default", name: defaultChannel.name, type: "bark", endpoint: defaultChannel.endpoint, topic: "", credential: "default-channel-secret", revision: defaultChannel.revision,
   }));
   assert.equal(defaultUpdate.status, 200);
   const configuredDefault = (await defaultUpdate.json()).channel;
+  assert.deepEqual(database.readSettingsState(), preferencesBeforeChannelEdit);
   assert.equal(JSON.stringify(configuredDefault).includes("default-channel-secret"), false);
   const clearedDefault = await channels.PUT(request("/api/channels", "PUT", {
     id: "default", name: configuredDefault.name, type: "bark", endpoint: configuredDefault.endpoint, topic: "", credential: "", clearCredential: true, revision: configuredDefault.revision,
@@ -333,27 +314,19 @@ test("channel API protects credentials, checks revisions, and tests without queu
   const defaultTest = await channelTest.POST(request("/api/channels/default/test", "POST", {}), { params: Promise.resolve({ id: "default" }) });
   assert.equal(defaultTest.status, 200);
 
-  const legacyDeviceUpdate = await devices.POST(request("/api/devices", "POST", {
-    id: "default", name: "Legacy Bark", endpoint: "https://legacy-bark.example", deviceKey: "legacy-compatible-device-key", revision: defaultNtfy.revision,
+  const preferences = database.readSettingsState();
+  const updatedPreferences = await settings.PUT(request("/api/settings", "PUT", {
+    ...preferences.settings, group: "Independent preference", revision: preferences.revision,
   }));
-  assert.equal(legacyDeviceUpdate.status, 200);
-  assert.equal(database.readSettings().endpoint, "https://legacy-bark.example");
-  assert.equal(database.listChannels()[0].type, "ntfy", "legacy Bark configuration must not replace the active Ntfy channel");
-  assert.equal(database.listDevices()[0].deviceKeyConfigured, true);
-
-  const restoredSettings = database.readSettingsState();
-  const legacySettingsUpdate = await settings.PUT(request("/api/settings", "PUT", {
-    ...restoredSettings.settings, group: "Legacy-compatible preference", revision: restoredSettings.revision,
-  }));
-  assert.equal(legacySettingsUpdate.status, 200);
-  assert.equal(database.listChannels()[0].type, "ntfy", "legacy settings writes must leave the active default channel unchanged");
+  assert.equal(updatedPreferences.status, 200);
+  assert.deepEqual(database.listChannels()[0], defaultNtfy, "preferences must not mutate channels or their revisions");
 
   const switchedBack = await channels.PUT(request("/api/channels", "PUT", {
-    id: "default", name: "Primary Bark", type: "bark", endpoint: "https://legacy-bark.example", topic: "", credential: "legacy-compatible-device-key", revision: database.listChannels()[0].revision,
+    id: "default", name: "Primary Bark", type: "bark", endpoint: "https://primary-bark.example", topic: "", credential: "primary-device-key", revision: database.listChannels()[0].revision,
   }));
   assert.equal(switchedBack.status, 200);
   assert.equal((await switchedBack.json()).channel.type, "bark");
-  assert.equal(database.deliverySettings("default").deviceKey, "legacy-compatible-device-key");
+  assert.equal(database.deliverySettings("default").deviceKey, "primary-device-key");
 });
 
 test("API credentials support permanent validity without changing finite expiry", async () => {
@@ -386,7 +359,7 @@ test("browser sessions are capped, expired entries are cleaned, and listings are
   raw.exec("DELETE FROM sessions");
   const tokens = Array.from({ length: 23 }, () => auth.createSessionToken());
   const sessionId = (token: string) => JSON.parse(Buffer.from(token.split(".")[0], "base64url").toString("utf8")).id as string;
-  const cookie = `barker_session=${tokens.at(-1)}`;
+  const cookie = `rubidium_session=${tokens.at(-1)}`;
   raw.prepare("INSERT INTO sessions (id, expires_at, fingerprint) VALUES (?, ?, ?)").run("expired-session", Date.now() - 1, "expired-fingerprint");
   const getPage = async (page: string) => security.GET(new Request(`http://localhost:3000/api/security?page=${page}`, {
     headers: { host: "localhost:3000", cookie },
@@ -419,7 +392,7 @@ test("browser sessions are capped, expired entries are cleaned, and listings are
   for (let index = 0; index < 10; index += 1) insertLegacySession.run(`legacy-session-${index}`, Date.now() + 60_000, "legacy-fingerprint");
   assert.equal(raw.prepare("SELECT COUNT(*) count FROM sessions").get()?.count, 110);
   const bounded = await security.GET(new Request("http://localhost:3000/api/security?page=1", {
-    headers: { host: "localhost:3000", cookie: `barker_session=${recentTokens.at(-1)}` },
+    headers: { host: "localhost:3000", cookie: `rubidium_session=${recentTokens.at(-1)}` },
   }));
   assert.equal(bounded.status, 200);
   assert.deepEqual((await bounded.json()).sessionPagination, { page: 1, pageSize: 10, total: 100 });

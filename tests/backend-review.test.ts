@@ -11,7 +11,8 @@ let db: typeof import("../lib/db");
 let scheduler: typeof import("../lib/scheduler");
 before(async () => { db = await import("../lib/db"); scheduler = await import("../lib/scheduler"); });
 beforeEach(() => {
-  db.__rawDatabaseForTests().exec("DELETE FROM deliveries; DELETE FROM tasks; DELETE FROM devices; DELETE FROM runtime_state;");
+  db.__rawDatabaseForTests().exec("DELETE FROM deliveries; DELETE FROM tasks; DELETE FROM devices WHERE id <> 'default'; DELETE FROM runtime_state;");
+  db.__rawDatabaseForTests().exec("UPDATE devices SET type = 'bark', endpoint = 'https://api.day.app', topic = '', device_key = '' WHERE id = 'default'");
   db.writeSettings(DEFAULT_SETTINGS);
 });
 after(() => rmSync(directory, { recursive: true, force: true }));
@@ -81,7 +82,7 @@ test("delivery pages retain deterministic ordering when activity and occurrence 
 test("live cooldown selection shares Bark identities, distinguishes Ntfy topics and observes credential rotation", async () => {
   const endpoint = "https://shared.example";
   const credential = "shared-benchmark-credential";
-  db.writeSettings({ ...DEFAULT_SETTINGS, endpoint, deviceKey: credential });
+  db.saveChannel({ ...db.listChannels()[0], endpoint, credential });
   let mirror = db.saveChannel({ name: "Mirror", type: "bark", endpoint, credential });
   const ntfyA = db.saveChannel({ name: "Ntfy A", type: "ntfy", endpoint, credential, topic: "a" });
   const ntfyB = db.saveChannel({ name: "Ntfy B", type: "ntfy", endpoint, credential, topic: "b" });

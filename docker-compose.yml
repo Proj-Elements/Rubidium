@@ -18,13 +18,13 @@ services:
       RUBIDIUM_TRUST_PROXY: ${RUBIDIUM_TRUST_PROXY:-}
       RUBIDIUM_COOKIE_SECURE: ${RUBIDIUM_COOKIE_SECURE:-}
     volumes:
-      - barker-data:/app/data
+      - rubidium-v2-data:/app/data
     restart: unless-stopped
     init: true
     stop_grace_period: 30s
 
 volumes:
-  barker-data:
+  rubidium-v2-data:
 
 secrets:
   HEROUI_KEY:
