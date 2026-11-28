@@ -11,6 +11,18 @@ async function noHorizontalOverflow(page: Page) {
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
 }
 
+test("v2 rejects v1 session cookies and removes the device and settings-test routes", async ({ page, context }) => {
+  await login(page);
+  const cookies = await context.cookies();
+  const session = cookies.find((cookie) => cookie.name === "rubidium_session");
+  expect(session?.httpOnly).toBe(true);
+  expect(cookies.some((cookie) => cookie.name === "barker_session")).toBe(false);
+  const oldSession = await page.request.get("/api/overview", { headers: { cookie: `barker_session=${session!.value}` } });
+  expect(oldSession.status()).toBe(401);
+  expect((await page.request.get("/api/devices")).status()).toBe(404);
+  expect((await page.request.post("/api/settings/test", { data: {} })).status()).toBe(404);
+});
+
 test("Bark and Ntfy channels are manageable and selectable in touch landscape", async ({ page }) => {
   await page.setViewportSize({ width: 844, height: 390 });
   await login(page);
@@ -62,8 +74,9 @@ test("Bark and Ntfy channels are manageable and selectable in touch landscape", 
   await defaultDialog.getByLabel("服务地址", { exact: true }).fill(initialDefault.endpoint);
   await defaultDialog.getByLabel("Device Key", { exact: true }).fill("browser-default-bark-key");
   await defaultDialog.getByRole("button", { name: "保存渠道", exact: true }).click();
-  const restoredSettings = await (await page.request.get("/api/settings")).json();
-  const cleared = await page.request.put("/api/settings", { data: { ...restoredSettings.settings, revision: restoredSettings.revision, clearDeviceKey: true } });
+  const restoredChannels = await (await page.request.get("/api/channels")).json();
+  const restored = restoredChannels.channels.find((channel: { isDefault: boolean }) => channel.isDefault);
+  const cleared = await page.request.put("/api/channels", { data: { ...restored, credential: "", clearCredential: true } });
   expect(cleared.status()).toBe(200);
   await page.reload();
   await expect(page.getByRole("heading", { name: "通知渠道", exact: true })).toBeVisible();
@@ -139,11 +152,14 @@ test("Bark and Ntfy channels are manageable and selectable in touch landscape", 
   await expect(editor.getByLabel("通知渠道", { exact: true })).toBeVisible();
   await editor.getByLabel("通知渠道", { exact: true }).click();
   await page.getByRole("option", { name: "QA Ntfy Updated · Ntfy", exact: true }).click();
-  await page.keyboard.press("Escape");
+  await expect(editor.getByLabel("通知渠道", { exact: true })).toHaveAttribute("aria-expanded", "false");
   await expect(editor.getByRole("button", { name: "QA Ntfy Updated · Ntfy 通知渠道", exact: true })).toBeVisible();
   await page.screenshot({ path: test.info().outputPath("task-channel-selection-568x320.png"), animations: "disabled" });
   await editor.getByRole("button", { name: "关闭编辑器", exact: true }).click();
-  await page.getByRole("alertdialog").getByRole("button", { name: "放弃修改", exact: true }).click();
+  const discard = page.getByRole("alertdialog", { name: "放弃尚未保存的修改？", exact: true });
+  await expect(discard).toBeVisible();
+  await discard.getByRole("button", { name: "放弃修改", exact: true }).click();
+  await expect(editor).toBeHidden();
 
   await page.goto("/settings");
   const finalChannel = page.getByRole("listitem").filter({ hasText: "QA Ntfy Updated" });

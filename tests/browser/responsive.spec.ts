@@ -14,7 +14,7 @@ async function contained(page: Page) {
 
 for (const theme of ["light", "dark"] as const) {
   test(`${theme} mobile selected group keeps its lower corner surface`, async ({ page }) => {
-    await page.addInitScript((appearance) => localStorage.setItem("barker:appearance", appearance), theme);
+    await page.addInitScript((appearance) => localStorage.setItem("rubidium:appearance", appearance), theme);
     await page.setViewportSize({ width: 390, height: 1400 });
     await enter(page);
     const prefix = `连续选中小角-${theme}-${test.info().project.name}`;
@@ -192,7 +192,7 @@ test("editor aligns schedule fields and keeps ending controls usable at every wi
 for (const theme of ["light", "dark"] as const) {
   test(`${theme} records keep actions and status readable at phone tablet and desktop widths`, async ({ page }) => {
     test.setTimeout(90_000);
-    await page.addInitScript((appearance) => localStorage.setItem("barker:appearance", appearance), theme);
+    await page.addInitScript((appearance) => localStorage.setItem("rubidium:appearance", appearance), theme);
     await enter(page);
     const name = `响应式检查-${theme}-${test.info().project.name}`;
     for (const suffix of ["", "-2", "-3"]) {
@@ -452,7 +452,8 @@ test("touch layouts keep bulk actions reachable and hide selection on completed 
     await page.route("**/api/tasks", async (route) => {
       if (route.request().method() === "PATCH") {
         await pendingBulk;
-        await route.fulfill({ json: { results: [{ success: true }] } });
+        const { items } = route.request().postDataJSON() as { items: Array<{ id: string }> };
+        await route.fulfill({ json: { results: items.map(({ id }) => ({ id, success: true })) } });
       } else await route.continue();
     });
     await busyBar.getByRole("button", { name: "暂停提醒", exact: true }).click();

@@ -5,10 +5,11 @@ import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "nod
 import { tmpdir } from "node:os";
 import { pipeline } from "node:stream/promises";
 import { loadRuntimeEnvironment, runtimeDirectory } from "./runtime-paths.mjs";
+import { CURRENT_SCHEMA_VERSION, TRANSFER_VERSION, assertV2DataDirectory } from "../lib/storage-format.mjs";
 import { getEnvironmentVariable } from "../lib/environment.mjs";
 
-const names = ["barker.sqlite", "access-password.txt", "session-secret.txt"];
-const encryptedMagic = Buffer.from("RUBIDIUM-OPS-BACKUP-1\n", "ascii");
+const names = ["rubidium.sqlite", "session-secret.txt"];
+const encryptedMagic = Buffer.from("RUBIDIUM-OPS-BACKUP-2\n", "ascii");
 const encryptedSaltBytes = 16;
 const encryptedIvBytes = 12;
 const encryptedTagBytes = 16;
@@ -18,7 +19,7 @@ const encryptedFileNames = encryptionKeyFileNames.map((name) => `${name}.enc`);
 const MIN_BACKUP_KEY_BYTES = 16;
 const MAX_BACKUP_KEY_BYTES = 1024;
 const backupScryptOptions = { N: 32768, r: 8, p: 1, maxmem: 64 * 1024 * 1024 };
-export const MAX_SUPPORTED_SCHEMA_VERSION = 5;
+export const MAX_SUPPORTED_SCHEMA_VERSION = CURRENT_SCHEMA_VERSION;
 async function digest(path) {
   const hash = createHash("sha256");
   for await (const chunk of createReadStream(path)) hash.update(chunk);
@@ -45,7 +46,7 @@ function verifyDatabase(path) {
     if (integrity.integrity_check !== "ok") throw new Error("Database integrity check failed");
     if (database.prepare("PRAGMA foreign_key_check").all().length) throw new Error("Database foreign keys are invalid");
     const version = database.prepare("PRAGMA user_version").get().user_version;
-    if (version > MAX_SUPPORTED_SCHEMA_VERSION) throw new Error(`Unsupported schema version ${version}`);
+    if (version !== CURRENT_SCHEMA_VERSION) throw new Error(`Unsupported schema version ${version}`);
     for (const table of ["tasks", "deliveries", "settings"]) database.prepare(`SELECT 1 FROM ${table} LIMIT 1`).get();
     return version;
   } finally { database.close(); }
@@ -163,23 +164,25 @@ export async function backupData(source, destination) {
   const sourcePath = canonicalPath(source);
   const destinationPath = canonicalPath(destination);
   if (isSameOrWithin(sourcePath, destinationPath)) throw new Error("Backup destination must be outside the source data directory");
+  assertV2DataDirectory(source);
+  regularFile(join(source, "rubidium.sqlite"));
+  verifyDatabase(join(source, "rubidium.sqlite"));
   createPrivateDirectory(destination);
   try {
-    regularFile(join(source, "barker.sqlite"));
-    const database = new DatabaseSync(join(source, "barker.sqlite"), { readOnly: true });
-    try { await backup(database, join(destination, "barker.sqlite")); }
+    const database = new DatabaseSync(join(source, "rubidium.sqlite"), { readOnly: true });
+    try { await backup(database, join(destination, "rubidium.sqlite")); }
     finally { database.close(); }
-    sealSnapshot(join(destination, "barker.sqlite"));
-    chmodSync(join(destination, "barker.sqlite"), 0o600);
+    sealSnapshot(join(destination, "rubidium.sqlite"));
+    chmodSync(join(destination, "rubidium.sqlite"), 0o600);
     for (const name of names.slice(1)) {
       if (!existsSync(join(source, name))) continue;
       regularFile(join(source, name));
       copyFileSync(join(source, name), join(destination, name));
       chmodSync(join(destination, name), 0o600);
     }
-    const version = verifyDatabase(join(destination, "barker.sqlite"));
+    const version = verifyDatabase(join(destination, "rubidium.sqlite"));
     const files = await fileDigests(destination);
-    writeFileSync(join(destination, "manifest.json"), JSON.stringify({ format: 1, schemaVersion: version, createdAt: new Date().toISOString(), files }, null, 2), { mode: 0o600 });
+    writeFileSync(join(destination, "manifest.json"), JSON.stringify({ format: TRANSFER_VERSION, schemaVersion: version, createdAt: new Date().toISOString(), files }, null, 2), { mode: 0o600 });
     chmodSync(join(destination, "manifest.json"), 0o600);
     return { files: Object.keys(files), schemaVersion: version };
   } catch (error) { rmSync(destination, { recursive: true, force: true }); throw error; }
@@ -218,34 +221,36 @@ export async function restoreData(source, destination) {
   if (isSameOrWithin(sourcePath, destinationPath)) throw new Error("Restore target must be outside the backup directory");
   regularFile(join(source, "manifest.json"));
   const manifest = JSON.parse(readFileSync(join(source, "manifest.json"), "utf8"));
-  if (manifest.format !== 1 || !manifest.files || typeof manifest.files !== "object" || !("barker.sqlite" in manifest.files)) throw new Error("Invalid backup manifest");
+  if (manifest.format !== TRANSFER_VERSION || manifest.schemaVersion !== CURRENT_SCHEMA_VERSION || !manifest.files || typeof manifest.files !== "object" || !("rubidium.sqlite" in manifest.files)) throw new Error("Invalid backup manifest");
   for (const [name, expected] of Object.entries(manifest.files)) {
     if (!names.includes(name)) throw new Error(`Unexpected backup file ${name}`);
     if (typeof expected !== "string" || !/^[a-f0-9]{64}$/.test(expected)) throw new Error(`Invalid checksum in backup manifest: ${name}`);
     regularFile(join(source, name));
     if (await digest(join(source, name)) !== expected) throw new Error(`Backup checksum mismatch: ${name}`);
   }
-  if (readdirSync(source).some((name) => ![...names, "manifest.json"].includes(name))) throw new Error("Backup contains unexpected files");
+  const listedFiles = new Set([...Object.keys(manifest.files), "manifest.json"]);
+  if (readdirSync(source).some((name) => !listedFiles.has(name))) throw new Error("Backup contains unexpected files or files missing from its manifest");
+  verifyDatabase(join(source, "rubidium.sqlite"));
   createPrivateDirectory(destination);
   try {
     for (const name of Object.keys(manifest.files)) {
       copyFileSync(join(source, name), join(destination, name));
       chmodSync(join(destination, name), 0o600);
     }
-    sealSnapshot(join(destination, "barker.sqlite"));
-    const sourceVersion = verifyDatabase(join(destination, "barker.sqlite"));
+    sealSnapshot(join(destination, "rubidium.sqlite"));
+    const sourceVersion = verifyDatabase(join(destination, "rubidium.sqlite"));
     if (manifest.schemaVersion !== sourceVersion) throw new Error("Backup manifest schema version does not match the database");
-    const database = new DatabaseSync(join(destination, "barker.sqlite"));
+    const database = new DatabaseSync(join(destination, "rubidium.sqlite"));
     try {
       for (const table of ["sessions", "api_tokens", "runtime_state"]) {
-        if (database.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?").get(table)) database.exec(`DELETE FROM ${table}`);
+        database.exec(`DELETE FROM ${table}`);
       }
     }
     finally { database.close(); }
-    verifyDatabase(join(destination, "barker.sqlite"));
+    verifyDatabase(join(destination, "rubidium.sqlite"));
     const restoredFiles = await fileDigests(destination);
     writeFileSync(join(destination, "manifest.json"), JSON.stringify({
-      format: 1,
+      format: TRANSFER_VERSION,
       schemaVersion: sourceVersion,
       createdAt: new Date().toISOString(),
       restoredFrom: typeof manifest.createdAt === "string" ? manifest.createdAt : null,
@@ -263,7 +268,7 @@ export async function restoreDataEncrypted(source, destination, password) {
   const destinationPath = canonicalPath(destination);
   if (isSameOrWithin(sourcePath, destinationPath)) throw new Error("Restore target must be outside the encrypted backup directory");
   const files = readdirSync(source).sort();
-  if (files.some((name) => !encryptedFileNames.includes(name)) || !files.includes("barker.sqlite.enc") || !files.includes("manifest.json.enc")) {
+  if (files.some((name) => !encryptedFileNames.includes(name)) || !files.includes("rubidium.sqlite.enc") || !files.includes("manifest.json.enc")) {
     throw new Error("Encrypted backup is missing required files or contains unexpected files");
   }
   let staging;

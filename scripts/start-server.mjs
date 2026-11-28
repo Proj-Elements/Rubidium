@@ -34,11 +34,11 @@ function shutdown(signal) {
   deadline = setTimeout(forwardSignal, 20_000);
   deadline.unref();
   if (!child.connected || getEnvironmentVariable("DISABLE_SCHEDULER") === "1") return forwardSignal();
-  child.send({ type: "barker:shutdown" }, (error) => { if (error) forwardSignal(); });
+  child.send({ type: "rubidium:shutdown" }, (error) => { if (error) forwardSignal(); });
 }
 
 for (const signal of ["SIGINT", "SIGTERM"]) process.on(signal, () => shutdown(signal));
-child.on("message", (message) => { if (message?.type === "barker:stopped") forwardSignal(); });
+child.on("message", (message) => { if (message?.type === "rubidium:stopped") forwardSignal(); });
 child.once("error", (error) => { console.error(`Rubidium server failed to start: ${error.message}`); process.exitCode = 1; });
 child.once("exit", (code, signal) => {
   clearTimeout(deadline);

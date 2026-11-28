@@ -89,9 +89,17 @@ jobs:
       - name: Check affected browser interactions
         id: browser
         if: steps.scope.outputs.browser == 'true'
+        env:
+          BROWSER_TESTS: ${{ steps.scope.outputs.browser_tests }}
         run: |
           pnpm exec playwright install --with-deps chromium webkit
-          pnpm test:browser
+          node --input-type=module <<'NODE'
+          import { spawnSync } from 'node:child_process';
+          const tests = JSON.parse(process.env.BROWSER_TESTS);
+          if (!Array.isArray(tests) || tests.length === 0) throw new Error('Expected affected browser test files');
+          const result = spawnSync('pnpm', ['test:browser', ...tests], { stdio: 'inherit' });
+          process.exit(result.status ?? 1);
+          NODE
 
       - name: Verify applicable checks completed
         if: always()

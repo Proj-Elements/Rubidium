@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { IconButton } from "./primitives";
 import { useTranslations } from "./locale-provider";
 
-const preferenceKey = "barker:appearance";
+const preferenceKey = "rubidium:appearance";
 type Appearance = "system" | "light" | "dark";
 export function ThemeToggle() {
   const { t } = useTranslations();

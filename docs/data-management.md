@@ -1,10 +1,12 @@
 # 数据管理
 
+v2.0.0-alpha 的网页导出封装为 version 2、数据库 schema 6；运维备份 manifest 为 format 2，加密文件头为 `RUBIDIUM-OPS-BACKUP-2`。只接受这些 v2 格式，不支持 v1 数据库、导出文件或备份。原 v1 数据和备份应保留给 v1 实例。
+
 ## 网页导入与导出
 
 在「设置 → 记录维护」里打开导出或导入弹窗。导出密码为 12–200 个字符，导入时必须提供同一个密码；密码不会存到服务器上，弄丢了就解不开文件。
 
-导出文件用 scrypt 派生密钥、AES-256-GCM 加密，内容包括提醒、投递历史、设备和通知设置，但不含访问密码哈希、活动会话、API 凭据和调度器运行状态。导入会替换掉这些业务数据，操作前要二次确认；访问密码、会话和 API 凭据会保留。认证失败、文件损坏或格式不兼容时，现有数据不会被改动。这个功能只在网页里提供，没有对应的 HTTP API 或 MCP 工具。
+导出文件用 scrypt 派生密钥、AES-256-GCM 加密，内容包括提醒、投递历史、通知渠道和偏好设置，但不含访问密码哈希、活动会话、API 凭据和调度器运行状态。导入会替换掉这些业务数据，操作前要二次确认；访问密码、会话和 API 凭据会保留。认证失败、文件损坏或格式不兼容时，现有数据不会被改动。网页通过仅限浏览器会话的 `/api/data/export` 和 `/api/data/import` 执行；API token 和 MCP 不能调用。
 
 ## 运维备份
 
@@ -44,7 +46,7 @@ pnpm data:restore:encrypted /srv/rubidium/data-restored /secure/backups/rubidium
 unset RUBIDIUM_BACKUP_KEY
 ```
 
-运维快照里包含 SQLite 中的 Bark Device Key，可能还有访问密码兼容文件和会话签名密钥。恢复出来的目录仍然是明文运行数据，必须限制文件系统访问。普通 `data:backup` / `data:restore` 生成的是明文快照，只应该写到权限受控的加密存储里。
+运维快照包含 `rubidium.sqlite` 中的通知渠道凭据与访问密码哈希，以及存在时的 `session-secret.txt`。不再备份旧版明文访问密码文件。恢复出来的目录仍然是明文运行数据，必须限制文件系统访问。普通 `data:backup` / `data:restore` 生成的是明文快照，只应该写到权限受控的加密存储里。
 
 数据库运行时可能用 WAL/SHM 辅助文件，所以别直接复制正在运行的 SQLite 主文件当备份。也不要把数据目录放在不支持文件锁和可靠写入的网络文件系统上，更不要让多个实例共用一个 SQLite 数据目录。恢复不会覆盖目标目录；恢复完把 `RUBIDIUM_DATA_DIR` 指向新目录，再启动服务。
 
@@ -70,7 +72,7 @@ docker exec -u 0 rubidium rm -r /tmp/rubidium-backup-20261122.enc
 docker exec -u 0 rubidium rm -f /tmp/rubidium-backup-key
 ```
 
-恢复前读取现有容器使用的卷名和镜像，继续使用同一个卷；直接镜像部署的默认卷为 `rubidium-data`，源码 Compose 的卷名包含项目名前缀。下面命令面向命名卷；使用宿主机目录挂载时，请改成实际路径。
+恢复前读取现有容器使用的卷名和镜像，继续使用同一个卷；直接镜像部署的默认卷为 `rubidium-v2-data`，源码 Compose 的卷名包含项目名前缀。下面命令面向命名卷；使用宿主机目录挂载时，请改成实际路径。
 
 停服务后，将备份目录及密钥文件只读挂进一次性容器；恢复目标必须是卷里尚不存在的新目录：
 

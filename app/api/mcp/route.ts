@@ -4,8 +4,10 @@ import { z } from "zod";
 import packageMetadata from "../../../package.json";
 import { requestIsAuthorized } from "@/lib/auth";
 import { getTask } from "@/lib/db";
-import { MAX_REQUEST_BYTES } from "@/lib/http";
+import { apiRoute, jsonError, jsonErrorFrom, MAX_REQUEST_BYTES, requireSameOrigin } from "@/lib/http";
 import { taskFields } from "@/lib/contracts";
+import { DomainError } from "@/lib/errors";
+import { logError } from "@/lib/logging";
 import { GET as taskListApi, POST as createTaskApi } from "../tasks/route";
 import { PATCH as updateTaskStatusApi, PUT as updateTaskApi, DELETE as archiveTaskApi } from "../tasks/[id]/route";
 import { GET as listDeliveriesApi } from "../deliveries/route";
@@ -67,7 +69,6 @@ function toolSuccess(value: Record<string, unknown>): ToolResult {
 }
 
 function authorized(authorization: string, method: string): boolean {
-  if (!authorization.startsWith("Bearer ")) return false;
   return requestIsAuthorized(new Request("http://rubidium.local/api/mcp", { method, headers: { authorization } }));
 }
 
@@ -93,17 +94,24 @@ async function callApi(
   extraHeaders: Record<string, string> = {},
 ): Promise<ToolResult> {
   const isWrite = !["GET", "HEAD"].includes(method);
-  if (!authorized(authorization, isWrite ? "POST" : "GET")) {
-    return toolError(isWrite ? "当前凭据没有写入权限" : "凭据无效或已撤销", isWrite ? 403 : 401);
+  let response: Response;
+  try {
+    if (!authorized(authorization, isWrite ? "POST" : "GET")) {
+      return toolError(isWrite ? "当前凭据没有写入权限" : "凭据无效或已撤销", isWrite ? 403 : 401);
+    }
+    response = await handler(apiRequest(authorization, path, method, body, extraHeaders), context ?? { params: Promise.resolve({ id: "" }) });
+  } catch (error) {
+    if (!(error instanceof DomainError)) logError("mcp.tool.failed", error, { method, path: new URL(path, "http://rubidium.local").pathname });
+    response = jsonErrorFrom(error);
   }
-  const response = await handler(apiRequest(authorization, path, method, body, extraHeaders), context ?? { params: Promise.resolve({ id: "" }) });
   const payload = await response.json().catch(() => ({ error: "服务返回了无效响应" })) as Record<string, unknown>;
   if (!response.ok) return toolError(typeof payload.error === "string" ? payload.error : "请求未完成", response.status);
   return toolSuccess(payload);
 }
 
 function createServer(authorization: string): McpServer {
-  const server = new McpServer({ name: "rubidium", version: packageMetadata.version }, { maxToolInputElements: 500 });
+  // A valid task can include two 366-entry date arrays plus its scalar fields.
+  const server = new McpServer({ name: "rubidium", version: packageMetadata.version }, { maxToolInputElements: 1000 });
 
   server.registerTool("list_tasks", {
     title: "列出提醒",
@@ -122,11 +130,10 @@ function createServer(authorization: string): McpServer {
     description: "按提醒 ID 读取单条提醒，不返回设备密钥或访问凭据。",
     inputSchema: idSchema,
     annotations: { readOnlyHint: true },
-  }, async ({ id }) => {
-    if (!authorized(authorization, "GET")) return toolError("凭据无效或已撤销", 401);
+  }, async ({ id }) => callApi(authorization, "GET", `/api/tasks/${encodeURIComponent(id)}`, async () => {
     const task = getTask(id);
-    return task ? toolSuccess({ task }) : toolError("任务不存在", 404);
-  });
+    return task ? Response.json({ task }) : jsonError("任务不存在", 404);
+  }));
 
   server.registerTool("create_task", {
     title: "创建提醒",
@@ -259,9 +266,11 @@ function unauthorized(): Response {
   return Response.json({ error: "未授权：请提供有效的 Bearer API 凭据" }, { status: 401, headers: { "www-authenticate": "Bearer" } });
 }
 
-export async function POST(request: Request): Promise<Response> {
+export const POST = apiRoute(async (request: Request): Promise<Response> => {
   const authorization = request.headers.get("authorization") ?? "";
   if (!authorized(authorization, "GET")) return unauthorized();
+  const blocked = requireSameOrigin(request);
+  if (blocked) return blocked;
 
   const server = createServer(authorization);
   const transport = new WebStandardStreamableHTTPServerTransport({
@@ -276,7 +285,7 @@ export async function POST(request: Request): Promise<Response> {
   } finally {
     await server.close();
   }
-}
+});
 
 function methodNotAllowed(): Response {
   return Response.json({ jsonrpc: "2.0", error: { code: -32000, message: "Method not allowed." }, id: null }, {

@@ -1,4 +1,4 @@
-import { DeliveryError, retryAfter } from "./bark";
+import { DeliveryError, responseText, retryAfter } from "./bark";
 import { redactSecrets } from "./errors";
 import type { ChannelDeliverySettings } from "./types";
 
@@ -29,6 +29,7 @@ export async function sendNtfy(
       redirect: "manual",
       headers: {
         "content-type": "text/plain; charset=utf-8",
+        accept: "application/json",
         ...(token ? { authorization: `Bearer ${token}` } : {}),
         ...((title || settings.title) ? { "x-title": encodedTitle(title || settings.title) } : {}),
       },
@@ -46,7 +47,17 @@ export async function sendNtfy(
         scope: status === 413 ? "payload" : "endpoint",
       });
     }
-    void response.body?.cancel().catch(() => undefined);
+    const text = await responseText(response, new DeliveryError("Ntfy API 响应过大，无法确认送达"));
+    let result: unknown;
+    try {
+      result = JSON.parse(text) as unknown;
+    } catch {
+      throw new DeliveryError("Ntfy API 返回了非 JSON 响应，无法确认推送是否成功");
+    }
+    const object = result && typeof result === "object" && !Array.isArray(result) ? result as { id?: unknown; event?: unknown; topic?: unknown } : null;
+    if (typeof object?.id !== "string" || !object.id.trim() || object.event !== "message" || object.topic !== settings.topic) {
+      throw new DeliveryError("Ntfy API 返回了无法识别的消息响应，无法确认送达");
+    }
   } catch (error) {
     if (error instanceof DeliveryError) {
       error.message = redactSecrets(error.message, [token]);

@@ -7,7 +7,7 @@ test("API clients reject HTML or structurally invalid success payloads", () => {
   assert.equal(validApiPayload("/api/tasks", { tasks: [] }), true);
   assert.equal(validApiPayload("/api/overview", {
     tasks: [], upcoming: [], upcomingDays: [], recent: [], activity: [], stats: { active: 0, paused: 0, todaySent: 0, totalSent: 0 },
-    deliveries: { pending: 0, retrying: 0, nextRetryAt: null }, endpoint: "https://api.day.app", deviceKeyConfigured: false,
+    deliveries: { pending: 0, retrying: 0, nextRetryAt: null },
     defaultChannel: { type: "bark", credentialConfigured: false }, serverTime: "2030-01-01T00:00:00Z",
   }), true);
   assert.equal(validApiPayload("/api/tasks", {}), false);
@@ -18,11 +18,12 @@ test("API clients reject HTML or structurally invalid success payloads", () => {
   assert.equal(validApiPayload("/api/tasks/preview", { dates: ["not-a-date"] }), false);
   assert.equal(validApiPayload("/api/tasks/preview", { dates: ["2030-02-31T01:00:00Z"] }), false);
   assert.equal(validApiPayload("/api/tasks/preview", { dates: ["2030-02-28T01:00:00Z"] }), true);
-  assert.equal(validApiPayload("/api/settings/test", { delivered: false }), false);
+  assert.equal(validApiPayload("/api/settings/test", { delivered: true }), false);
+  assert.equal(validApiPayload("/api/devices", { devices: [] }), false);
   assert.equal(validApiPayload("/api/overview", { tasks: [], upcoming: [], upcomingDays: [], recent: [], activity: [], stats: {}, deliveries: {}, serverTime: "2030-01-01T00:00:00Z" }), false);
   assert.equal(validApiPayload("/api/overview", {
     tasks: [], upcoming: [], upcomingDays: [], recent: [], activity: [], stats: { active: 0, paused: 0, todaySent: 0, totalSent: 0 },
-    deliveries: { pending: 0, retrying: 0, nextRetryAt: null }, endpoint: "https://api.day.app", deviceKeyConfigured: false,
+    deliveries: { pending: 0, retrying: 0, nextRetryAt: null },
     defaultChannel: { type: "smtp", credentialConfigured: false }, serverTime: "2030-01-01T00:00:00Z",
   }), false);
   assert.equal(validApiPayload("/api/settings", { tasks: [] }), false);
@@ -44,6 +45,84 @@ test("the actual API client rejects HTML and malformed JSON success responses", 
   await assert.rejects(api("/api/tasks"), /格式无效/);
 });
 
+test("API success validation rejects malformed schedule pages", async (context) => {
+  const stamp = "2030-01-01T01:00:00Z";
+  const item = { taskId: "reminder", occurrenceAt: stamp, name: "Reminder" };
+  assert.equal(validApiPayload("/api/upcoming", { items: [item], total: 1, next: null }), true);
+  assert.equal(validApiPayload("/api/upcoming", { items: [item], total: 2, next: { taskId: "reminder", occurrenceAt: stamp } }), true);
+  context.mock.method(globalThis, "fetch", async () => Response.json({ items: [null], total: 1, next: null }));
+  await assert.rejects(api("/api/upcoming"), (error: unknown) => error instanceof ApiError && error.localized?.key === "errors.invalidPayload");
+  for (const payload of [
+    { items: [{ ...item, occurrenceAt: "2030-02-31T01:00:00Z" }], total: 1, next: null },
+    { items: [item], total: 1, next: { taskId: "reminder" } },
+    { items: [item], total: 1 },
+  ]) assert.equal(validApiPayload("/api/upcoming", payload), false);
+});
+
+test("bulk success validation requires a boolean outcome for every result", async (context) => {
+  context.mock.method(globalThis, "fetch", async () => Response.json({ results: [{ id: "reminder", success: "false" }] }));
+  for (const path of ["/api/tasks", "/api/deliveries"]) {
+    assert.equal(validApiPayload(path, { results: [{ id: "reminder", success: false }] }), true);
+    await assert.rejects(api(path), (error: unknown) => error instanceof ApiError && error.localized?.key === "errors.invalidPayload");
+    assert.equal(validApiPayload(path, { results: [null] }), false);
+  }
+});
+
+test("security payloads cannot pass invalid expiry times or incomplete rows to rendering", () => {
+  const session = { id: "session", expiresAt: 1_900_000_000_000 };
+  const token = { id: "token", name: "Reader", scope: "read", expiresAt: 0 };
+  const security = { sessions: [session], tokens: [token], sessionPagination: { page: 1, pageSize: 10, total: 1 } };
+  assert.equal(validApiPayload("/api/security?page=1", security), true);
+  assert.equal(validApiPayload("/api/security", { ...security, sessions: [null] }), false);
+  assert.equal(validApiPayload("/api/security", { ...security, tokens: [{ ...token, expiresAt: 9_000_000_000_000_000 }] }), false);
+  assert.equal(validApiPayload("/api/security", { ...security, tokens: [{ ...token, scope: "admin" }] }), false);
+  assert.equal(validApiPayload("/api/security", { ...security, sessions: [{ ...session, expiresAt: "tomorrow" }] }), false);
+});
+
+test("audit payloads require complete events with valid timestamps", () => {
+  const event = { id: "event", action: "task.create", target: "reminder", createdAt: "2030-01-01T01:00:00Z" };
+  assert.equal(validApiPayload("/api/audit", { events: [event] }), true);
+  assert.equal(validApiPayload("/api/audit", { events: [null] }), false);
+  assert.equal(validApiPayload("/api/audit", { events: [{ ...event, createdAt: "2030-02-31T01:00:00Z" }] }), false);
+});
+
+test("display preferences require valid scheduling zones and retention limits", () => {
+  const settings = { title: "Reminder", sound: "", group: "", icon: "", displayTimeZone: "UTC", historyRetentionDays: 0 };
+  const payload = { settings, revision: 1, dataDir: "/tmp/example" };
+  assert.equal(validApiPayload("/api/settings", payload), true);
+  assert.equal(validApiPayload("/api/settings", { ...payload, settings: { ...settings, displayTimeZone: "Mars/Olympus" } }), false);
+  assert.equal(validApiPayload("/api/settings", { ...payload, settings: { ...settings, historyRetentionDays: -1 } }), false);
+  const overview = {
+    tasks: [], upcoming: [], upcomingDays: [], recent: [], activity: [], stats: { active: 0, paused: 0, todaySent: 0, totalSent: 0 },
+    deliveries: { pending: 0, retrying: 0, nextRetryAt: null },
+    defaultChannel: { type: "bark", credentialConfigured: false }, serverTime: "2030-01-01T00:00:00Z", displayTimeZone: "UTC",
+  };
+  assert.equal(validApiPayload("/api/overview", overview), true);
+  assert.equal(validApiPayload("/api/overview", { ...overview, displayTimeZone: "Mars/Olympus" }), false);
+});
+
+test("encrypted export responses require their encryption metadata before download", () => {
+  const envelope = { format: "rubidium-encrypted-export", version: 2, schemaVersion: 6, cipher: "aes-256-gcm", kdf: "scrypt",
+    salt: Buffer.alloc(16).toString("base64"), iv: Buffer.alloc(12).toString("base64"), tag: Buffer.alloc(16).toString("base64"), payload: "AQID" };
+  assert.equal(validApiPayload("/api/data/export", envelope), true);
+  for (const value of [
+    { format: envelope.format, version: 1, payload: envelope.payload },
+    { ...envelope, version: 1 }, { ...envelope, schemaVersion: 5 }, { ...envelope, iv: "not-base64" }, { ...envelope, tag: "AQID" }, { ...envelope, payload: "" },
+    { ...envelope, salt: `${envelope.salt.slice(0, -3)}B==` },
+    ...["A===", "AQ=I", "AQID!", "AQI"].map((payload) => ({ ...envelope, payload })),
+  ]) assert.equal(validApiPayload("/api/data/export", value), false);
+});
+
+test("the API client accepts a valid multi-megabyte encrypted export without exhausting the regexp stack", async (context) => {
+  const envelope = { format: "rubidium-encrypted-export", version: 2, schemaVersion: 6, cipher: "aes-256-gcm", kdf: "scrypt",
+    salt: Buffer.alloc(16).toString("base64"), iv: Buffer.alloc(12).toString("base64"), tag: Buffer.alloc(16).toString("base64"),
+    payload: Buffer.alloc(8 * 1024 * 1024 + 2, 255).toString("base64") };
+  context.mock.method(globalThis, "fetch", async () => Response.json(envelope));
+  const exported = await api<typeof envelope>("/api/data/export", { method: "POST" });
+  assert.equal(exported.payload.length, envelope.payload.length);
+  assert.ok(exported.payload === envelope.payload);
+});
+
 test("API error keys and interpolation values are localized without inspecting server prose", async (context) => {
   const fetcher = context.mock.method(globalThis, "fetch", async () => Response.json({
     error: "密码长度不足（至少 8 个字符，当前 5 个）", errorKey: "password.tooShort", errorValues: { minimum: 8, count: 5 },
@@ -58,9 +137,10 @@ test("API error keys and interpolation values are localized without inspecting s
   await assert.rejects(api("/api/session"), (error: unknown) => error instanceof ApiError && !error.localized);
 });
 
-test("invalid task limits and calendar dates cannot reach rendering or the editor", () => {
+test("invalid task limits, calendar dates, and missing response defaults cannot reach rendering", () => {
   const task = {
     id: "task", name: "Reminder", description: "", cron: "0 9 * * *", timeZone: "Asia/Shanghai", preset: "daily", status: "active",
+    deviceId: "default", notification: {}, skipDates: [], includeDates: [],
     sentCount: 0, queuedCount: 0, pendingCount: 0, repeatCount: 3, endDate: null, maxLatenessMinutes: null, revision: 1,
     startsAt: "2030-01-01T01:00:00Z", createdAt: "2030-01-01T00:00:00Z", updatedAt: "2030-01-01T00:00:00Z",
     nextRunAt: "2030-01-01T01:00:00Z", lastRunAt: null, pausedAt: null, lastError: null,
@@ -68,6 +148,11 @@ test("invalid task limits and calendar dates cannot reach rendering or the edito
   assert.equal(validApiPayload("/api/tasks", { tasks: [task] }), true);
   for (const patch of [{ repeatCount: {} }, { repeatCount: -1 }, { endDate: "2030-02-31" }, { maxLatenessMinutes: "60" }]) {
     assert.equal(validApiPayload("/api/tasks", { tasks: [{ ...task, ...patch }] }), false);
+  }
+  for (const key of ["timeZone", "deviceId", "notification", "skipDates", "includeDates"]) {
+    const incomplete: Record<string, unknown> = { ...task };
+    delete incomplete[key];
+    assert.equal(validApiPayload("/api/tasks", { tasks: [incomplete] }), false, `missing ${key}`);
   }
 });
 
@@ -134,6 +219,26 @@ test("task wall-clock conversion keeps preset days and rejects nonexistent DST t
   assert.equal(clientPresetCron("daily", "not-a-date"), "");
   assert.equal(toOffsetDateTime("2026-03-08T02:30", "America/New_York"), "");
   assert.equal(toOffsetDateTime("2026-11-01T01:30", "America/New_York"), "2026-11-01T05:30:00.000Z");
+});
+
+test("wall-clock conversion preserves an unchanged saved instant in a DST overlap", () => {
+  const convert: (value: string, timeZone: string, savedInstant?: string) => string = toOffsetDateTime;
+  const secondOccurrence = "2026-11-01T06:30:00.000Z";
+  assert.equal(convert("2026-11-01T01:30", "America/New_York", secondOccurrence), secondOccurrence);
+  assert.equal(convert("2026-11-01T01:31", "America/New_York", secondOccurrence), "2026-11-01T05:31:00.000Z");
+  assert.equal(convert("2026-11-01T01:30", "UTC", secondOccurrence), "2026-11-01T01:30:00.000Z");
+  assert.equal(convert("2026-03-08T02:30", "America/New_York", secondOccurrence), "");
+  assert.equal(convert("2026-11-01T01:30", "America/New_York", "invalid"), "2026-11-01T05:30:00.000Z");
+  assert.equal(convert("2026-11-01T01:30", "America/New_York", "2026-11-01T01:30:59-05:00"), secondOccurrence);
+  assert.equal(convert("2026-04-05T01:45", "Australia/Lord_Howe", "2026-04-04T15:15:00.000Z"), "2026-04-04T15:15:00.000Z");
+  assert.equal(convert("2026-04-05T01:45", "Australia/Lord_Howe"), "2026-04-04T14:45:00.000Z");
+  assert.equal(convert("2026-10-04T02:15", "Australia/Lord_Howe"), "");
+  assert.equal(convert("2030-11-04T09:00", "Asia/Kathmandu"), "2030-11-04T03:15:00.000Z");
+});
+
+test("wall-clock conversion rejects invalid zones rather than substituting Shanghai", () => {
+  assert.equal(toOffsetDateTime("2030-11-04T09:00", "Mars/Olympus"), "");
+  assert.equal(toOffsetDateTime("2030-11-04T09:00", "+08:00"), "");
 });
 
 test("corrupt stored dates and timezones cannot crash the task editor", () => {

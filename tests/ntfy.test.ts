@@ -13,11 +13,13 @@ const ntfy: ChannelDeliverySettings = {
   deviceKey: "private-ntfy-token",
 };
 
+const acknowledgement = () => Response.json({ id: "test-message-id", event: "message", topic: ntfy.topic });
+
 test("Ntfy posts UTF-8 messages to the configured topic without following redirects", async () => {
   let request: { url: string; headers: Headers; body: string; redirect: RequestRedirect | undefined } | undefined;
   await sendNtfy(ntfy, "计划提醒", "内容在这里", async (url, init) => {
     request = { url: String(url), headers: new Headers(init?.headers), body: String(init?.body), redirect: init?.redirect };
-    return new Response(null, { status: 200 });
+    return acknowledgement();
   });
   assert.equal(request?.url, "https://ntfy.example/push/rubidium_alerts");
   assert.equal(request?.headers.get("authorization"), "Bearer private-ntfy-token");
@@ -31,7 +33,7 @@ test("Ntfy supports public topics and safely appends validated topic segments", 
   assert.equal(ntfyPublishUrl("https://ntfy.example/base/path/", "safe_topic-1").toString(), "https://ntfy.example/base/path/safe_topic-1");
   await sendNtfy({ ...ntfy, deviceKey: "" }, "", "Body", async (_url, init) => {
     assert.equal(new Headers(init?.headers).has("authorization"), false);
-    return new Response(null, { status: 200 });
+    return acknowledgement();
   });
 });
 
@@ -62,11 +64,42 @@ test("Ntfy network errors redact credentials and timeouts remain retryable", asy
   }), (error: unknown) => error instanceof DeliveryError && error.kind === "transient" && /超时/.test(error.message));
 });
 
+test("Ntfy requires a message acknowledgement for the requested topic", async () => {
+  for (const body of ["", "<html>proxy login</html>", "{}", "null", "[]",
+    JSON.stringify({ id: "message-id", event: "keepalive", topic: ntfy.topic }),
+    JSON.stringify({ id: "message-id", event: "message", topic: "different-topic" }),
+    JSON.stringify({ id: "", event: "message", topic: ntfy.topic }),
+    JSON.stringify({ id: " ", event: "message", topic: ntfy.topic }),
+    JSON.stringify({ event: "message", topic: ntfy.topic })]) {
+    await assert.rejects(sendNtfy(ntfy, "Title", "Body", async () => new Response(body)),
+      (error: unknown) => error instanceof DeliveryError && error.kind === "transient");
+  }
+});
+
+test("Ntfy bounds acknowledgement response size", async () => {
+  await assert.rejects(sendNtfy(ntfy, "Title", "Body", async () => Response.json({
+    id: "message-id", event: "message", topic: ntfy.topic, padding: "x".repeat(17_000),
+  })), /响应过大/);
+});
+
+test("Ntfy waits for its acknowledgement and times out a stalled response", async (context) => {
+  context.mock.timers.enable({ apis: ["setTimeout"] });
+  const pending = sendNtfy(ntfy, "Title", "Body", async (_url, init) => new Response(new ReadableStream({
+    start(controller) {
+      init?.signal?.addEventListener("abort", () => controller.error(new DOMException("aborted", "AbortError")), { once: true });
+    },
+  })));
+  const rejected = assert.rejects(pending, (error: unknown) => error instanceof DeliveryError && error.kind === "transient" && /超时/.test(error.message));
+  await Promise.resolve();
+  context.mock.timers.tick(15_000);
+  await rejected;
+});
+
 test("channel dispatcher preserves the existing Bark adapter", async () => {
   await sendNotification(ntfy, "Ntfy title", "Ntfy body", async (url, init) => {
     assert.equal(String(url), "https://ntfy.example/push/rubidium_alerts");
     assert.equal(String(init?.body), "Ntfy body");
-    return new Response(null, { status: 200 });
+    return acknowledgement();
   });
   await sendNotification({ ...ntfy, channelType: "bark", endpoint: "https://bark.example", deviceKey: "bark-key" }, "Bark title", "Bark body", async (_url, init) => {
     assert.equal(JSON.parse(String(init?.body)).title, "Bark title");

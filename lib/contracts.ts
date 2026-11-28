@@ -53,15 +53,8 @@ export const deliverySchema = z.object({
 export const settingsFields = z.object({
   displayTimeZone: timeZoneSchema.optional().default("Asia/Shanghai"),
   historyRetentionDays: z.number().int().min(0).max(36500).default(0),
-  endpoint: z.string().trim().min(1, "请输入完整的 Bark API 地址").max(300, "Bark API 地址过长").refine((value) => {
-    try {
-      const url = new URL(value);
-      return ["http:", "https:"].includes(url.protocol) && Boolean(url.hostname) && !url.username && !url.password && !url.search && !url.hash;
-    } catch { return false; }
-  }, "Bark API 地址必须是不含用户名、密码、查询串与锚点的 HTTP(S) 地址"),
-  deviceKey: z.string().trim().max(300).optional().default(""),
   title: z.string().trim().min(1).max(100), sound: z.string().trim().max(80), group: z.string().trim().max(100), icon: httpUrl,
-});
+}).strict();
 
 export const channelFields = z.object({
   name: z.string().trim().min(1, "渠道名称不能为空").max(80, "渠道名称最多 80 个字符").refine((value) => !/[\u0000-\u001f\u007f]/.test(value), "渠道名称不能包含控制字符"),

@@ -10,11 +10,11 @@ import { ChannelManager } from "@/components/channel-manager";
 import { AuditLog, SecurityManager } from "@/components/security-manager";
 import { TimeZonePicker } from "@/components/time-zone-picker";
 import { DataTransfer } from "@/components/data-transfer";
-import type { BarkSettings } from "@/lib/types";
+import type { AppSettings } from "@/lib/types";
 import { api, errorMessage } from "@/lib/ui";
 import { useTranslations } from "@/components/locale-provider";
 
-type SettingsPayload = { settings: Omit<BarkSettings, "deviceKey">; deviceKeyConfigured: boolean; revision: number };
+type SettingsPayload = { settings: AppSettings; revision: number };
 
 export default function SettingsPage() {
   const { t } = useTranslations();
@@ -46,8 +46,8 @@ export default function SettingsPage() {
 function SettingsForm({ initial, onSaved }: { initial: SettingsPayload; onSaved: () => Promise<void> }) {
   const { t, locale } = useTranslations();
   const { refresh } = useWorkspace();
-  const [settings, setSettings] = useState<BarkSettings>({ ...initial.settings, deviceKey: "" });
-  const [saved, setSaved] = useState<BarkSettings>({ ...initial.settings, deviceKey: "" });
+  const [settings, setSettings] = useState<AppSettings>({ ...initial.settings });
+  const [saved, setSaved] = useState<AppSettings>({ ...initial.settings });
   const [revision, setRevision] = useState(initial.revision);
   const [busy, setBusy] = useState(false);
   const [feedback, setFeedback] = useState<{ message: string; kind: "error" | "success" } | null>(null);
@@ -57,17 +57,17 @@ function SettingsForm({ initial, onSaved }: { initial: SettingsPayload; onSaved:
   useEffect(() => {
     if (dirty || initial.revision <= revision) return;
     const timer = setTimeout(() => {
-      const next = { ...initial.settings, deviceKey: "" };
+      const next = { ...initial.settings };
       setSettings(next); setSaved(next); setRevision(initial.revision);
     }, 0);
     return () => clearTimeout(timer);
   }, [initial, dirty, revision]);
   function reload() {
     const source = conflict ? initial : { settings: saved, revision };
-    const next = { ...source.settings, deviceKey: "" };
+    const next = { ...source.settings };
     setSettings(next); setSaved(next); setRevision(source.revision); setFeedback(null);
   }
-  function update(key: keyof BarkSettings, value: string) {
+  function update(key: keyof AppSettings, value: string) {
     setSettings((previous) => ({ ...previous, [key]: value }));
     setFeedback(null);
   }
@@ -77,8 +77,8 @@ function SettingsForm({ initial, onSaved }: { initial: SettingsPayload; onSaved:
     setBusy(true); setFeedback(null);
     try {
       const response = await api<{ revision: number }>("/api/settings", { method: "PUT", body: JSON.stringify({ ...settings, revision }) });
-      const next = { ...settings, deviceKey: "" };
-      setSettings((current) => JSON.stringify(current) === JSON.stringify(settings) ? next : { ...current, deviceKey: current.deviceKey === settings.deviceKey ? "" : current.deviceKey });
+      const next = { ...settings };
+      setSettings((current) => JSON.stringify(current) === JSON.stringify(settings) ? next : current);
       setSaved(next); setRevision(response.revision);
       setFeedback({ message: t("settings.preferencesSaved"), kind: "success" }); void Promise.allSettled([refresh(), onSaved()]);
     } catch (error) { setFeedback({ message: errorMessage(error, locale), kind: "error" }); void onSaved().catch(() => undefined); }
@@ -119,6 +119,7 @@ function HistorySettings({ initial, onSaved }: { initial: SettingsPayload | null
   const [feedback, setFeedback] = useState<{ message: string; kind: "error" | "success" } | null>(null);
   const dirty = days !== savedDays;
   const conflict = Boolean(initial && initial.revision > revision);
+  useUnsaved(dirty);
 
   useEffect(() => {
     if (!initial || dirty || initial.revision <= revision) return;

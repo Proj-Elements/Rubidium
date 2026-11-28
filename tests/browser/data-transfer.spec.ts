@@ -43,8 +43,10 @@ test("encrypted data export and confirmed import preserve data after a wrong pas
   const download = await downloadPromise;
   expect(download.suggestedFilename()).toMatch(/^rubidium-\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}-\d{3}Z\.rubidium$/);
   const encryptedFile = readFileSync((await download.path())!);
-  const envelope = JSON.parse(encryptedFile.toString("utf8")) as { format: string };
+  const envelope = JSON.parse(encryptedFile.toString("utf8")) as { format: string; version: number; schemaVersion: number };
   expect(envelope.format).toBe("rubidium-encrypted-export");
+  expect(envelope.version).toBe(2);
+  expect(envelope.schemaVersion).toBe(6);
   expect(encryptedFile.toString("utf8")).not.toContain("加密备份中的提醒");
   await expect(exportDialog.getByRole("status")).toContainText("加密数据文件已导出");
   await exportDialog.getByRole("button", { name: "取消" }).click();

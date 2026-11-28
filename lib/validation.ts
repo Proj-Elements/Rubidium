@@ -20,7 +20,13 @@ export const taskInputSchema = taskFields.superRefine((value, context) => {
   }
 });
 
-export const settingsSchema = settingsFields.superRefine((value, context) => {
+export const settingsSchema = settingsFields;
+
+/** Validate combined Bark options before storing credentials or changing preferences. */
+export const barkSettingsSchema = settingsFields.extend({
+  endpoint: channelFields.shape.endpoint,
+  deviceKey: z.string().trim().max(300),
+}).superRefine((value, context) => {
   const options = JSON.stringify({ device_key: value.deviceKey, sound: value.sound || undefined, group: value.group || undefined, icon: value.icon || undefined });
   if (new TextEncoder().encode(options).byteLength > 1096) context.addIssue({ code: "custom", path: ["deviceKey"], message: "密钥与通知选项合计过长，请缩短分组、提示音或图标地址，为通知正文保留空间" });
 });

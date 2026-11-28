@@ -1,7 +1,9 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
+
+const DEFAULT_SETTINGS = { ...DEFAULT_PREFERENCES, endpoint: "https://api.day.app", deviceKey: "" };
 import { barkPayload, BarkDeliveryError, retryAfter, sendBark } from "../lib/bark";
-import { DEFAULT_SETTINGS } from "../lib/types";
+import { DEFAULT_SETTINGS as DEFAULT_PREFERENCES } from "../lib/types";
 
 test("Bark receives the configured endpoint and message", async () => {
   let request: { url: string; body: Record<string, string>; redirect: RequestRedirect | undefined } | undefined;
@@ -60,7 +62,9 @@ test("a query string or fragment in the endpoint cannot misroute the push", asyn
   };
   await sendBark({ ...DEFAULT_SETTINGS, endpoint: "https://example.test/?k=1", deviceKey: "key" }, "T", "B", fetcher);
   await sendBark({ ...DEFAULT_SETTINGS, endpoint: "https://example.test/#frag", deviceKey: "key" }, "T", "B", fetcher);
-  assert.deepEqual(urls, ["https://example.test/push", "https://example.test/push"]);
+  await sendBark({ ...DEFAULT_SETTINGS, endpoint: "https://example.test/base/path?k=1", deviceKey: "key" }, "T", "B", fetcher);
+  await sendBark({ ...DEFAULT_SETTINGS, endpoint: "https://example.test/base/path#frag", deviceKey: "key" }, "T", "B", fetcher);
+  assert.deepEqual(urls, ["https://example.test/push", "https://example.test/push", "https://example.test/base/path/push", "https://example.test/base/path/push"]);
 });
 
 test("a non-JSON 2xx is a failure (captive portal / proxy page), not a delivery", async () => {

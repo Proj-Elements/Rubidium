@@ -9,7 +9,7 @@ import { setLogSecret } from "./logging";
 import { MIN_PASSWORD_LENGTH, passwordValidationLocalized, passwordValidationMessage } from "./password-policy";
 import { getEnvironmentVariable } from "./environment.mjs";
 
-const AUTH_COOKIE = "barker_session";
+const AUTH_COOKIE = "rubidium_session";
 const SESSION_DURATION_SECONDS = 12 * 60 * 60;
 /** A shorter secret is guessable enough to forge session cookies / log in. */
 const MIN_SECRET_LENGTH = 16;
@@ -90,13 +90,7 @@ function loadConfiguredPassword(): string | null {
     return configured;
   }
 
-  const path = join(/* turbopackIgnore: true */ runtimeDataDir, "access-password.txt");
-  privateFile(path);
-  const existing = readSecretFile(path);
-  if (existing === null) return null;
-  const invalidPassword = passwordValidationMessage(existing);
-  if (invalidPassword) throw new Error(`Rubidium access password file ${path}: ${invalidPassword}`);
-  return existing;
+  return null;
 }
 
 function loadSetupToken(): string | null {
@@ -316,10 +310,11 @@ export function getCookieValue(header: string | null, name = AUTH_COOKIE): strin
 }
 
 export function requestIsAuthorized(request: Request): boolean {
-  const bearer = request.headers.get("authorization");
-  if (bearer?.startsWith("Bearer ")) {
-    const value = bearer.slice(7);
-    if (value.length > 128) return false;
+  const authorization = request.headers.get("authorization");
+  if (authorization && /^Bearer(?:\s|$)/i.test(authorization)) {
+    // A declared Bearer credential must never fall back to a more privileged cookie.
+    const value = /^Bearer +(\S+)$/i.exec(authorization)?.[1];
+    if (!value || value.length > 128) return false;
     return apiTokenValid(createHash("sha256").update(value).digest("hex"), !["GET", "HEAD"].includes(request.method));
   }
   return isValidSessionToken(getCookieValue(request.headers.get("cookie")));

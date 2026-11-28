@@ -12,8 +12,9 @@ export class HttpError extends DomainError {}
 export async function requestBytes(request: Request, maximumBytes = MAX_REQUEST_BYTES): Promise<Buffer> {
   const declared = Number(request.headers.get("content-length") ?? "0");
   if (Number.isFinite(declared) && declared > maximumBytes) throw new HttpError("请求体过大", 413, { key: "errors.requestTooLarge" });
+  let reader: ReadableStreamDefaultReader<Uint8Array> | undefined;
   try {
-    const reader = request.body?.getReader();
+    reader = request.body?.getReader();
     if (!reader) throw new HttpError("请求必须包含有效 JSON", 400);
     const chunks: Uint8Array[] = [];
     let bytes = 0;
@@ -22,7 +23,8 @@ export async function requestBytes(request: Request, maximumBytes = MAX_REQUEST_
       if (done) break;
       bytes += value.byteLength;
       if (bytes > maximumBytes) {
-        await reader.cancel();
+        // Cancellation may stall or reject; a confirmed overflow must return immediately.
+        void reader.cancel().catch(() => {});
         throw new HttpError("请求体过大", 413, { key: "errors.requestTooLarge" });
       }
       chunks.push(value);
@@ -31,6 +33,8 @@ export async function requestBytes(request: Request, maximumBytes = MAX_REQUEST_
   } catch (error) {
     if (error instanceof HttpError) throw error;
     throw new HttpError("无法读取请求体", 400);
+  } finally {
+    reader?.releaseLock();
   }
 }
 
@@ -46,8 +50,8 @@ export function jsonErrorFrom(error: unknown, fallbackStatus = 500, fallbackMess
 
 /** Keep every API failure in the JSON contract, including auth/DB bootstrapping errors. */
 export function apiRoute<Args extends unknown[]>(
-  handler: (...args: Args) => Promise<NextResponse>,
-): (...args: Args) => Promise<NextResponse> {
+  handler: (...args: Args) => Promise<Response>,
+): (...args: Args) => Promise<Response> {
   return async (...args) => {
     const requestId = randomUUID();
     try {
@@ -72,10 +76,9 @@ export function expectedRevision(value: unknown): number {
 }
 
 export async function requestBody(request: Request, maximumBytes = MAX_REQUEST_BYTES): Promise<unknown> {
-  const text = new TextDecoder().decode(await requestBytes(request, maximumBytes));
-  if (Buffer.byteLength(text, "utf8") > maximumBytes) throw new HttpError("请求体过大", 413, { key: "errors.requestTooLarge" });
+  const bytes = await requestBytes(request, maximumBytes);
   try {
-    return JSON.parse(text) as unknown;
+    return JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(bytes)) as unknown;
   } catch {
     throw new HttpError("请求必须包含有效 JSON", 400);
   }
@@ -87,6 +90,25 @@ export function jsonObjectBody(value: unknown): Record<string, unknown> {
     throw new HttpError("请求内容无效", 400);
   }
   return value as Record<string, unknown>;
+}
+
+/** Reject explicit cross-origin browser requests while allowing clients without Origin metadata. */
+export function requireSameOrigin(request: Request): NextResponse | null {
+  const site = request.headers.get("sec-fetch-site");
+  if (site && site !== "same-origin" && site !== "none") return jsonError("跨站请求被拒绝", 403);
+  const origin = request.headers.get("origin");
+  if (origin) {
+    try {
+      const url = new URL(origin);
+      if (url.origin !== origin || !["http:", "https:"].includes(url.protocol)
+        || url.protocol !== new URL(request.url).protocol || url.host !== request.headers.get("host")) {
+        return jsonError("跨站请求被拒绝", 403);
+      }
+    } catch {
+      return jsonError("跨站请求被拒绝", 403);
+    }
+  }
+  return null;
 }
 
 /**
@@ -104,17 +126,7 @@ export function requireSameOriginMutation(request: Request, maximumBytes = MAX_R
   if (expectsJsonBody && contentType !== "application/json") {
     return jsonError("请求必须使用 application/json", 415);
   }
-  const site = request.headers.get("sec-fetch-site");
-  if (site && site !== "same-origin" && site !== "none") return jsonError("跨站请求被拒绝", 403);
-  const origin = request.headers.get("origin");
-  if (origin) {
-    try {
-      if (new URL(origin).host !== request.headers.get("host")) return jsonError("跨站请求被拒绝", 403);
-    } catch {
-      return jsonError("跨站请求被拒绝", 403);
-    }
-  }
-  return null;
+  return requireSameOrigin(request);
 }
 
 export function validationMessage(error: { issues?: Array<{ path: PropertyKey[]; message: string }> }): string {

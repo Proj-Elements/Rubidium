@@ -1,7 +1,6 @@
-import { createHash } from "node:crypto";
-import { HISTORY_PRUNE_BATCH_SIZE, claimDelivery, deliverySettings, dueTaskRows, extendEndpointCooldown, isolateInvalidTask, listChannels, markDeliveryFailed, markDeliverySent, pruneHistory, queueTaskBatch, readRuntimeState, readSettings, writeRuntimeState } from "./db";
+import { HISTORY_PRUNE_BATCH_SIZE, claimDelivery, coolingDownChannelIds, deliverySettings, dueTaskRows, endpointStateKey, extendEndpointCooldown, isolateInvalidTask, markDeliveryFailed, markDeliverySent, pruneHistory, queueTaskBatch, readRuntimeState, readSettings, writeRuntimeState } from "./db";
 import { DeliveryError } from "./bark";
-import { redactSecrets } from "./errors";
+import { DomainError, redactSecrets } from "./errors";
 import type { ChannelDeliverySettings } from "./types";
 import { logError } from "./logging";
 import { sendNotification } from "./notification";
@@ -17,7 +16,7 @@ const MAX_DELIVERIES_PER_CYCLE = 20;
 const DELIVERY_CONCURRENCY = 4;
 const HISTORY_MAINTENANCE_INTERVAL_MS = 60_000;
 const yieldToEventLoop = (): Promise<void> => new Promise((resolve) => setImmediate(resolve));
-const globalWorker = globalThis as typeof globalThis & { barkerSchedulerStarted?: boolean };
+const globalWorker = globalThis as typeof globalThis & { rubidiumSchedulerStarted?: boolean };
 let nextHistoryMaintenanceAt = 0;
 
 function pruneHistoryBatch(now: Date): number {
@@ -68,40 +67,35 @@ export async function enqueueDueOccurrences(now = new Date()): Promise<number> {
   finally { enqueueCycle = null; }
 }
 
-function endpointStateKey(settings: ChannelDeliverySettings): string {
-  const identity = settings.channelType === "ntfy"
-    ? `${settings.endpoint}\n${settings.deviceKey}\nntfy:${settings.topic}`
-    : `${settings.endpoint}\n${settings.deviceKey}`;
-  return `endpoint:${createHash("sha256").update(identity).digest("hex")}`;
-}
-
 export async function processOneDelivery(
   now = new Date(),
   deliver: (settings: ChannelDeliverySettings, title: string, body: string) => Promise<void> = sendNotification,
 ): Promise<boolean> {
   if (stopping) return false;
   const claimAt = new Date(Math.max(now.getTime(), Date.now()));
-  const excludedChannels = listChannels().filter((channel) => Number(readRuntimeState(endpointStateKey(deliverySettings(channel.id))) ?? 0) > claimAt.getTime()).map((channel) => channel.id);
+  const excludedChannels = coolingDownChannelIds(claimAt);
   // Lease recovery and expiration still run while the endpoint is cooling
   // down; otherwise a long Retry-After would keep already-undeliverable
   // messages looking pending for days.
   const item = claimDelivery(claimAt, true, excludedChannels);
   if (!item) return false;
-  const settings = deliverySettings(item.deviceId, item.notification);
-  const endpointKey = endpointStateKey(settings);
+  let settings: ChannelDeliverySettings | undefined;
   const attempt = item.attempts + 1;
   const completedAt = (): Date => new Date(Math.max(claimAt.getTime(), Date.now()));
   try {
+    settings = deliverySettings(item.deviceId, item.notification);
     await deliver(settings, item.name, item.description || "计划提醒时间已到。");
     markDeliverySent(item.id, item.leaseUntil, completedAt());
   } catch (error) {
+    if (!settings && !(error instanceof DomainError)) throw error;
     const nowCompleted = completedAt();
-    const message = redactSecrets(error instanceof Error ? error.message : "未知推送错误", [settings.deviceKey]);
+    const message = redactSecrets(error instanceof Error ? error.message : "未知推送错误", [settings?.deviceKey ?? ""]);
     const retryAt = error instanceof DeliveryError ? error.retryAt : undefined;
-    markDeliveryFailed(item.id, item.leaseUntil, attempt, message, nowCompleted, retryAt, error instanceof DeliveryError && error.kind === "permanent");
-    if (error instanceof DeliveryError && error.scope === "endpoint") {
+    // Invalid configuration must finish its claim and wait for repair, not lease recovery.
+    markDeliveryFailed(item.id, item.leaseUntil, attempt, message, nowCompleted, retryAt, !settings || error instanceof DeliveryError && error.kind === "permanent");
+    if (settings && error instanceof DeliveryError && error.scope === "endpoint") {
       const delay = error.kind === "permanent" ? 60_000 : 5000;
-      extendEndpointCooldown(endpointKey, Math.max(retryAt?.getTime() ?? 0, nowCompleted.getTime() + delay));
+      extendEndpointCooldown(endpointStateKey(settings), Math.max(retryAt?.getTime() ?? 0, nowCompleted.getTime() + delay));
     }
     logError("delivery.failed", new Error(message), { deliveryId: item.id, attempt });
   }
@@ -157,16 +151,16 @@ export function schedulerHealth(now = Date.now()): boolean {
 export async function stopScheduler(): Promise<void> {
   stopping = true;
   if (timer) clearInterval(timer);
-  globalWorker.barkerSchedulerStarted = false;
+  globalWorker.rubidiumSchedulerStarted = false;
   await Promise.allSettled([cycle, enqueueCycle]);
   try { writeRuntimeState("scheduler_heartbeat", "0"); }
   catch { console.error("[Rubidium] could not clear shutdown heartbeat"); }
 }
 
 export function startScheduler(): void {
-  if (getEnvironmentVariable("DISABLE_SCHEDULER") === "1" || globalWorker.barkerSchedulerStarted) return;
+  if (getEnvironmentVariable("DISABLE_SCHEDULER") === "1" || globalWorker.rubidiumSchedulerStarted) return;
   stopping = false;
-  globalWorker.barkerSchedulerStarted = true;
+  globalWorker.rubidiumSchedulerStarted = true;
   const tick = () => {
     void runSchedulerCycle().catch((error) => logError("scheduler.cycle.failed", error));
   };
@@ -175,8 +169,8 @@ export function startScheduler(): void {
   process.once("SIGTERM", () => { void stopScheduler(); });
   process.once("SIGINT", () => { void stopScheduler(); });
   if (process.send) process.on("message", (message: unknown) => {
-    if (message && typeof message === "object" && "type" in message && message.type === "barker:shutdown") {
-      void stopScheduler().finally(() => { if (process.connected) process.send?.({ type: "barker:stopped" }); });
+    if (message && typeof message === "object" && "type" in message && message.type === "rubidium:shutdown") {
+      void stopScheduler().finally(() => { if (process.connected) process.send?.({ type: "rubidium:stopped" }); });
     }
   });
   tick();

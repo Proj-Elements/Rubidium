@@ -1,12 +1,12 @@
 # Rubidium API 与 MCP
 
-本文对应 Rubidium `1.2.1`。HTTP API 收发 JSON；MCP 用的是官方 `@modelcontextprotocol/sdk` 的无状态 Streamable HTTP。默认服务地址是 `http://localhost:3000`，实际部署时换成你自己的 HTTPS 地址。
+本文对应 Rubidium `2.0.0-alpha`。HTTP API 收发 JSON；MCP 用的是官方 `@modelcontextprotocol/sdk` 的无状态 Streamable HTTP。默认服务地址是 `http://localhost:3000`，实际部署时换成你自己的 HTTPS 地址。
 
 ## 鉴权与通用约定
 
 在「设置 → 访问安全」创建 API 凭据，使用凭据输入框右侧的复制按钮保存。原文只显示一次，关闭提示或刷新页面后无法再次查看；请勿公开凭据。
 
-- 普通数据 API 既接受 `Authorization: Bearer <API_TOKEN>`，也接受登录后的 `barker_session` Cookie。API token 在「设置 → 访问安全」里创建；`read` 权限只能发 `GET`/`HEAD`，`write` 权限可读可写。永久 token 的有效天数填 `0`，之后只能手动撤销。
+- 普通数据 API 既接受 `Authorization: Bearer <API_TOKEN>`，也接受登录后的 `rubidium_session` Cookie。API token 在「设置 → 访问安全」里创建；`read` 权限只能发 `GET`/`HEAD`，`write` 权限可读可写。永久 token 的有效天数填 `0`，之后只能手动撤销。
 - `/api/security` 和 `/api/audit` 只认有效的浏览器会话 Cookie，不接受 Bearer token。会话通过 `/api/session` 创建。
 - MCP 只接受 Bearer API token，不接受 Cookie。只读 token 可以发现工具、执行只读工具；写工具需要 `write` token。
 - JSON API 成功时返回该路由定义的 JSON 对象。输入有误、业务冲突和资源不存在统一返回 `{ "error": "..." }`；预期之外的故障返回脱敏的 500。经过 `apiRoute` 包装的响应会带上 `x-request-id`。
@@ -30,7 +30,7 @@
 | 方法与路径 | 鉴权 | 输入 | 成功结果与常见错误 |
 | --- | --- | --- | --- |
 | `GET /api/health` | 无 | 无 | `{ status: "ok" }`。认证存储没就绪、SQLite 不可写或调度器不健康时，返回 `503 { status: "unavailable" }`。 |
-| `GET /api/overview` | 普通数据 API | 无 | 概要信息：提醒、未来排期、时区、Bark endpoint、是否已配 Device Key、队列摘要、统计、近期记录和服务端时间；不含 Device Key。错误：`401`。 |
+| `GET /api/overview` | 普通数据 API | 无 | 概要信息：提醒、未来排期、时区、`defaultChannel: { type, credentialConfigured }`、队列摘要、统计、近期记录和服务端时间；不含渠道地址或凭据。错误：`401`。 |
 | `GET /api/upcoming` | 普通数据 API | `date?`、`after?`、`task?`。`date` 必须落在未来七天内；游标 `after` 和 `task` 必须成对提供。 | `{ items, total, next }`，每页最多 50 条排期。错误：`400` 日期或游标无效，`503` 预测负载超时。 |
 
 ### 提醒任务
@@ -72,16 +72,12 @@ curl -sS https://rubidium.example/api/tasks \
 | `POST /api/deliveries/{id}/retry` | 写权限 | `{}` | `{ queued: true }`。错误：`404` 记录不存在，`409` 已送达、正在发送、已取消或已过期。 |
 | `POST /api/deliveries/{id}/cancel` | 写权限 | `{}` | `{ cancelled: true }`。错误：`404` 记录不存在，`409` 这条已经不在等待发送了。 |
 
-### 设置与设备
+### 偏好设置与通知渠道
 
 | 方法与路径 | 鉴权 | 输入 | 成功结果与常见错误 |
 | --- | --- | --- | --- |
-| `GET /api/settings` | 普通数据 API | 无 | `{ settings, revision, deviceKeyConfigured, dataDir }`。会返回 `historyRetentionDays`，但不会返回 Device Key。 |
-| `PUT /api/settings` | 写权限 | `displayTimeZone`、`historyRetentionDays`（整数 `0–36500`，`0` 表示关闭自动清理）、`endpoint`、`deviceKey`、`title`、`sound`、`group`、`icon`，外加必填的 `revision`；另有 `clearDeviceKey?: boolean`。Endpoint 只接受不含用户信息、查询串和锚点的 HTTP(S) URL。 | `{ saved: true, revision }`。保留策略只会删超期的已结束记录，每批最多 100 条；待投递、重试中和发送中的记录不受影响。`deviceKey` 留空会保留已有密钥；要清空得显式传 `clearDeviceKey: true`。错误：`400` 输入无效，`409` 修订冲突，`428` 缺少修订号。 |
-| `POST /api/settings/test` | 写权限 | `{}` | `{ delivered: true }`。会真的发一条测试 Bark 通知。错误：`400` 还没配 Device Key，`502` 上游失败（错误内容会脱敏）。 |
-| `GET /api/devices` | 普通数据 API | 无 | `{ devices }`。兼容旧版 Bark 设备契约，只返回 Bark 配置状态，不返回密钥。即使当前默认通知渠道已经换成了 Ntfy，默认设备依然反映旧的 Bark 设置。 |
-| `POST /api/devices` | 写权限 | `{ name, endpoint, deviceKey, id?, revision? }`。新建时不传 `id`；更新时必须同时传 `id` 和 `revision`，`deviceKey` 可以留空以保留现有密钥。当前默认渠道是 Ntfy 时，更新默认 ID 只会改动兼容用的旧 Bark 设置。 | `{ device }`。错误：`400` 输入或密钥无效，`404` ID 不存在，`409` 超出数量上限或设备冲突，`428` 更新时缺少修订号。 |
-| `DELETE /api/devices?id={id}` | 写权限 | 查询参数 `id`，请求头 `If-Match: <revision>`。 | `{ deleted: true }`。默认设备不能删。错误：`404` 不存在，`409` 还被任务或队列引用，`428` 缺少修订号。 |
+| `GET /api/settings` | 普通数据 API | 无 | `{ settings, revision, dataDir }`。仅含偏好，不含渠道地址或凭据。 |
+| `PUT /api/settings` | 写权限 | `displayTimeZone`、`historyRetentionDays`（整数 `0–36500`，`0` 表示关闭自动清理）、`title`、`sound`、`group`、`icon`，外加必填的 `revision`。旧版 `endpoint`、`deviceKey`、`clearDeviceKey` 字段返回 `400`。 | `{ saved: true, revision }`。保留策略只会删超期的已结束记录，每批最多 100 条；待投递、重试中和发送中的记录不受影响。偏好修订号与各渠道修订号相互独立。错误：`400` 输入无效，`409` 修订冲突，`428` 缺少修订号。 |
 | `GET /api/channels` | 普通数据 API | 无 | `{ channels }`。包含可编辑类型和名称的默认 Bark/Ntfy 渠道，以及所有额外渠道；只返回 `credentialConfigured`，不返回凭据原文。 |
 | `POST /api/channels` | 写权限 | `{ name, type, endpoint, topic?, credential? }`；`type` 取 `bark` 或 `ntfy`。Bark 需要 Device Key；Ntfy 需要符合规则的 `topic`，token 可选。 | `201 { channel }`，只告诉你凭据配没配。用来新增额外渠道。错误：`400` 字段无效，`409` 额外渠道数量到顶了。 |
 | `PUT /api/channels` | 写权限 | 完整渠道字段，外加 `id` 和必填的 `revision`。`credential` 留空表示保留同类型的现有凭据；`clearCredential: true` 表示显式清除，这时不能再填新凭据。用 `id: "default"` 可以改默认渠道的名称、Bark/Ntfy 类型和配置；切到 Bark 时要提供 Device Key。 | `{ channel }`，凭据永远不回显。错误：`400` 输入无效，`404` ID 不存在，`409` 修订冲突，`428` 缺少修订号。 |
@@ -146,8 +142,8 @@ MCP 的写工具直接调用现有的 API handler，不会绕过 API token scope
 }
 ```
 
-加密导入导出目前只在网页流程里提供，没有对应的 HTTP API 或 MCP 工具。渠道工具复用对应 HTTP handler 的权限、输入校验和修订保护；MCP 不会回传任何渠道凭据。
+加密导入导出通过仅接受浏览器会话的 `/api/data/export` 和 `/api/data/import` 提供；API token 和 MCP 均不能调用。导出为 version 2 / schema 6，拒绝 v1 文件。渠道工具复用对应 HTTP handler 的权限、输入校验和修订保护；MCP 不会回传任何渠道凭据。
 
 ## 版本兼容
 
-当前 HTTP 路由不带 `/v1` 前缀；Rubidium `1.x` 把现在的契约当作稳定契约。小版本只会做向后兼容的扩展，可能会新增可选字段、工具或状态枚举，所以客户端要能忽略不认识的 JSON 字段、容忍不认识的枚举值。删字段、改既有字段语义或移除路由都属于不兼容变更，必须进新的主版本，并同步更新这份文档；协议协商则遵循 MCP SDK 声明的版本集合。判断部署是否存活可以看 `/api/health`；实际有哪些 API 字段和工具，以对应发布版本的源码和 `/api/mcp` 的 `tools/list` 为准。
+当前 HTTP 路由不带版本前缀。`2.0.0-alpha` 明确移除 v1 兼容：`/api/devices` 和 `/api/settings/test` 返回 `404`，旧 `barker_session` Cookie 无效；渠道统一使用 `/api/channels` 与 `/api/channels/{id}/test`。任务的 `deviceId` 仍表示通知渠道 ID。alpha 期间契约可能继续调整；客户端应按所用发布版本对接，协议协商遵循 MCP SDK 声明的版本集合。服务存活检查使用 `/api/health`，实际工具列表以 `/api/mcp` 的 `tools/list` 为准。详见 [v2 发布说明](v2.0.0-alpha.md)。

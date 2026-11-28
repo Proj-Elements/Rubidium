@@ -10,7 +10,7 @@ export const dynamic = "force-dynamic";
 
 export const GET = apiRoute(async (request: Request): Promise<NextResponse> => {
   if (!requestIsAuthorized(request)) return jsonError("未授权", 401);
-  const { deviceKey, endpoint, displayTimeZone } = readSettings();
+  const { displayTimeZone } = readSettings();
   const defaultChannel = listChannels()[0];
   const now = new Date();
   const active = activeScheduleTasks();
@@ -26,8 +26,6 @@ export const GET = apiRoute(async (request: Request): Promise<NextResponse> => {
     tasks,
     ...forecast,
     displayTimeZone,
-    endpoint,
-    deviceKeyConfigured: Boolean(deviceKey),
     defaultChannel: { type: defaultChannel.type, credentialConfigured: defaultChannel.credentialConfigured },
     deliveries: deliverySummary(),
     ...dashboardStats(now, displayTimeZone),
