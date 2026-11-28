@@ -25,7 +25,7 @@ test("database changes verify backups and new server modules receive owning chec
   assert.ok(selectChecks(["lib/new-module.ts"]).tests.includes("tests/api.test.ts"));
 });
 
-test("environment helper changes run their compatibility tests and container smoke", () => {
+test("environment helper changes run their configuration tests and container smoke", () => {
   assert.deepEqual(selectChecks(["lib/environment.mjs"]), {
     tests: ["tests/environment.test.ts"], source: true, container: true, browser: false,
   });
@@ -119,4 +119,10 @@ test("browser selection covers task and history contracts without unrelated glob
   for (const route of ["app/api/overview/route.ts", "app/api/upcoming/route.ts"]) {
     assert.deepEqual(selectBrowserTests([route]), ["tests/browser/scheduling-contracts.spec.ts", "tests/browser/workspace.spec.ts"]);
   }
+});
+
+test("storage format boundaries select all runtime and transfer owners", () => {
+  const selected = selectChecks(["lib/storage-format.mjs"]);
+  assert.deepEqual(selected.tests, ["tests/data-tools.test.mjs", "tests/data-transfer.test.ts", "tests/db-init.test.ts", "tests/password-reset.test.ts", "tests/persistence.test.ts"]);
+  assert.equal(selected.container, true);
 });

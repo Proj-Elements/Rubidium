@@ -6,11 +6,12 @@ import { fileURLToPath } from "node:url";
 const rules = [
   [/^lib\/auth\.ts$|^app\/api\/session\//, ["auth", "api", "mcp"]],
   [/^lib\/environment\.(?:mjs|d\.mts)$/, ["environment"]],
+  [/^lib\/storage-format\.(?:mjs|d\.mts)$/, ["db-init", "persistence", "data-transfer", "data-tools", "password-reset"]],
   [/^lib\/(errors|storage)\.ts$/, ["auth", "bark", "db-init", "scheduler", "workflow", "api", "persistence", "shutdown"]],
   [/^lib\/(ui|resource)\.ts$|^components\/use-resource\.ts$/, ["ui"]],
   [/^lib\/(i18n|locale-server|password-policy)\.ts$/, ["i18n", "ui", "auth"]],
   [/^app\/(?!api\/)|^components\//, ["ui"]],
-  [/^lib\/bark\.ts$|^app\/api\/settings\/test\//, ["bark", "ntfy", "scheduler", "workflow"]],
+  [/^lib\/bark\.ts$|^app\/api\/channels\/[^/]+\/test\//, ["bark", "ntfy", "scheduler", "workflow"]],
   [/^lib\/(ntfy|notification)\.ts$/, ["bark", "ntfy", "scheduler", "api", "mcp"]],
   [/^lib\/cron\.ts$/, ["cron", "cron-review", "validation", "scheduler", "workflow", "api", "persistence"]],
   [/^lib\/db(?:\.ts|\/)/, ["auth", "db-init", "scheduler", "workflow", "api", "persistence", "shutdown", "data-tools", "data-transfer", "repairs", "backend-review", "mcp"]],
@@ -40,7 +41,7 @@ const browserRules = [
   [/^app\/(?:api\/)?tasks\/|^components\/(?:task-editor|calendar-field|time-zone-picker|use-unsaved|unsaved-navigation-dialog)\.tsx?$/, ["workspace", "scheduling-contracts"]],
   [/^app\/(?:api\/)?deliveries\//, ["workspace", "history-contracts"]],
   [/^app\/api\/data\/|^lib\/data-transfer\.ts$|^components\/data-transfer\.tsx$/, ["data-transfer"]],
-  [/^app\/api\/(?:channels|devices|settings)\/|^components\/channel-manager\.tsx$/, ["channels", "history-contracts"]],
+  [/^app\/api\/(?:channels|settings)\/|^components\/channel-manager\.tsx$/, ["channels", "history-contracts"]],
   [/^app\/api\/security\/|^components\/security-manager\.tsx$/, ["security"]],
   [/^app\/settings\//, ["channels", "security", "data-transfer", "history-contracts"]],
   [/^app\/(?:layout\.tsx$|(?:tasks|deliveries|settings)\/layout\.tsx$)/, ["title", "workspace"]],
@@ -82,7 +83,7 @@ export function selectChecks(files) {
     if (/^tests\/[^/]+\.test\.(ts|mjs)$/.test(file)) tests.add(file);
   }
   const source = files.some((file) => /^(app\/|components\/|lib\/|scripts\/(build-preflight|setup-heroui|runtime-paths|verify-standalone)\.mjs$|(?:instrumentation|proxy|next\.config)\.ts$|package\.json$|pnpm-lock\.yaml$|pnpm-workspace\.yaml$|tsconfig\.json$|postcss\.config\.mjs$|eslint\.config\.mjs$)/.test(file));
-  const container = files.some((file) => /^(Dockerfile$|\.dockerignore$|docker-compose(?:\.ghcr)?\.yml$|scripts\/(build-preflight|setup-heroui|container-smoke|runtime-paths|verify-standalone|start-server|data-tools|password-reset)\.mjs$|(?:instrumentation|proxy|next\.config)\.ts$|lib\/environment\.(?:mjs|d\.mts)$|lib\/db\/|lib\/(auth|bark|contracts|cron|db|errors|http|logging|scheduler|storage|types|validation)\.ts$|app\/api\/|package\.json$|pnpm-lock\.yaml$|pnpm-workspace\.yaml$)/.test(file));
+  const container = files.some((file) => /^(Dockerfile$|\.dockerignore$|docker-compose(?:\.ghcr)?\.yml$|scripts\/(build-preflight|setup-heroui|container-smoke|runtime-paths|verify-standalone|start-server|data-tools|password-reset)\.mjs$|(?:instrumentation|proxy|next\.config)\.ts$|lib\/(?:environment|storage-format)\.(?:mjs|d\.mts)$|lib\/db\/|lib\/(auth|bark|contracts|cron|db|errors|http|logging|scheduler|storage|types|validation)\.ts$|app\/api\/|package\.json$|pnpm-lock\.yaml$|pnpm-workspace\.yaml$)/.test(file));
   const browser = selectBrowserTests(files).length > 0;
   return { tests: [...tests].sort(), source, container, browser };
 }
