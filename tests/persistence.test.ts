@@ -79,3 +79,38 @@ test("v2 creates its final schema once and retains channel and preference revisi
     assert.equal(existsSync(join(directory, "barker.sqlite")), false);
   } finally { rmSync(directory, { recursive: true, force: true }); }
 });
+
+test("v1 WAL databases are rejected without creating or modifying sidecars", async () => {
+  const { assertV2DataDirectory } = await import("../lib/storage-format.mjs");
+  for (const live of [false, true]) {
+    const directory = mkdtempSync(join(tmpdir(), "rubidium-v1-wal-"));
+    const database = new DatabaseSync(join(directory, "rubidium.sqlite"));
+    let closed = false;
+    try {
+      database.exec("PRAGMA journal_mode=WAL; CREATE TABLE legacy(value TEXT); PRAGMA user_version=5;");
+      if (!live) { database.close(); closed = true; }
+      const files = readdirSync(directory);
+      const contents = files.map((name) => readFileSync(join(directory, name)));
+      assert.throws(() => assertV2DataDirectory(directory), /v1 migration is not supported/);
+      assert.deepEqual(readdirSync(directory), files);
+      files.forEach((name, index) => assert.deepEqual(readFileSync(join(directory, name)), contents[index]));
+    } finally {
+      if (!closed) database.close();
+      rmSync(directory, { recursive: true, force: true });
+    }
+  }
+});
+
+test("v2 preflight accepts a schema committed only to a live WAL", async () => {
+  const { assertV2DataDirectory } = await import("../lib/storage-format.mjs");
+  const directory = mkdtempSync(join(tmpdir(), "rubidium-v2-wal-"));
+  const database = new DatabaseSync(join(directory, "rubidium.sqlite"));
+  try {
+    database.exec("PRAGMA journal_mode=WAL; CREATE TABLE current(value TEXT); PRAGMA user_version=6;");
+    const files = readdirSync(directory);
+    const contents = files.map((name) => readFileSync(join(directory, name)));
+    assert.doesNotThrow(() => assertV2DataDirectory(directory));
+    assert.deepEqual(readdirSync(directory), files);
+    files.forEach((name, index) => assert.deepEqual(readFileSync(join(directory, name)), contents[index]));
+  } finally { database.close(); rmSync(directory, { recursive: true, force: true }); }
+});
