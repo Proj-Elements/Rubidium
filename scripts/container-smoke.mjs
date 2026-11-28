@@ -75,12 +75,15 @@ try {
   };
   const beforeSettings = await api("/api/settings");
   await api("/api/settings", "PUT", {
-    endpoint: `http://host.docker.internal:${mockPort}`, deviceKey,
+    ...beforeSettings.settings,
     title: "Rubidium", sound: "", group: "Smoke", icon: "", revision: beforeSettings.revision,
   });
-  const settings = await api("/api/settings");
-  assert.equal(settings.deviceKeyConfigured, true);
-  assert.equal(JSON.stringify(settings).includes(deviceKey), false);
+  const beforeChannel = (await api("/api/channels")).channels[0];
+  const { channel } = await api("/api/channels", "PUT", {
+    ...beforeChannel, endpoint: `http://host.docker.internal:${mockPort}`, credential: deviceKey,
+  });
+  assert.equal(channel.credentialConfigured, true);
+  assert.equal(JSON.stringify(channel).includes(deviceKey), false);
   const startsAt = new Date(Math.ceil((Date.now() + 3000) / 60_000) * 60_000).toISOString();
   const { task } = await api("/api/tasks", "POST", {
     name: "Container restart reminder", description: "Immutable local smoke payload",

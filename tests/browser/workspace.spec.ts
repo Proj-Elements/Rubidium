@@ -311,8 +311,8 @@ test("a stale settings draft cannot overwrite a newer saved configuration", asyn
 
 test("clearing a configured Bark credential requires an empty replacement field", async ({ page }) => {
   await login(page);
-  const before = await (await page.request.get("/api/settings")).json();
-  const saved = await page.request.put("/api/settings", { data: { ...before.settings, revision: before.revision, deviceKey: "browser-connected-key" } });
+  const before = (await (await page.request.get("/api/channels")).json()).channels[0];
+  const saved = await page.request.put("/api/channels", { data: { ...before, credential: "browser-connected-key" } });
   expect(saved.status()).toBe(200);
   await page.goto("/settings");
   await page.getByRole("button", { name: "编辑 主要通知", exact: true }).click();

@@ -30,7 +30,7 @@
 | 方法与路径 | 鉴权 | 输入 | 成功结果与常见错误 |
 | --- | --- | --- | --- |
 | `GET /api/health` | 无 | 无 | `{ status: "ok" }`。认证存储没就绪、SQLite 不可写或调度器不健康时，返回 `503 { status: "unavailable" }`。 |
-| `GET /api/overview` | 普通数据 API | 无 | 概要信息：提醒、未来排期、时区、Bark endpoint、是否已配 Device Key、队列摘要、统计、近期记录和服务端时间；不含 Device Key。错误：`401`。 |
+| `GET /api/overview` | 普通数据 API | 无 | 概要信息：提醒、未来排期、时区、`defaultChannel: { type, credentialConfigured }`、队列摘要、统计、近期记录和服务端时间；不含渠道地址或凭据。错误：`401`。 |
 | `GET /api/upcoming` | 普通数据 API | `date?`、`after?`、`task?`。`date` 必须落在未来七天内；游标 `after` 和 `task` 必须成对提供。 | `{ items, total, next }`，每页最多 50 条排期。错误：`400` 日期或游标无效，`503` 预测负载超时。 |
 
 ### 提醒任务
