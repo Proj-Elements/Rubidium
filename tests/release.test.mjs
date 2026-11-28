@@ -26,8 +26,8 @@ test("older stable releases cannot move latest backward", () => {
 });
 
 test("prereleases publish immutable tags without stable channels", () => {
-  const plan = releasePlan("owner/repo", "1.3.0-rc.1", sha, []);
-  assert.deepEqual(plan.channels, ["1.3.0-rc.1", `sha-${sha}`]);
+  const plan = releasePlan("owner/repo", "2.0.0-alpha", sha, ["1.2.1"]);
+  assert.deepEqual(plan.channels, ["2.0.0-alpha", `sha-${sha}`]);
   assert.equal(plan.image, "ghcr.io/owner/repo");
 });
 
@@ -93,7 +93,7 @@ test("release and CI workflow YAML parse with the expected publication gates", (
 
 test("deployment guides pin the application version and separate image and source installs", () => {
   const version = JSON.parse(readFileSync("package.json", "utf8")).version;
-  assert.match(version, /^\d+\.\d+\.\d+$/);
+  assert.doesNotThrow(() => parseVersion(version));
   for (const path of ["README.md", "docs/api-mcp.md", "docs/deployment.md"]) {
     assert.match(readFileSync(path, "utf8"), new RegExp(`rubidium:${version}|${version}`), path);
   }
@@ -112,6 +112,8 @@ test("deployment guides pin the application version and separate image and sourc
   assert.equal(compose.services.rubidium.build.context, ".");
   assert.equal(compose.services.rubidium.image, "rubidium:local");
   assert.equal(compose.services.rubidium.environment.RUBIDIUM_DATA_DIR, "${RUBIDIUM_DATA_DIR:-/app/data}");
+  assert.deepEqual(compose.services.rubidium.volumes, ["rubidium-v2-data:/app/data"]);
+  assert.deepEqual(Object.keys(compose.volumes), ["rubidium-v2-data"]);
   const environment = readFileSync(".env.example", "utf8");
   assert.match(environment, /^RUBIDIUM_DATA_DIR=$/m);
   assert.doesNotMatch(environment, /RUBIDIUM_IMAGE|docker-compose\.ghcr/);

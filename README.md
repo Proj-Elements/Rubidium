@@ -2,6 +2,8 @@
 
 Rubidium 是一个可以自己部署的定时提醒服务。你可以设一条只响一次的提醒，也可以让它每个工作日上午 9 点推送到 Bark 或 Ntfy。提醒和投递记录都能在网页上管理，也可以通过 HTTP API 或 MCP 接入自己的工具。
 
+当前版本为 **v2.0.0-alpha**，需要全新的数据目录或数据卷，不支持升级、导入或恢复 v1 数据。请保留原 v1 实例和数据；完整不兼容变更见 [v2 发布说明](docs/v2.0.0-alpha.md)。
+
 ## 用 Docker 镜像启动
 
 如果只是想运行 Rubidium，用现成的镜像最简单：不用克隆仓库，也不需要 HeroUI Pro 访问码。当前[镜像托管在 GHCR](https://github.com/Proj-Elements/Rubidium/pkgs/container/rubidium)，拉取前需要登录。准备一个有该包读取权限、且带 `read:packages` 权限的 GitHub 令牌。
@@ -12,10 +14,10 @@ Rubidium 是一个可以自己部署的定时提醒服务。你可以设一条�
 umask 077
 printf 'RUBIDIUM_SETUP_TOKEN=%s\n' "$(openssl rand -hex 32)" > rubidium.env
 docker login ghcr.io --username YOUR_GITHUB_USERNAME
-docker pull ghcr.io/proj-elements/rubidium:1.2.1
+docker pull ghcr.io/proj-elements/rubidium:2.0.0-alpha
 docker run -d --name rubidium --init --restart unless-stopped --stop-timeout 30 \
   -p 127.0.0.1:3000:3000 --env-file rubidium.env \
-  -v rubidium-data:/app/data ghcr.io/proj-elements/rubidium:1.2.1
+  -v rubidium-v2-data:/app/data ghcr.io/proj-elements/rubidium:2.0.0-alpha
 ```
 
 ## 用 Docker Compose 从源码构建
@@ -46,7 +48,7 @@ unset HEROUI_KEY
 2. 打开「设置 → 通知渠道」，配置 Bark 或 Ntfy，先发一条测试通知，确认设备能收到。
 3. 创建提醒，选好执行时间和通知渠道。到点后，可以在「投递记录」里查看发送结果。
 
-两种部署方式默认都只开放本机端口。需要从公网访问时，请使用 HTTPS 反向代理。容器把数据保存在挂载到 `/app/data` 的卷里；升级时要复用原卷，具体步骤见[部署指南](docs/deployment.md)。
+两种部署方式默认都只开放本机端口。需要从公网访问时，请使用 HTTPS 反向代理。容器把数据保存在挂载到 `/app/data` 的卷里；后续兼容的 v2 更新使用原 v2 卷，具体步骤见[部署指南](docs/deployment.md)。
 
 ## 文档
 

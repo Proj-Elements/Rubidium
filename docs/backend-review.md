@@ -1,5 +1,10 @@
 # Backend review
 
+This report records the v1.2.1 review milestone. The subsequent
+[v2.0.0-alpha release](v2.0.0-alpha.md) retains the fixes while removing v1
+storage, configuration and API compatibility; references to removed v1 routes
+below are historical findings.
+
 Review baseline: `3151719` (Rubidium 1.2.1). Fixes are isolated on
 `codex/backend-review-20261127`; this review does not publish a release.
 
